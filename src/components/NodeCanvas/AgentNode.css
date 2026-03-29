@@ -1,0 +1,326 @@
+/* 智能体节点 */
+.agent-node {
+  position: absolute;
+  width: 200px;
+  height: 80px;
+  background: rgba(30, 30, 40, 0.95);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  cursor: grab;
+  user-select: none;
+  z-index: 10;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.agent-node:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+}
+
+.agent-node.selected {
+  border-color: var(--node-color, #3b82f6);
+  box-shadow: 0 0 0 2px var(--node-color, #3b82f6), 0 6px 24px rgba(0, 0, 0, 0.5);
+}
+
+.agent-node:active {
+  cursor: grabbing;
+}
+
+/* 运行状态 */
+.agent-node.running {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px #3b82f6, 0 0 20px rgba(59, 130, 246, 0.5);
+  animation: pulse-running 1.5s ease-in-out infinite;
+}
+
+.agent-node.completed {
+  border-color: #10b981;
+  box-shadow: 0 0 0 2px #10b981;
+}
+
+@keyframes pulse-running {
+  0%, 100% {
+    box-shadow: 0 0 0 2px #3b82f6, 0 0 20px rgba(59, 130, 246, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 4px #3b82f6, 0 0 30px rgba(59, 130, 246, 0.8);
+  }
+}
+
+/* 节点按钮 - 左上角和右上角 */
+.node-btn {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 50;
+  opacity: 0;
+  transition: all 0.2s ease;
+}
+
+.agent-node:hover .node-btn {
+  opacity: 1;
+}
+
+.node-btn:hover {
+  transform: scale(1.1);
+}
+
+/* 左上角 - 删除按钮 */
+.delete-btn {
+  top: -8px;
+  left: -8px;
+  background: #ef4444;
+  color: white;
+}
+
+.delete-btn:hover {
+  background: #dc2626;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+}
+
+/* 右上角 - 编辑按钮 */
+.edit-btn {
+  top: -8px;
+  right: -8px;
+  background: #3b82f6;
+  color: white;
+}
+
+.edit-btn:hover {
+  background: #2563eb;
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.5);
+}
+
+/* 节点内容 */
+.node-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  height: 100%;
+  padding: 0 24px;
+}
+
+.node-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.node-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.95);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 端口 */
+.port {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  cursor: crosshair;
+  z-index: 100;
+  transition: transform 0.15s ease;
+  border: 2px solid rgba(30, 30, 40, 0.95);
+}
+
+.port:hover {
+  transform: scale(1.4);
+}
+
+/* 输入端口 - 左侧（固定在头部区域） */
+.input-port {
+  left: -7px;
+  top: 20px;
+  transform: translateY(-50%);
+  background: #3b82f6;
+}
+
+.input-port:hover {
+  box-shadow: 0 0 10px #3b82f6;
+}
+
+/* 输出端口 - 右侧（固定在头部区域） */
+.output-port {
+  right: -7px;
+  top: 20px;
+  transform: translateY(-50%);
+  background: #10b981;
+}
+
+.output-port:hover {
+  box-shadow: 0 0 10px #10b981;
+}
+
+/* 智能体选择菜单 */
+.agent-menu {
+  position: absolute;
+  width: 200px;
+  background: rgba(24, 24, 32, 0.98);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  overflow: hidden;
+}
+
+.agent-menu-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.agent-menu-header svg {
+  color: #10b981;
+}
+
+.agent-menu-list {
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.agent-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+}
+
+.agent-menu-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.agent-menu-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.agent-menu-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 设置面板 */
+.node-settings-panel {
+  position: absolute;
+  width: 220px;
+  background: rgba(24, 24, 32, 0.98);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  overflow: hidden;
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.close-btn {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.close-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.settings-content {
+  padding: 12px 16px;
+}
+
+.setting-item {
+  margin-bottom: 16px;
+}
+
+.setting-item:last-child {
+  margin-bottom: 0;
+}
+
+.setting-item label {
+  display: block;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.param-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 6px;
+  margin-bottom: 6px;
+}
+
+.param-name {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.param-type {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.4);
+  padding: 2px 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+}

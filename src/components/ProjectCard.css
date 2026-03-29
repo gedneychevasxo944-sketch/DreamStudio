@@ -1,0 +1,373 @@
+.project-card {
+  position: relative;
+  background: rgba(26, 26, 37, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  cursor: pointer;
+  overflow: hidden;
+  transition: all 0.25s ease;
+}
+
+.project-card:hover {
+  border-color: #06b6d4;
+  transform: translateY(-4px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.project-card.completed {
+  border-color: rgba(6, 182, 212, 0.3);
+}
+
+/* Preview Area - 未完成卡片缩窄 */
+.card-preview {
+  position: relative;
+  width: 100%;
+  height: 140px;
+  background: #1a1a25;
+  overflow: hidden;
+}
+
+/* 已完成卡片视频区域放大 */
+.project-card.completed .card-preview {
+  height: 220px;
+}
+
+.card-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.placeholder-content {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: linear-gradient(135deg, #1a1a25 0%, #12121a 100%);
+}
+
+.placeholder-text {
+  font-size: 12px;
+  color: #5a6270;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.preview-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 10, 15, 0.6);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.project-card:hover .preview-overlay {
+  opacity: 1;
+}
+
+.play-icon {
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(6, 182, 212, 0.9);
+  border-radius: 50%;
+  color: #0a0a0f;
+}
+
+.video-duration {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  padding: 4px 8px;
+  background: rgba(10, 10, 15, 0.8);
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  color: #ffffff;
+}
+
+/* Card Body - 已完成卡片缩小 */
+.card-body {
+  padding: 12px 16px 16px;
+}
+
+/* 已完成卡片进一步缩小 */
+.project-card.completed .card-body {
+  padding: 10px 14px 12px;
+}
+
+.card-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.project-card.completed .card-meta {
+  margin-bottom: 6px;
+}
+
+.project-type {
+  font-size: 11px;
+  color: #5a6270;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.status-badge {
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.status-badge.制作中 {
+  background: rgba(59, 130, 246, 0.2);
+  color: #3b82f6;
+}
+
+.status-badge.审核阶段 {
+  background: rgba(245, 158, 11, 0.2);
+  color: #f59e0b;
+}
+
+.status-badge.预制阶段 {
+  background: rgba(160, 168, 184, 0.2);
+  color: #a0a8b8;
+}
+
+.status-badge.后期制作 {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+}
+
+.status-badge.已完成 {
+  background: rgba(6, 182, 212, 0.2);
+  color: #06b6d4;
+}
+
+.status-badge.剧本阶段 {
+  background: rgba(192, 200, 212, 0.2);
+  color: #a0a8b8;
+}
+
+.project-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: #ffffff;
+  margin-bottom: 12px;
+}
+
+.project-card.completed .project-title {
+  font-size: 16px;
+  margin-bottom: 8px;
+}
+
+/* Progress - 未完成卡片 */
+.progress-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.progress-track {
+  flex: 1;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #06b6d4, #3b82f6);
+  border-radius: 2px;
+  transition: width 1s ease;
+}
+
+.progress-value {
+  font-size: 11px;
+  color: #a0a8b8;
+  font-family: 'JetBrains Mono', monospace;
+  min-width: 32px;
+  text-align: right;
+}
+
+/* Agents - 未完成卡片 */
+.agents-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.agent-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  font-size: 11px;
+  color: #a0a8b8;
+}
+
+.node-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+/* Completed - 已完成卡片 */
+.completed-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #10b981;
+}
+
+/* Hover Overlay */
+.hover-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 10, 15, 0.85);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+/* 已完成卡片的 hover 覆盖层 - 右下角小入口 */
+.project-card.completed .hover-overlay {
+  background: transparent;
+  backdrop-filter: none;
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: 12px;
+  pointer-events: none;
+}
+
+.overlay-content {
+  text-align: center;
+}
+
+/* 已完成卡片的入口按钮 */
+.project-card.completed .overlay-content {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: rgba(6, 182, 212, 0.9);
+  border-radius: 8px;
+  pointer-events: auto;
+  transition: all 0.2s ease;
+}
+
+.project-card.completed .overlay-content:hover {
+  background: rgba(6, 182, 212, 1);
+  transform: scale(1.05);
+}
+
+.overlay-label {
+  font-size: 11px;
+  color: #5a6270;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 16px;
+  display: block;
+}
+
+/* 已完成卡片的标签样式 */
+.project-card.completed .overlay-label {
+  font-size: 12px;
+  color: #0a0a0f;
+  font-weight: 500;
+  margin-bottom: 0;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.path-flow {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.path-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  font-size: 13px;
+  color: #ffffff;
+}
+
+/* 视频预览弹窗 */
+.video-preview-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.9);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: 20px;
+}
+
+.video-preview-content {
+  position: relative;
+  width: 100%;
+  max-width: 900px;
+  background: #1a1a25;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.video-preview-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 36px;
+  height: 36px;
+  background: rgba(0, 0, 0, 0.5);
+  border: none;
+  border-radius: 50%;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  transition: all 0.2s ease;
+}
+
+.video-preview-close:hover {
+  background: rgba(0, 0, 0, 0.8);
+  transform: scale(1.1);
+}
+
+.video-preview-player {
+  width: 100%;
+  height: auto;
+  max-height: 80vh;
+  display: block;
+}

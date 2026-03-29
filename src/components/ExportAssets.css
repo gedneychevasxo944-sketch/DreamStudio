@@ -1,0 +1,55 @@
+/* Gallery区域导出按钮样式 */
+.export-assets-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  border: none;
+  border-radius: var(--radius-sm);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.export-assets-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+.export-assets-btn:disabled {
+  cursor: not-allowed;
+}
+
+/* Loading状态 */
+.export-assets-btn.loading {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  opacity: 0.9;
+}
+
+/* 成功状态 */
+.export-assets-btn.success {
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+}
+
+.export-assets-btn svg {
+  flex-shrink: 0;
+}
+
+/* 旋转动画 */
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}

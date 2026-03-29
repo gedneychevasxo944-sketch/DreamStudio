@@ -1,0 +1,92 @@
+/* 节点连接线 */
+.node-connection {
+  pointer-events: none;
+}
+
+/* 发光背景线 */
+.connection-glow {
+  filter: blur(4px);
+  transition: opacity 0.3s ease;
+}
+
+/* 主线 */
+.connection-line {
+  stroke-linecap: round;
+  transition: all 0.3s ease;
+}
+
+/* 审核循环连线样式 */
+.node-connection.audit-loop .connection-line {
+  animation: dash-flow 1s linear infinite;
+}
+
+@keyframes dash-flow {
+  to {
+    stroke-dashoffset: -12;
+  }
+}
+
+/* 数据流光 */
+.data-flow {
+  filter: drop-shadow(0 0 4px currentColor);
+}
+
+/* 心跳效果 */
+.heartbeat-line {
+  filter: drop-shadow(0 0 6px #fbbf24);
+}
+
+/* 运行状态 */
+.node-connection.running .connection-line {
+  filter: drop-shadow(0 0 2px currentColor);
+}
+
+/* 连线悬停效果（需要添加交互层） */
+.node-connection:hover .connection-line {
+  stroke-width: 3;
+  filter: drop-shadow(0 0 4px currentColor);
+}
+
+/* 数据包动画 */
+.data-packet {
+  filter: drop-shadow(0 0 6px currentColor);
+}
+
+/* 类型不匹配时的红色连线 */
+.node-connection.type-mismatch .connection-line {
+  stroke: #ef4444;
+  stroke-dasharray: 4 4;
+  animation: error-pulse 0.5s ease-in-out infinite alternate;
+}
+
+@keyframes error-pulse {
+  from {
+    opacity: 0.5;
+    filter: drop-shadow(0 0 2px #ef4444);
+  }
+  to {
+    opacity: 1;
+    filter: drop-shadow(0 0 6px #ef4444);
+  }
+}
+
+/* 连线标签 */
+.connection-label {
+  font-size: 10px;
+  fill: rgba(255, 255, 255, 0.5);
+  text-anchor: middle;
+  dominant-baseline: middle;
+  pointer-events: none;
+}
+
+/* 选中状态 */
+.node-connection.selected .connection-line {
+  stroke-width: 3;
+  filter: drop-shadow(0 0 6px currentColor);
+}
+
+/* 流光粒子效果 */
+.flow-particle {
+  fill: currentColor;
+  filter: drop-shadow(0 0 4px currentColor);
+}
