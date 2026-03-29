@@ -138,14 +138,25 @@ public class UpstreamAiClient {
             }
         }
 
+        // 其他 agent 类型（producer, content, visual, director, technical 等）
+        return buildNodeChatResponse(request);
+    }
+
+    private ChatDTO.MessageResponse buildNodeChatResponse(ChatDTO.SendRequest request) {
+        String agentId = request.getAgentId();
+        ComponentType componentType = ComponentType.fromCode(agentId);
+        NodeSimulationData simData = SimulationDataProvider.getSimulationData(componentType);
+
         return ChatDTO.MessageResponse.builder()
                 .id(System.currentTimeMillis())
                 .projectId(request.getProjectId())
                 .projectVersion(request.getProjectVersion())
-                .agentId(request.getAgentId())
-                .agentName(getAgentName(request.getAgentId()))
+                .agentId(agentId)
+                .agentName(getAgentName(agentId))
                 .question(request.getMessage())
-                .result("TODO: 等待上游服务对接")
+                .thinkingSteps(simData.getThinkingSteps())
+                .resultType(simData.getResultType() != null ? simData.getResultType() : "text")
+                .result(simData.getTextResult())
                 .createTime(java.time.LocalDateTime.now().toString())
                 .build();
     }

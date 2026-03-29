@@ -155,6 +155,28 @@ const NodeCanvas = ({ isFullscreen, onToggleFullscreen, onAddExecutionLog, onSet
     if (!canvas) return;
 
     const handleWheel = (e) => {
+      // 检查事件目标是否在可滚动元素内
+      const scrollableSelectors = [
+        '.thinking-expanded',
+        '.result-textarea',
+        '.chat-messages',
+        '.cc-messages',
+        '.cc-thinking-content',
+        '.cc-result-content',
+        '.conversation-messages'
+      ];
+
+      let target = e.target;
+      while (target && target !== canvas) {
+        for (const selector of scrollableSelectors) {
+          if (target.matches && target.matches(selector)) {
+            // 目标元素是可滚动的，让原生滚动处理
+            return;
+          }
+        }
+        target = target.parentElement;
+      }
+
       e.preventDefault();
       const isTrackpadPan = !e.ctrlKey && !e.metaKey && (Math.abs(e.deltaX) > 0 || Math.abs(e.deltaY) > 0);
       const isZoom = e.ctrlKey || e.metaKey || (e.deltaX === 0 && Math.abs(e.deltaY) > 0 && !isTrackpadPan);
@@ -290,14 +312,14 @@ const NodeCanvas = ({ isFullscreen, onToggleFullscreen, onAddExecutionLog, onSet
       // 将外部节点转换为内部节点格式，从 agentTypes 获取完整的属性
       const formattedNodes = initialNodes.map(node => {
         const agentType = agentTypes[node.type] || agentTypes[1]; // 默认使用第一个智能体
-        // 合并节点数据：优先使用 agentType 的属性，用 node 的属性覆盖位置相关的字段
+        // 合并节点数据：保留 node.data，agentType 提供基础属性
         return {
           ...agentType, // 先展开 agentType 中的所有属性（name, icon, color, inputs, outputs 等）
-          id: node.id,  // 使用传入的 id
-          x: node.x,    // 使用传入的 x 坐标
-          y: node.y,    // 使用传入的 y 坐标
-          type: node.type || 'agent',
-          status: 'idle'
+          ...node,       // 保留 node 的所有属性（id, x, y, data, status 等）
+          id: node.id,   // 确保使用传入的 id
+          x: node.x,     // 确保使用传入的 x 坐标
+          y: node.y,     // 确保使用传入的 y 坐标
+          type: node.type || 'agent'
         };
       });
       
@@ -637,9 +659,13 @@ const NodeCanvas = ({ isFullscreen, onToggleFullscreen, onAddExecutionLog, onSet
 
   // 更新节点数据
   const updateNodeData = (nodeId, data) => {
-    setNodes(prev => prev.map(n =>
-      n.id === nodeId ? { ...n, data: { ...n.data, ...data } } : n
-    ));
+    console.log('[NodeCanvas] updateNodeData called, nodeId:', nodeId, 'data:', data);
+    setNodes(prev => {
+      console.log('[NodeCanvas] updateNodeData - prev nodes:', prev.map(n => ({id: n.id, type: n.type, hasMessages: !!n.data?.messages})));
+      return prev.map(n =>
+        n.id === nodeId ? { ...n, data: { ...n.data, ...data } } : n
+      );
+    });
   };
 
   // 处理自动生成视频节点

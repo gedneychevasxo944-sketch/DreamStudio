@@ -38,6 +38,7 @@ import {
 } from 'lucide-react';
 import './RichAgentNode.css';
 import { VideoEditor } from '../VideoEditor';
+import ChatConversation from '../ChatConversation';
 
 // 图片预览弹窗组件
 const ImagePreviewModal = ({ src, alt, isOpen, onClose }) => {
@@ -399,17 +400,11 @@ const WriterNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragg
   const [isExpanded, setIsExpanded] = useState(false);
   const [isThinkingExpanded, setIsThinkingExpanded] = useState(false);
   const [hasResult, setHasResult] = useState(false);
-  const [messages, setMessages] = useState(node.data?.messages || []);
-  const [inputValue, setInputValue] = useState('');
   const [showDetailModal, setShowDetailModal] = useState(false);
-  const chatMessagesRef = useRef(null);
   const prevRunningRef = useRef(false);
 
   // 解析剧本
   const { episodes, totalScenes } = parseScript(node.data?.result);
-
-  // 对话是否可编辑：成功状态且不在生成中
-  const isChatEditable = !isRunning && hasResult;
 
   useEffect(() => {
     if (isRunning && !prevRunningRef.current) {
@@ -432,6 +427,14 @@ const WriterNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragg
     }
   }, [node.data?.isThinkingExpanded]);
 
+  // 思考内容自动收起：当有结果时收起思考内容
+  // 暂时注释掉，避免 React 警告
+  // useEffect(() => {
+  //   if (node.data?.result && node.data?.thinking?.length > 0) {
+  //     setIsThinkingExpanded(false);
+  //   }
+  // }, [node.data?.result, node.data?.thinking]);
+
   // 监听外部传入的结果展开状态
   useEffect(() => {
     if (node.data?.isResultExpanded) {
@@ -440,27 +443,25 @@ const WriterNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragg
     }
   }, [node.data?.isResultExpanded]);
 
-  useEffect(() => {
-    if (chatMessagesRef.current) {
-      chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
+  const handleMessagesChange = useCallback((newMessages) => {
+    console.log('[RichAgentNode] handleMessagesChange called, type:', typeof newMessages);
+    // ChatConversation 可能传函数（函数式更新）或数组
+    // 需要判断处理
+    if (typeof newMessages === 'function') {
+      console.log('[RichAgentNode] handleMessagesChange - received a function, using messagesRef');
+      // 如果是函数，用 messagesRef 而非 node.data.messages 来解析（避免 stale closure）
+      const resolvedMessages = newMessages(messagesRef.current);
+      console.log('[RichAgentNode] handleMessagesChange - resolved messages:', resolvedMessages);
+      // 更新 ref
+      messagesRef.current = resolvedMessages;
+      onUpdateContent?.({ ...node.data, messages: resolvedMessages });
+    } else {
+      console.log('[RichAgentNode] handleMessagesChange - received array:', newMessages);
+      // 更新 ref
+      messagesRef.current = newMessages;
+      onUpdateContent?.({ ...node.data, messages: newMessages });
     }
-  }, [messages]);
-
-  const handleSendMessage = (text) => {
-    if (!isChatEditable) return;
-    const newMessage = { id: Date.now(), role: 'user', content: text };
-    const newMessages = [...messages, newMessage];
-    setMessages(newMessages);
-    onUpdateContent?.({ ...node.data, messages: newMessages });
-
-    setTimeout(() => {
-      setMessages(prev => [...prev, {
-        id: Date.now() + 1,
-        role: 'assistant',
-        content: '收到，我来调整剧本内容。'
-      }]);
-    }, 800);
-  };
+  }, [node.data, onUpdateContent]);
 
   const handleToggleExpand = (e) => {
     if (isParentDragging) return;
@@ -523,7 +524,6 @@ const WriterNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragg
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              onWheel={(e) => e.stopPropagation()}
             >
               {/* 剧本概览 */}
               <div className="script-overview-section">
@@ -533,7 +533,7 @@ const WriterNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragg
                     <span>分场剧本概览</span>
                   </div>
                 </div>
-                
+
                 {episodes.length === 0 ? (
                   <div className="script-overview-empty">
                     {isRunning ? '正在生成剧本...' : '暂无剧本内容'}
@@ -544,8 +544,8 @@ const WriterNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragg
                       <div className="summary-line">故事概要：共{episodes.length}集，{totalScenes}场戏</div>
                       <div className="summary-line">集数范围：第1集-第{episodes.length}集</div>
                     </div>
-                    
-                    <button 
+
+                    <button
                       className="view-detail-btn"
                       onClick={(e) => {
                         e.stopPropagation();
@@ -560,53 +560,16 @@ const WriterNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragg
               </div>
 
               {/* 对话区域 */}
-              <div className="chat-section">
-                <div className="section-header">
-                  <Users size={14} />
-                  <span>对话记录</span>
-                </div>
-                <div ref={chatMessagesRef} className={`chat-messages ${!isChatEditable ? 'readonly' : ''}`}>
-                  {messages.length === 0 ? (
-                    <div className="chat-empty">暂无对话记录</div>
-                  ) : (
-                    messages.map((msg) => (
-                      <div key={msg.id} className={`chat-message ${msg.role}`}>
-                        <span className="chat-role">{msg.role === 'user' ? '用户' : 'AI'}</span>
-                        <span className="chat-content">{msg.content}</span>
-                      </div>
-                    ))
-                  )}
-                </div>
-                <div className="chat-input-wrapper">
-                  <input
-                    type="text"
-                    className="chat-input"
-                    value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && inputValue.trim() && isChatEditable) {
-                        handleSendMessage(inputValue.trim());
-                        setInputValue('');
-                      }
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                    placeholder={isChatEditable ? '输入消息...' : '生成完成后可对话'}
-                    disabled={!isChatEditable}
-                  />
-                  <button
-                    className="chat-send-btn"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (inputValue.trim() && isChatEditable) {
-                        handleSendMessage(inputValue.trim());
-                        setInputValue('');
-                      }
-                    }}
-                    disabled={!isChatEditable || !inputValue.trim()}
-                  >
-                    <Zap size={14} />
-                  </button>
-                </div>
+              <div className="chat-section" style={{ height: '280px', display: 'flex', flexDirection: 'column' }}>
+                <ChatConversation
+                  agentId={node.type}
+                  projectId={1}
+                  projectVersion={1}
+                  messages={node.data?.messages || []}
+                  onMessagesChange={handleMessagesChange}
+                  placeholder="输入消息..."
+                  disabledPlaceholder="生成完成后可对话"
+                />
               </div>
             </motion.div>
           )}
@@ -632,9 +595,6 @@ const VisualNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragg
   const [isExpanded, setIsExpanded] = useState(false);
   const [isThinkingExpanded, setIsThinkingExpanded] = useState(false);
   const [hasResult, setHasResult] = useState(false);
-  const [messages, setMessages] = useState(node.data?.messages || []);
-  const [inputValue, setInputValue] = useState('');
-  const chatMessagesRef = useRef(null);
   const clickStartPos = useRef({ x: 0, y: 0 });
   const prevRunningRef = useRef(false);
 
@@ -656,9 +616,6 @@ const VisualNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragg
   const handleClosePreview = () => {
     setPreviewImage(null);
   };
-
-  // 对话是否可编辑：成功状态且不在生成中
-  const isChatEditable = !isRunning && hasResult;
 
   useEffect(() => {
     if (isRunning && !prevRunningRef.current) {
@@ -695,6 +652,14 @@ const VisualNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragg
     }
   }, [node.data?.isThinkingExpanded]);
 
+  // 思考内容自动收起：当有结果时收起思考内容
+  // 暂时注释掉，避免 React 警告
+  // useEffect(() => {
+  //   if (node.data?.result && node.data?.thinking?.length > 0) {
+  //     setIsThinkingExpanded(false);
+  //   }
+  // }, [node.data?.result, node.data?.thinking]);
+
   // 监听外部传入的结果展开状态
   useEffect(() => {
     if (node.data?.isResultExpanded) {
@@ -714,45 +679,27 @@ const VisualNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragg
         hasResult: true
       });
     }
-  }, []); // 只在组件挂载时执行一次
+  }, []);
 
-  // 自动滚动到底部
-  useEffect(() => {
-    if (chatMessagesRef.current) {
-      chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
+  const handleMessagesChange = useCallback((newMessages) => {
+    console.log('[RichAgentNode] handleMessagesChange called, type:', typeof newMessages);
+    // ChatConversation 可能传函数（函数式更新）或数组
+    // 需要判断处理
+    if (typeof newMessages === 'function') {
+      console.log('[RichAgentNode] handleMessagesChange - received a function, using messagesRef');
+      // 如果是函数，用 messagesRef 而非 node.data.messages 来解析（避免 stale closure）
+      const resolvedMessages = newMessages(messagesRef.current);
+      console.log('[RichAgentNode] handleMessagesChange - resolved messages:', resolvedMessages);
+      // 更新 ref
+      messagesRef.current = resolvedMessages;
+      onUpdateContent?.({ ...node.data, messages: resolvedMessages });
+    } else {
+      console.log('[RichAgentNode] handleMessagesChange - received array:', newMessages);
+      // 更新 ref
+      messagesRef.current = newMessages;
+      onUpdateContent?.({ ...node.data, messages: newMessages });
     }
-  }, [messages]);
-
-  // 监听外部传入的展开状态
-  useEffect(() => {
-    if (node.data?.isThinkingExpanded) {
-      setIsThinkingExpanded(true);
-    }
-  }, [node.data?.isThinkingExpanded]);
-
-  // 监听外部传入的结果展开状态
-  useEffect(() => {
-    if (node.data?.isResultExpanded) {
-      setIsExpanded(true);
-      onExpand?.();
-    }
-  }, [node.data?.isResultExpanded]);
-
-  const handleSendMessage = (text) => {
-    if (!isChatEditable) return;
-    const newMessage = { id: Date.now(), role: 'user', content: text };
-    const newMessages = [...messages, newMessage];
-    setMessages(newMessages);
-    onUpdateContent?.({ ...node.data, messages: newMessages });
-
-    setTimeout(() => {
-      setMessages(prev => [...prev, {
-        id: Date.now() + 1,
-        role: 'assistant',
-        content: '收到，我来调整美术设计方案。'
-      }]);
-    }, 800);
-  };
+  }, [node.data, onUpdateContent]);
 
   const handleMouseDown = (e) => {
     clickStartPos.current = { x: e.clientX, y: e.clientY };
@@ -849,7 +796,6 @@ const VisualNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragg
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            onWheel={(e) => e.stopPropagation()}
           >
             {/* 整体风格 */}
             <div className="visual-section">
@@ -986,55 +932,19 @@ const VisualNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragg
               onClose={handleClosePreview}
             />
 
-            {/* 对话区域 - 与资深影视制片人一致 */}
-            <div className="chat-section">
-              <div className="section-header">
-                <MessageSquare size={14} />
-                <span>对话记录</span>
-              </div>
-              <div ref={chatMessagesRef} className={`chat-messages ${!isChatEditable ? 'readonly' : ''}`}>
-                {messages.length === 0 ? (
-                  <div className="chat-empty">暂无对话记录</div>
-                ) : (
-                  messages.map((msg) => (
-                    <div key={msg.id} className={`chat-message ${msg.role}`}>
-                      <span className="chat-role">{msg.role === 'user' ? '用户' : 'AI'}</span>
-                      <span className="chat-content">{msg.content}</span>
-                    </div>
-                  ))
-                )}
-              </div>
-              {/* 输入框 */}
-              <div className="chat-input-wrapper">
-                <input
-                  type="text"
-                  className="chat-input"
-                  value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && inputValue.trim() && isChatEditable) {
-                      handleSendMessage(inputValue.trim());
-                      setInputValue('');
-                    }
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                  placeholder={isChatEditable ? '输入消息...' : '生成完成后可对话'}
-                  disabled={!isChatEditable}
-                />
-                <button
-                  className="chat-send-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (inputValue.trim() && isChatEditable) {
-                      handleSendMessage(inputValue.trim());
-                      setInputValue('');
-                    }
-                  }}
-                  disabled={!isChatEditable || !inputValue.trim()}
-                >
-                  <Zap size={14} />
-                </button>
-              </div>
+            {/* 对话区域 */}
+            <div className="chat-section" style={{ height: '280px', display: 'flex', flexDirection: 'column' }}>
+              <ChatConversation
+                agentId={node.type}
+                projectId={1}
+                projectVersion={1}
+                messages={node.data?.messages || []}
+                onMessagesChange={handleMessagesChange}
+                placeholder="输入消息..."
+                disabledPlaceholder="生成完成后可对话"
+                inputMode="input"
+                disableAutoScroll={true}
+              />
             </div>
           </motion.div>
         )}
@@ -1048,9 +958,6 @@ const DirectorNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDra
   const [isExpanded, setIsExpanded] = useState(false);
   const [isThinkingExpanded, setIsThinkingExpanded] = useState(false);
   const [hasResult, setHasResult] = useState(false);
-  const [messages, setMessages] = useState(node.data?.messages || []);
-  const [inputValue, setInputValue] = useState('');
-  const chatMessagesRef = useRef(null);
   const clickStartPos = useRef({ x: 0, y: 0 });
   const prevRunningRef = useRef(false);
 
@@ -1070,9 +977,6 @@ const DirectorNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDra
   const handleClosePreview = () => {
     setPreviewImage(null);
   };
-
-  // 对话是否可编辑：成功状态且不在生成中
-  const isChatEditable = !isRunning && hasResult;
 
   useEffect(() => {
     if (isRunning && !prevRunningRef.current) {
@@ -1097,6 +1001,14 @@ const DirectorNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDra
     }
   }, [node.data?.isThinkingExpanded]);
 
+  // 思考内容自动收起：当有结果时收起思考内容
+  // 暂时注释掉，避免 React 警告
+  // useEffect(() => {
+  //   if (node.data?.result && node.data?.thinking?.length > 0) {
+  //     setIsThinkingExpanded(false);
+  //   }
+  // }, [node.data?.result, node.data?.thinking]);
+
   // 监听外部传入的结果展开状态
   useEffect(() => {
     if (node.data?.isResultExpanded) {
@@ -1105,28 +1017,25 @@ const DirectorNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDra
     }
   }, [node.data?.isResultExpanded]);
 
-  // 自动滚动到底部
-  useEffect(() => {
-    if (chatMessagesRef.current) {
-      chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
+  const handleMessagesChange = useCallback((newMessages) => {
+    console.log('[RichAgentNode] handleMessagesChange called, type:', typeof newMessages);
+    // ChatConversation 可能传函数（函数式更新）或数组
+    // 需要判断处理
+    if (typeof newMessages === 'function') {
+      console.log('[RichAgentNode] handleMessagesChange - received a function, using messagesRef');
+      // 如果是函数，用 messagesRef 而非 node.data.messages 来解析（避免 stale closure）
+      const resolvedMessages = newMessages(messagesRef.current);
+      console.log('[RichAgentNode] handleMessagesChange - resolved messages:', resolvedMessages);
+      // 更新 ref
+      messagesRef.current = resolvedMessages;
+      onUpdateContent?.({ ...node.data, messages: resolvedMessages });
+    } else {
+      console.log('[RichAgentNode] handleMessagesChange - received array:', newMessages);
+      // 更新 ref
+      messagesRef.current = newMessages;
+      onUpdateContent?.({ ...node.data, messages: newMessages });
     }
-  }, [messages]);
-
-  const handleSendMessage = (text) => {
-    if (!isChatEditable) return;
-    const newMessage = { id: Date.now(), role: 'user', content: text };
-    const newMessages = [...messages, newMessage];
-    setMessages(newMessages);
-    onUpdateContent?.({ ...node.data, messages: newMessages });
-
-    setTimeout(() => {
-      setMessages(prev => [...prev, {
-        id: Date.now() + 1,
-        role: 'assistant',
-        content: '收到，我来调整分镜设计。'
-      }]);
-    }, 800);
-  };
+  }, [node.data, onUpdateContent]);
 
   const handleMouseDown = (e) => {
     clickStartPos.current = { x: e.clientX, y: e.clientY };
@@ -1207,7 +1116,6 @@ const DirectorNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDra
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            onWheel={(e) => e.stopPropagation()}
           >
             {/* 分镜表格 - 镜号、景别/角度、运动、画面内容、时长(s)、关键帧 */}
             <div className="director-section">
@@ -1280,55 +1188,19 @@ const DirectorNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDra
               onClose={handleClosePreview}
             />
 
-            {/* 对话区域 - 与资深影视制片人一致 */}
-            <div className="chat-section">
-              <div className="section-header">
-                <MessageSquare size={14} />
-                <span>对话记录</span>
-              </div>
-              <div ref={chatMessagesRef} className={`chat-messages ${!isChatEditable ? 'readonly' : ''}`}>
-                {messages.length === 0 ? (
-                  <div className="chat-empty">暂无对话记录</div>
-                ) : (
-                  messages.map((msg) => (
-                    <div key={msg.id} className={`chat-message ${msg.role}`}>
-                      <span className="chat-role">{msg.role === 'user' ? '用户' : 'AI'}</span>
-                      <span className="chat-content">{msg.content}</span>
-                    </div>
-                  ))
-                )}
-              </div>
-              {/* 输入框 */}
-              <div className="chat-input-wrapper">
-                <input
-                  type="text"
-                  className="chat-input"
-                  value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && inputValue.trim() && isChatEditable) {
-                      handleSendMessage(inputValue.trim());
-                      setInputValue('');
-                    }
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                  placeholder={isChatEditable ? '输入消息...' : '生成完成后可对话'}
-                  disabled={!isChatEditable}
-                />
-                <button
-                  className="chat-send-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (inputValue.trim() && isChatEditable) {
-                      handleSendMessage(inputValue.trim());
-                      setInputValue('');
-                    }
-                  }}
-                  disabled={!isChatEditable || !inputValue.trim()}
-                >
-                  <Zap size={14} />
-                </button>
-              </div>
+            {/* 对话区域 */}
+            <div className="chat-section" style={{ height: '280px', display: 'flex', flexDirection: 'column' }}>
+              <ChatConversation
+                agentId={node.type}
+                projectId={1}
+                projectVersion={1}
+                messages={node.data?.messages || []}
+                onMessagesChange={handleMessagesChange}
+                placeholder="输入消息..."
+                disabledPlaceholder="生成完成后可对话"
+                inputMode="input"
+                disableAutoScroll={true}
+              />
             </div>
           </motion.div>
         )}
@@ -1342,18 +1214,18 @@ const ProducerNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDra
   const [isExpanded, setIsExpanded] = useState(false);
   const [isThinkingExpanded, setIsThinkingExpanded] = useState(false);
   const [resultContent, setResultContent] = useState(node.data?.result || '');
-  const [displayContent, setDisplayContent] = useState('');
+  const [displayContent, setDisplayContent] = useState(node.data?.result || '');
   const [isStreaming, setIsStreaming] = useState(false);
-  const [hasResult, setHasResult] = useState(false);
-  const [messages, setMessages] = useState(node.data?.messages || []);
-  const [inputValue, setInputValue] = useState('');
+  const [hasResult, setHasResult] = useState(!!node.data?.result);
   const textareaRef = useRef(null);
-  const chatMessagesRef = useRef(null);
   const clickStartPos = useRef({ x: 0, y: 0 });
   const prevRunningRef = useRef(false);
+  // 用 ref 跟踪最新消息，避免函数式更新时使用 stale 的 node.data.messages
+  const messagesRef = useRef(node.data?.messages || []);
 
-  // 对话是否可编辑：成功状态且不在生成中
-  const isChatEditable = !isRunning && hasResult;
+  console.log('[ProducerNodeContent] render, node.data?.result:', node.data?.result);
+  console.log('[ProducerNodeContent] displayContent:', displayContent);
+  console.log('[ProducerNodeContent] isExpanded:', isExpanded);
 
   useEffect(() => {
     if (isRunning && !prevRunningRef.current) {
@@ -1378,6 +1250,14 @@ const ProducerNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDra
       setIsThinkingExpanded(true);
     }
   }, [node.data?.isThinkingExpanded]);
+
+  // 思考内容自动收起：当有结果时收起思考内容
+  // 暂时注释掉，避免 React 警告
+  // useEffect(() => {
+  //   if (node.data?.result && node.data?.thinking?.length > 0) {
+  //     setIsThinkingExpanded(false);
+  //   }
+  // }, [node.data?.result, node.data?.thinking]);
 
   // 监听外部传入的结果展开状态
   useEffect(() => {
@@ -1411,28 +1291,25 @@ const ProducerNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDra
     }
   }, [isRunning, node.data?.result]);
 
-  // 自动滚动到底部
-  useEffect(() => {
-    if (chatMessagesRef.current) {
-      chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
+  const handleMessagesChange = useCallback((newMessages) => {
+    console.log('[RichAgentNode] handleMessagesChange called, type:', typeof newMessages);
+    // ChatConversation 可能传函数（函数式更新）或数组
+    // 需要判断处理
+    if (typeof newMessages === 'function') {
+      console.log('[RichAgentNode] handleMessagesChange - received a function, using messagesRef');
+      // 如果是函数，用 messagesRef 而非 node.data.messages 来解析（避免 stale closure）
+      const resolvedMessages = newMessages(messagesRef.current);
+      console.log('[RichAgentNode] handleMessagesChange - resolved messages:', resolvedMessages);
+      // 更新 ref
+      messagesRef.current = resolvedMessages;
+      onUpdateContent?.({ ...node.data, messages: resolvedMessages });
+    } else {
+      console.log('[RichAgentNode] handleMessagesChange - received array:', newMessages);
+      // 更新 ref
+      messagesRef.current = newMessages;
+      onUpdateContent?.({ ...node.data, messages: newMessages });
     }
-  }, [messages]);
-
-  const handleSendMessage = (text) => {
-    if (!isChatEditable) return;
-    const newMessage = { id: Date.now(), role: 'user', content: text };
-    const newMessages = [...messages, newMessage];
-    setMessages(newMessages);
-    onUpdateContent?.({ ...node.data, messages: newMessages });
-
-    setTimeout(() => {
-      setMessages(prev => [...prev, {
-        id: Date.now() + 1,
-        role: 'assistant',
-        content: '收到，我来调整项目立项书的内容。'
-      }]);
-    }, 800);
-  };
+  }, [node.data, onUpdateContent]);
 
   const handleMouseDown = (e) => {
     clickStartPos.current = { x: e.clientX, y: e.clientY };
@@ -1505,7 +1382,6 @@ const ProducerNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDra
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            onWheel={(e) => e.stopPropagation()}
           >
             {/* 结果内容区域 - 始终只读 */}
             <div className="result-section">
@@ -1527,54 +1403,18 @@ const ProducerNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDra
             </div>
 
             {/* 对话区域 */}
-            <div className="chat-section">
-              <div className="section-header">
-                <Users size={14} />
-                <span>对话记录</span>
-              </div>
-              <div ref={chatMessagesRef} className={`chat-messages ${!isChatEditable ? 'readonly' : ''}`}>
-                {messages.length === 0 ? (
-                  <div className="chat-empty">暂无对话记录</div>
-                ) : (
-                  messages.map((msg) => (
-                    <div key={msg.id} className={`chat-message ${msg.role}`}>
-                      <span className="chat-role">{msg.role === 'user' ? '用户' : 'AI'}</span>
-                      <span className="chat-content">{msg.content}</span>
-                    </div>
-                  ))
-                )}
-              </div>
-              {/* 输入框 */}
-              <div className="chat-input-wrapper">
-                <input
-                  type="text"
-                  className="chat-input"
-                  value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && inputValue.trim() && isChatEditable) {
-                      handleSendMessage(inputValue.trim());
-                      setInputValue('');
-                    }
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                  placeholder={isChatEditable ? '输入消息...' : '生成完成后可对话'}
-                  disabled={!isChatEditable}
-                />
-                <button
-                  className="chat-send-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (inputValue.trim() && isChatEditable) {
-                      handleSendMessage(inputValue.trim());
-                      setInputValue('');
-                    }
-                  }}
-                  disabled={!isChatEditable || !inputValue.trim()}
-                >
-                  <Zap size={14} />
-                </button>
-              </div>
+            <div className="chat-section" style={{ height: '280px', display: 'flex', flexDirection: 'column' }}>
+              <ChatConversation
+                agentId={node.type}
+                projectId={1}
+                projectVersion={1}
+                messages={node.data?.messages || []}
+                onMessagesChange={handleMessagesChange}
+                placeholder="输入消息..."
+                disabledPlaceholder="生成完成后可对话"
+                inputMode="input"
+                disableAutoScroll={true}
+              />
             </div>
           </motion.div>
         )}
@@ -1588,10 +1428,7 @@ const TechnicalNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDr
   const [isExpanded, setIsExpanded] = useState(false);
   const [isThinkingExpanded, setIsThinkingExpanded] = useState(false);
   const [hasResult, setHasResult] = useState(false);
-  const [messages, setMessages] = useState(node.data?.messages || []);
-  const [inputValue, setInputValue] = useState('');
   const [showAutoGenConfig, setShowAutoGenConfig] = useState(false);
-  const chatMessagesRef = useRef(null);
   const clickStartPos = useRef({ x: 0, y: 0 });
   const prevRunningRef = useRef(false);
 
@@ -1614,9 +1451,6 @@ const TechnicalNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDr
   const handleClosePreview = () => {
     setPreviewImage(null);
   };
-
-  // 对话是否可编辑：成功状态且不在生成中
-  const isChatEditable = !isRunning && hasResult;
 
   // 处理自动生成配置变更
   const handleAutoGenConfigChange = (field, value) => {
@@ -1662,6 +1496,14 @@ const TechnicalNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDr
     }
   }, [node.data?.isThinkingExpanded]);
 
+  // 思考内容自动收起：当有结果时收起思考内容
+  // 暂时注释掉，避免 React 警告
+  // useEffect(() => {
+  //   if (node.data?.result && node.data?.thinking?.length > 0) {
+  //     setIsThinkingExpanded(false);
+  //   }
+  // }, [node.data?.result, node.data?.thinking]);
+
   // 监听外部传入的结果展开状态
   useEffect(() => {
     if (node.data?.isResultExpanded) {
@@ -1670,28 +1512,25 @@ const TechnicalNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDr
     }
   }, [node.data?.isResultExpanded]);
 
-  // 自动滚动到底部
-  useEffect(() => {
-    if (chatMessagesRef.current) {
-      chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
+  const handleMessagesChange = useCallback((newMessages) => {
+    console.log('[RichAgentNode] handleMessagesChange called, type:', typeof newMessages);
+    // ChatConversation 可能传函数（函数式更新）或数组
+    // 需要判断处理
+    if (typeof newMessages === 'function') {
+      console.log('[RichAgentNode] handleMessagesChange - received a function, using messagesRef');
+      // 如果是函数，用 messagesRef 而非 node.data.messages 来解析（避免 stale closure）
+      const resolvedMessages = newMessages(messagesRef.current);
+      console.log('[RichAgentNode] handleMessagesChange - resolved messages:', resolvedMessages);
+      // 更新 ref
+      messagesRef.current = resolvedMessages;
+      onUpdateContent?.({ ...node.data, messages: resolvedMessages });
+    } else {
+      console.log('[RichAgentNode] handleMessagesChange - received array:', newMessages);
+      // 更新 ref
+      messagesRef.current = newMessages;
+      onUpdateContent?.({ ...node.data, messages: newMessages });
     }
-  }, [messages]);
-
-  const handleSendMessage = (text) => {
-    if (!isChatEditable) return;
-    const newMessage = { id: Date.now(), role: 'user', content: text };
-    const newMessages = [...messages, newMessage];
-    setMessages(newMessages);
-    onUpdateContent?.({ ...node.data, messages: newMessages });
-
-    setTimeout(() => {
-      setMessages(prev => [...prev, {
-        id: Date.now() + 1,
-        role: 'assistant',
-        content: '收到，我来优化视频提示词。'
-      }]);
-    }, 800);
-  };
+  }, [node.data, onUpdateContent]);
 
   const handleMouseDown = (e) => {
     clickStartPos.current = { x: e.clientX, y: e.clientY };
@@ -1772,7 +1611,6 @@ const TechnicalNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDr
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            onWheel={(e) => e.stopPropagation()}
           >
             {/* 自动生成下游节点配置 */}
             <div className="technical-section auto-gen-section">
@@ -1922,55 +1760,19 @@ const TechnicalNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDr
               onClose={handleClosePreview}
             />
 
-            {/* 对话区域 - 与资深影视制片人一致 */}
-            <div className="chat-section">
-              <div className="section-header">
-                <MessageSquare size={14} />
-                <span>对话记录</span>
-              </div>
-              <div ref={chatMessagesRef} className={`chat-messages ${!isChatEditable ? 'readonly' : ''}`}>
-                {messages.length === 0 ? (
-                  <div className="chat-empty">暂无对话记录</div>
-                ) : (
-                  messages.map((msg) => (
-                    <div key={msg.id} className={`chat-message ${msg.role}`}>
-                      <span className="chat-role">{msg.role === 'user' ? '用户' : 'AI'}</span>
-                      <span className="chat-content">{msg.content}</span>
-                    </div>
-                  ))
-                )}
-              </div>
-              {/* 输入框 */}
-              <div className="chat-input-wrapper">
-                <input
-                  type="text"
-                  className="chat-input"
-                  value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && inputValue.trim() && isChatEditable) {
-                      handleSendMessage(inputValue.trim());
-                      setInputValue('');
-                    }
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                  placeholder={isChatEditable ? '输入消息...' : '生成完成后可对话'}
-                  disabled={!isChatEditable}
-                />
-                <button
-                  className="chat-send-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (inputValue.trim() && isChatEditable) {
-                      handleSendMessage(inputValue.trim());
-                      setInputValue('');
-                    }
-                  }}
-                  disabled={!isChatEditable || !inputValue.trim()}
-                >
-                  <Zap size={14} />
-                </button>
-              </div>
+            {/* 对话区域 */}
+            <div className="chat-section" style={{ height: '280px', display: 'flex', flexDirection: 'column' }}>
+              <ChatConversation
+                agentId={node.type}
+                projectId={1}
+                projectVersion={1}
+                messages={node.data?.messages || []}
+                onMessagesChange={handleMessagesChange}
+                placeholder="输入消息..."
+                disabledPlaceholder="生成完成后可对话"
+                inputMode="input"
+                disableAutoScroll={true}
+              />
             </div>
           </motion.div>
         )}
@@ -1984,9 +1786,6 @@ const VideoGenNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDra
   const [isExpanded, setIsExpanded] = useState(false);
   const [isThinkingExpanded, setIsThinkingExpanded] = useState(false);
   const [hasResult, setHasResult] = useState(!!(node.data?.videoPrompt || node.data?.videos?.length > 0 || node.data?.videoPreview));
-  const [messages, setMessages] = useState(node.data?.messages || []);
-  const [inputValue, setInputValue] = useState('');
-  const chatMessagesRef = useRef(null);
   const clickStartPos = useRef({ x: 0, y: 0 });
   const prevRunningRef = useRef(false);
   const [showVideoEditor, setShowVideoEditor] = useState(false);
@@ -2009,9 +1808,6 @@ const VideoGenNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDra
   // 视频预览URL - 默认为空，需要执行后才能生成
   const [videoPreview, setVideoPreview] = useState(node.data?.videoPreview || '');
 
-  // 对话是否可编辑：成功状态且不在生成中
-  const isChatEditable = !isRunning && hasResult;
-
   useEffect(() => {
     if (isRunning && !prevRunningRef.current) {
       // 开始运行，自动展开
@@ -2023,13 +1819,6 @@ const VideoGenNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDra
     }
     prevRunningRef.current = isRunning;
   }, [isRunning]);
-
-  // 自动滚动到底部
-  useEffect(() => {
-    if (chatMessagesRef.current) {
-      chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
-    }
-  }, [messages]);
 
   // 同步 node.data 数据到本地状态
   useEffect(() => {
@@ -2050,21 +1839,25 @@ const VideoGenNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDra
     }
   }, [node.data]);
 
-  const handleSendMessage = (text) => {
-    if (!isChatEditable) return;
-    const newMessage = { id: Date.now(), role: 'user', content: text };
-    const newMessages = [...messages, newMessage];
-    setMessages(newMessages);
-    onUpdateContent?.({ ...node.data, messages: newMessages });
-
-    setTimeout(() => {
-      setMessages(prev => [...prev, {
-        id: Date.now() + 1,
-        role: 'assistant',
-        content: '收到，我来调整视频生成参数。'
-      }]);
-    }, 800);
-  };
+  const handleMessagesChange = useCallback((newMessages) => {
+    console.log('[RichAgentNode] handleMessagesChange called, type:', typeof newMessages);
+    // ChatConversation 可能传函数（函数式更新）或数组
+    // 需要判断处理
+    if (typeof newMessages === 'function') {
+      console.log('[RichAgentNode] handleMessagesChange - received a function, using messagesRef');
+      // 如果是函数，用 messagesRef 而非 node.data.messages 来解析（避免 stale closure）
+      const resolvedMessages = newMessages(messagesRef.current);
+      console.log('[RichAgentNode] handleMessagesChange - resolved messages:', resolvedMessages);
+      // 更新 ref
+      messagesRef.current = resolvedMessages;
+      onUpdateContent?.({ ...node.data, messages: resolvedMessages });
+    } else {
+      console.log('[RichAgentNode] handleMessagesChange - received array:', newMessages);
+      // 更新 ref
+      messagesRef.current = newMessages;
+      onUpdateContent?.({ ...node.data, messages: newMessages });
+    }
+  }, [node.data, onUpdateContent]);
 
   const handleMouseDown = (e) => {
     clickStartPos.current = { x: e.clientX, y: e.clientY };
@@ -2143,7 +1936,6 @@ const VideoGenNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDra
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            onWheel={(e) => e.stopPropagation()}
           >
             {/* 视频提示词 */}
             <div className="video-gen-section">
@@ -2264,55 +2056,19 @@ const VideoGenNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDra
               </div>
             </div>
 
-            {/* 对话区域 - 与资深影视制片人一致 */}
-            <div className="chat-section">
-              <div className="section-header">
-                <MessageSquare size={14} />
-                <span>对话记录</span>
-              </div>
-              <div ref={chatMessagesRef} className={`chat-messages ${!isChatEditable ? 'readonly' : ''}`}>
-                {messages.length === 0 ? (
-                  <div className="chat-empty">暂无对话记录</div>
-                ) : (
-                  messages.map((msg) => (
-                    <div key={msg.id} className={`chat-message ${msg.role}`}>
-                      <span className="chat-role">{msg.role === 'user' ? '用户' : 'AI'}</span>
-                      <span className="chat-content">{msg.content}</span>
-                    </div>
-                  ))
-                )}
-              </div>
-              {/* 输入框 */}
-              <div className="chat-input-wrapper">
-                <input
-                  type="text"
-                  className="chat-input"
-                  value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && inputValue.trim() && isChatEditable) {
-                      handleSendMessage(inputValue.trim());
-                      setInputValue('');
-                    }
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                  placeholder={isChatEditable ? '输入消息...' : '生成完成后可对话'}
-                  disabled={!isChatEditable}
-                />
-                <button
-                  className="chat-send-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (inputValue.trim() && isChatEditable) {
-                      handleSendMessage(inputValue.trim());
-                      setInputValue('');
-                    }
-                  }}
-                  disabled={!isChatEditable || !inputValue.trim()}
-                >
-                  <Zap size={14} />
-                </button>
-              </div>
+            {/* 对话区域 */}
+            <div className="chat-section" style={{ height: '280px', display: 'flex', flexDirection: 'column' }}>
+              <ChatConversation
+                agentId={node.type}
+                projectId={1}
+                projectVersion={1}
+                messages={node.data?.messages || []}
+                onMessagesChange={handleMessagesChange}
+                placeholder="输入消息..."
+                disabledPlaceholder="生成完成后可对话"
+                inputMode="input"
+                disableAutoScroll={true}
+              />
             </div>
           </motion.div>
         )}
@@ -2402,7 +2158,6 @@ const VideoEditorNodeContent = ({ node, isRunning, onUpdateContent, onExpand, is
       {isExpanded && (
         <div
           className="content-expanded video-editor-expanded"
-          onWheel={(e) => e.stopPropagation()}
         >
           {/* 视频列表 */}
           <div className="video-editor-section">
@@ -2498,8 +2253,6 @@ const VideoEditorNodeContent = ({ node, isRunning, onUpdateContent, onExpand, is
 // 通用节点内容（未定义的类型）
 const GenericNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragging: isParentDragging }) => {
   const [isThinkingExpanded, setIsThinkingExpanded] = useState(false);
-  const [messages, setMessages] = useState(node.data?.messages || []);
-  const [inputValue, setInputValue] = useState('');
   const clickStartPos = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
@@ -2508,24 +2261,25 @@ const GenericNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDrag
     }
   }, [isRunning]);
 
-  const handleSendMessage = (text) => {
-    const newMessage = {
-      id: Date.now(),
-      role: 'user',
-      content: text
-    };
-    const newMessages = [...messages, newMessage];
-    setMessages(newMessages);
-    onUpdateContent?.({ ...node.data, messages: newMessages });
-
-    setTimeout(() => {
-      setMessages(prev => [...prev, {
-        id: Date.now() + 1,
-        role: 'assistant',
-        content: '收到指令，正在处理中...'
-      }]);
-    }, 800);
-  };
+  const handleMessagesChange = useCallback((newMessages) => {
+    console.log('[RichAgentNode] handleMessagesChange called, type:', typeof newMessages);
+    // ChatConversation 可能传函数（函数式更新）或数组
+    // 需要判断处理
+    if (typeof newMessages === 'function') {
+      console.log('[RichAgentNode] handleMessagesChange - received a function, using messagesRef');
+      // 如果是函数，用 messagesRef 而非 node.data.messages 来解析（避免 stale closure）
+      const resolvedMessages = newMessages(messagesRef.current);
+      console.log('[RichAgentNode] handleMessagesChange - resolved messages:', resolvedMessages);
+      // 更新 ref
+      messagesRef.current = resolvedMessages;
+      onUpdateContent?.({ ...node.data, messages: resolvedMessages });
+    } else {
+      console.log('[RichAgentNode] handleMessagesChange - received array:', newMessages);
+      // 更新 ref
+      messagesRef.current = newMessages;
+      onUpdateContent?.({ ...node.data, messages: newMessages });
+    }
+  }, [node.data, onUpdateContent]);
 
   return (
     <div className="rich-node-content simple">
@@ -2564,12 +2318,17 @@ const GenericNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDrag
         </>
       )}
 
-      <ConversationSection
-        messages={messages}
-        inputValue={inputValue}
-        setInputValue={setInputValue}
-        onSend={handleSendMessage}
-      />
+      <div className="chat-section" style={{ height: '280px', display: 'flex', flexDirection: 'column' }}>
+        <ChatConversation
+          agentId={node.type}
+          projectId={1}
+          projectVersion={1}
+          messages={node.data?.messages || []}
+          onMessagesChange={handleMessagesChange}
+          placeholder="输入消息..."
+          disabledPlaceholder="生成完成后可对话"
+        />
+      </div>
     </div>
   );
 };
@@ -2825,6 +2584,7 @@ const RichAgentNode = ({
   };
 
   const handleUpdateContent = (data) => {
+    console.log('[RichAgentNode] handleUpdateContent called, node.id:', node.id, 'data:', data);
     onUpdateData?.(node.id, data);
   };
 

@@ -240,7 +240,7 @@
   font-weight: 600;
   color: rgba(255, 255, 255, 0.9);
   white-space: nowrap;
-  overflow: hidden;
+  overflow: visible;
   text-overflow: ellipsis;
 }
 
@@ -299,8 +299,23 @@
   padding: 12px;
   background: rgba(0, 0, 0, 0.2);
   border-left: 3px solid var(--node-color, #3b82f6);
-  max-height: 200px;
+  max-height: 80px;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+}
+
+.thinking-expanded::-webkit-scrollbar {
+  width: 6px;
+}
+
+.thinking-expanded::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.thinking-expanded::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 3px;
 }
 
 .thinking-text-content {
@@ -423,7 +438,7 @@
 .image-item {
   position: relative;
   border-radius: 8px;
-  overflow: hidden;
+  overflow: visible;
   background: rgba(0, 0, 0, 0.2);
 }
 
@@ -521,7 +536,7 @@
   width: 70px;
   height: 40px;
   border-radius: 4px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .storyboard-thumb img {
@@ -712,7 +727,7 @@
   border-radius: 8px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
   z-index: 100;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .agent-menu-item {
@@ -891,7 +906,7 @@
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .producer-node .result-section .section-header {
@@ -910,6 +925,7 @@
 .producer-node .result-textarea {
   width: 100%;
   min-height: 120px;
+  max-height: 200px;
   padding: 12px;
   background: transparent;
   border: none;
@@ -917,9 +933,23 @@
   font-size: 13px;
   line-height: 1.6;
   resize: vertical;
+  overflow-y: auto;
   outline: none;
   font-family: inherit;
   box-sizing: border-box;
+}
+
+.producer-node .result-textarea::-webkit-scrollbar {
+  width: 6px;
+}
+
+.producer-node .result-textarea::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.producer-node .result-textarea::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 3px;
 }
 
 .producer-node .result-textarea:read-only {
@@ -928,12 +958,31 @@
   cursor: not-allowed;
 }
 
+/* 通用结果文本区域滚动条 - 适用于所有节点类型 */
+.result-textarea {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+}
+
+.result-textarea::-webkit-scrollbar {
+  width: 6px;
+}
+
+.result-textarea::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.result-textarea::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 3px;
+}
+
 /* 对话区域 - 独立样式避免冲突 */
 .producer-node .chat-section {
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
-  overflow: hidden;
+  overflow: visible;
   display: flex;
   flex-direction: column;
 }
@@ -1077,7 +1126,7 @@
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .writer-node .script-overview-section .section-header {
@@ -1169,7 +1218,7 @@
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .script-detail-header {
@@ -1233,7 +1282,7 @@
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .episode-section:last-child {
@@ -1293,7 +1342,7 @@
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 6px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .scene-detail-card:last-child {
@@ -1345,7 +1394,7 @@
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
-  overflow: hidden;
+  overflow: visible;
   display: flex;
   flex-direction: column;
 }
@@ -1488,7 +1537,7 @@
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .visual-node .visual-section .section-header {
@@ -1580,7 +1629,7 @@
   width: 50px;
   height: 50px;
   border-radius: 6px;
-  overflow: hidden;
+  overflow: visible;
   background: rgba(0, 0, 0, 0.3);
 }
 
@@ -1595,7 +1644,7 @@
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
-  overflow: hidden;
+  overflow: visible;
   display: flex;
   flex-direction: column;
 }
@@ -1738,7 +1787,7 @@
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .director-node .director-section .section-header {
@@ -1824,7 +1873,7 @@
   width: 60px;
   height: 45px;
   border-radius: 4px;
-  overflow: hidden;
+  overflow: visible;
   background: rgba(0, 0, 0, 0.3);
   justify-self: center;
 }
@@ -1840,7 +1889,7 @@
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
-  overflow: hidden;
+  overflow: visible;
   display: flex;
   flex-direction: column;
 }
@@ -1983,7 +2032,7 @@
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .auditor-node .auditor-section .section-header {
@@ -2046,7 +2095,7 @@
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
-  overflow: hidden;
+  overflow: visible;
   display: flex;
   flex-direction: column;
 }
@@ -2189,7 +2238,7 @@
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .technical-node .technical-section .section-header {
@@ -2269,7 +2318,7 @@
 
 .technical-node .prompt-table-row input.prompt-cell {
   font-size: 11px;
-  overflow: hidden;
+  overflow: visible;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -2284,14 +2333,14 @@
   gap: 4px;
   flex-wrap: nowrap;
   justify-content: flex-start;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .technical-node .keyframe-thumb {
   width: 35px;
   height: 26px;
   border-radius: 3px;
-  overflow: hidden;
+  overflow: visible;
   background: rgba(0, 0, 0, 0.3);
   flex-shrink: 0;
 }
@@ -2336,7 +2385,7 @@
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
-  overflow: hidden;
+  overflow: visible;
   display: flex;
   flex-direction: column;
 }
@@ -2608,7 +2657,7 @@
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .video-gen-node .video-gen-section .section-header {
@@ -2736,7 +2785,7 @@
   position: relative;
   width: 100%;
   border-radius: 0;
-  overflow: hidden;
+  overflow: visible;
   background: rgba(0, 0, 0, 0.3);
 }
 
@@ -2809,7 +2858,7 @@
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .video-editor-node .video-editor-section .section-header {
@@ -2944,7 +2993,7 @@
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
-  overflow: hidden;
+  overflow: visible;
   display: flex;
   flex-direction: column;
 }
@@ -3095,7 +3144,7 @@
   max-width: 90vw;
   max-height: 90vh;
   border-radius: 8px;
-  overflow: hidden;
+  overflow: visible;
   background: rgba(0, 0, 0, 0.5);
 }
 

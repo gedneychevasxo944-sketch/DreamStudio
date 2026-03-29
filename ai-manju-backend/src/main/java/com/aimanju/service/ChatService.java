@@ -40,6 +40,7 @@ public class ChatService {
                 }
 
                 ResultData resultData = new ResultData(
+                    response.getId(),
                     response.getResultType() != null ? response.getResultType() : "text",
                     response.getResult() != null ? response.getResult() : "",
                     response.getThinkingSteps(),
@@ -74,6 +75,7 @@ public class ChatService {
     }
 
     public static class ResultData {
+        private Long id;
         private String resultType;
         private String result;
         private List<String> thinkingSteps;
@@ -81,9 +83,10 @@ public class ChatService {
         private List<ChatDTO.WorkflowNode> workflowNodes;
         private List<ChatDTO.WorkflowEdge> workflowEdges;
         public ResultData() {}
-        public ResultData(String resultType, String result, List<String> thinkingSteps,
+        public ResultData(Long id, String resultType, String result, List<String> thinkingSteps,
                           Boolean workflowCreated, List<ChatDTO.WorkflowNode> workflowNodes,
                           List<ChatDTO.WorkflowEdge> workflowEdges) {
+            this.id = id;
             this.resultType = resultType;
             this.result = result;
             this.thinkingSteps = thinkingSteps;
@@ -91,6 +94,8 @@ public class ChatService {
             this.workflowNodes = workflowNodes;
             this.workflowEdges = workflowEdges;
         }
+        public Long getId() { return id; }
+        public void setId(Long id) { this.id = id; }
         public String getResultType() { return resultType; }
         public void setResultType(String resultType) { this.resultType = resultType; }
         public String getResult() { return result; }
