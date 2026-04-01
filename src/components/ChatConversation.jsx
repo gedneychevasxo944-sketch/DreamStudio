@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
+import { createPortal } from 'react-dom';
 import { Send, Bot, User, Copy, X, ExternalLink, Check, Sparkles, ChevronUp, ChevronDown, ZoomIn } from 'lucide-react';
 import './ChatConversation.css';
 
@@ -8,11 +9,12 @@ const Toast = ({ message, onClose }) => {
     return () => clearTimeout(timer);
   }, [onClose]);
 
-  return (
+  return createPortal(
     <div className="cc-toast-message">
       <Check size={14} />
       {message}
-    </div>
+    </div>,
+    document.body
   );
 };
 
@@ -243,7 +245,7 @@ const ResultModal = ({ message, onClose, onShowToast }) => {
     return <div className="cc-result-text">{content}</div>;
   };
 
-  return (
+  return createPortal(
     <div className="cc-modal-overlay" onClick={onClose}>
       <div className="cc-modal-content" onClick={e => e.stopPropagation()}>
         <button className="cc-modal-close-top" onClick={onClose}>
@@ -282,7 +284,8 @@ const ResultModal = ({ message, onClose, onShowToast }) => {
           <span className="cc-modal-time">{message.timestamp}</span>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

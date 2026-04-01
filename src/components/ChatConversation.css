@@ -84,6 +84,8 @@
   flex-direction: column;
   gap: 6px;
   max-width: 98%;
+  min-height: 0;
+  overflow: visible;
 }
 
 .cc-message-wrapper.user {
@@ -142,6 +144,8 @@
 /* 消息主体 */
 .cc-message-body {
   width: 100%;
+  flex-shrink: 0;
+  min-height: 0;
 }
 
 /* 用户消息气泡 */
@@ -167,10 +171,12 @@
   width: 100%;
   flex-shrink: 0;
   box-sizing: border-box;
+  position: relative;
+  z-index: 1;
 }
 
 .cc-thinking-section.expanded {
-  height: 140px;
+  max-height: 100px;
 }
 
 .cc-thinking-toggle {
@@ -184,6 +190,8 @@
   color: #6366f1;
   font-size: 12px;
   cursor: pointer;
+  position: relative;
+  z-index: 2;
 }
 
 .cc-thinking-content {
@@ -192,7 +200,7 @@
   line-height: 1.6;
   color: var(--text-secondary);
   width: 100%;
-  height: calc(100% - 36px);
+  max-height: 64px;
   overflow-y: auto;
   box-sizing: border-box;
 }
@@ -207,6 +215,11 @@
 .cc-result-section {
   width: 100%;
   flex-shrink: 0;
+  position: relative;
+  z-index: 10;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  margin-top: 8px;
 }
 
 .cc-result-content {
@@ -285,6 +298,8 @@
   display: flex;
   gap: 8px;
   margin-top: 8px;
+  position: relative;
+  z-index: 10;
 }
 
 .cc-result-action-btn {
@@ -399,8 +414,8 @@
   background: var(--bg-secondary);
   border-radius: 12px;
   width: 100%;
-  max-width: 600px;
-  max-height: 80vh;
+  max-width: 900px;
+  max-height: 85vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;

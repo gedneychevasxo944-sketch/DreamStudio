@@ -428,12 +428,13 @@ const WriterNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragg
   }, [node.data?.isThinkingExpanded]);
 
   // 思考内容自动收起：当有结果时收起思考内容
-  // 暂时注释掉，避免 React 警告
-  // useEffect(() => {
-  //   if (node.data?.result && node.data?.thinking?.length > 0) {
-  //     setIsThinkingExpanded(false);
-  //   }
-  // }, [node.data?.result, node.data?.thinking]);
+  useEffect(() => {
+    const hasResult = node.data?.result && node.data.result.length > 0;
+    const hasThinking = node.data?.thinking && node.data.thinking.length > 0;
+    if (hasResult && hasThinking && isThinkingExpanded) {
+      setIsThinkingExpanded(false);
+    }
+  }, [node.data?.result, node.data?.thinking]);
 
   // 监听外部传入的结果展开状态
   useEffect(() => {
@@ -653,12 +654,13 @@ const VisualNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragg
   }, [node.data?.isThinkingExpanded]);
 
   // 思考内容自动收起：当有结果时收起思考内容
-  // 暂时注释掉，避免 React 警告
-  // useEffect(() => {
-  //   if (node.data?.result && node.data?.thinking?.length > 0) {
-  //     setIsThinkingExpanded(false);
-  //   }
-  // }, [node.data?.result, node.data?.thinking]);
+  useEffect(() => {
+    const hasResult = node.data?.result && node.data.result.length > 0;
+    const hasThinking = node.data?.thinking && node.data.thinking.length > 0;
+    if (hasResult && hasThinking && isThinkingExpanded) {
+      setIsThinkingExpanded(false);
+    }
+  }, [node.data?.result, node.data?.thinking]);
 
   // 监听外部传入的结果展开状态
   useEffect(() => {
@@ -1002,12 +1004,13 @@ const DirectorNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDra
   }, [node.data?.isThinkingExpanded]);
 
   // 思考内容自动收起：当有结果时收起思考内容
-  // 暂时注释掉，避免 React 警告
-  // useEffect(() => {
-  //   if (node.data?.result && node.data?.thinking?.length > 0) {
-  //     setIsThinkingExpanded(false);
-  //   }
-  // }, [node.data?.result, node.data?.thinking]);
+  useEffect(() => {
+    const hasResult = node.data?.result && node.data.result.length > 0;
+    const hasThinking = node.data?.thinking && node.data.thinking.length > 0;
+    if (hasResult && hasThinking && isThinkingExpanded) {
+      setIsThinkingExpanded(false);
+    }
+  }, [node.data?.result, node.data?.thinking]);
 
   // 监听外部传入的结果展开状态
   useEffect(() => {
@@ -1252,12 +1255,13 @@ const ProducerNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDra
   }, [node.data?.isThinkingExpanded]);
 
   // 思考内容自动收起：当有结果时收起思考内容
-  // 暂时注释掉，避免 React 警告
-  // useEffect(() => {
-  //   if (node.data?.result && node.data?.thinking?.length > 0) {
-  //     setIsThinkingExpanded(false);
-  //   }
-  // }, [node.data?.result, node.data?.thinking]);
+  useEffect(() => {
+    const hasResult = node.data?.result && node.data.result.length > 0;
+    const hasThinking = node.data?.thinking && node.data.thinking.length > 0;
+    if (hasResult && hasThinking && isThinkingExpanded) {
+      setIsThinkingExpanded(false);
+    }
+  }, [node.data?.result, node.data?.thinking]);
 
   // 监听外部传入的结果展开状态
   useEffect(() => {
@@ -1497,12 +1501,13 @@ const TechnicalNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDr
   }, [node.data?.isThinkingExpanded]);
 
   // 思考内容自动收起：当有结果时收起思考内容
-  // 暂时注释掉，避免 React 警告
-  // useEffect(() => {
-  //   if (node.data?.result && node.data?.thinking?.length > 0) {
-  //     setIsThinkingExpanded(false);
-  //   }
-  // }, [node.data?.result, node.data?.thinking]);
+  useEffect(() => {
+    const hasResult = node.data?.result && node.data.result.length > 0;
+    const hasThinking = node.data?.thinking && node.data.thinking.length > 0;
+    if (hasResult && hasThinking && isThinkingExpanded) {
+      setIsThinkingExpanded(false);
+    }
+  }, [node.data?.result, node.data?.thinking]);
 
   // 监听外部传入的结果展开状态
   useEffect(() => {
