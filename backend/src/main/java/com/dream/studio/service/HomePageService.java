@@ -5,6 +5,10 @@ import com.dream.studio.dto.TemplateDTO;
 import com.dream.studio.entity.Project;
 import com.dream.studio.entity.ProjectVersion;
 import com.dream.studio.entity.Template;
+import com.dream.studio.exception.InvalidOperationException;
+import com.dream.studio.exception.ProjectNotFoundException;
+import com.dream.studio.exception.TemplateNotFoundException;
+import com.dream.studio.exception.VersionNotFoundException;
 import com.dream.studio.repository.ProjectRepository;
 import com.dream.studio.repository.ProjectVersionRepository;
 import com.dream.studio.repository.TemplateRepository;
@@ -141,7 +145,7 @@ public class HomePageService {
         log.info("Forking template: {} for account: {}", templateId, account);
 
         Template template = templateRepository.findById(templateId)
-                .orElseThrow(() -> new RuntimeException("Template not found: " + templateId));
+                .orElseThrow(() -> new TemplateNotFoundException("Template not found: " + templateId));
 
         String projectTitle = template.getName() + " - 副本";
 
@@ -178,7 +182,7 @@ public class HomePageService {
         log.info("Getting project: {} for account: {}", projectId, account);
 
         Project project = projectRepository.findByIdAndAccount(projectId, account)
-                .orElseThrow(() -> new RuntimeException("Project not found or access denied: " + projectId));
+                .orElseThrow(() -> new ProjectNotFoundException("Project not found or access denied: " + projectId));
 
         return convertToResponse(project);
     }
@@ -188,7 +192,7 @@ public class HomePageService {
         log.info("Saving project: {} for account: {}", projectId, account);
 
         Project project = projectRepository.findByIdAndAccount(projectId, account)
-                .orElseThrow(() -> new RuntimeException("Project not found or access denied: " + projectId));
+                .orElseThrow(() -> new ProjectNotFoundException("Project not found or access denied: " + projectId));
 
         int newVersion = project.getCurrentVersion() + 1;
 
@@ -232,7 +236,7 @@ public class HomePageService {
 
         // Validate project ownership
         projectRepository.findByIdAndAccount(projectId, account)
-                .orElseThrow(() -> new RuntimeException("Project not found or access denied: " + projectId));
+                .orElseThrow(() -> new ProjectNotFoundException("Project not found or access denied: " + projectId));
 
         List<ProjectVersion> versions = projectVersionRepository.findByProjectIdOrderByVersionNumberDesc(projectId);
         
@@ -252,10 +256,10 @@ public class HomePageService {
 
         // Validate project ownership
         projectRepository.findByIdAndAccount(projectId, account)
-                .orElseThrow(() -> new RuntimeException("Project not found or access denied: " + projectId));
+                .orElseThrow(() -> new ProjectNotFoundException("Project not found or access denied: " + projectId));
 
         ProjectVersion version = projectVersionRepository.findByProjectIdAndVersionNumber(projectId, versionNumber)
-                .orElseThrow(() -> new RuntimeException("Version not found: " + versionNumber));
+                .orElseThrow(() -> new VersionNotFoundException("Version not found: " + versionNumber));
         
         return convertToVersionResponse(version);
     }
@@ -265,10 +269,10 @@ public class HomePageService {
         log.info("Restoring project {} to version {} for account: {}", projectId, versionNumber, account);
 
         Project project = projectRepository.findByIdAndAccount(projectId, account)
-                .orElseThrow(() -> new RuntimeException("Project not found or access denied: " + projectId));
+                .orElseThrow(() -> new ProjectNotFoundException("Project not found or access denied: " + projectId));
 
         ProjectVersion version = projectVersionRepository.findByProjectIdAndVersionNumber(projectId, versionNumber)
-                .orElseThrow(() -> new RuntimeException("Version not found: " + versionNumber));
+                .orElseThrow(() -> new VersionNotFoundException("Version not found: " + versionNumber));
 
         project.setTitle(version.getTitle());
         project.setDescription(version.getDescription());
@@ -287,12 +291,12 @@ public class HomePageService {
         log.info("Deleting version {} of project {} for account: {}", versionNumber, projectId, account);
 
         Project project = projectRepository.findByIdAndAccount(projectId, account)
-                .orElseThrow(() -> new RuntimeException("Project not found or access denied: " + projectId));
+                .orElseThrow(() -> new ProjectNotFoundException("Project not found or access denied: " + projectId));
 
         if (versionNumber.equals(project.getCurrentVersion())) {
             List<ProjectVersion> versions = projectVersionRepository.findByProjectIdOrderByVersionNumberDesc(projectId);
             if (versions.size() <= 1) {
-                throw new RuntimeException("Cannot delete the only version");
+                throw new InvalidOperationException("Cannot delete the only version");
             }
             ProjectVersion previousVersion = versions.get(1);
             
@@ -315,7 +319,7 @@ public class HomePageService {
         log.info("Deleting project: {} for account: {}", projectId, account);
 
         Project project = projectRepository.findByIdAndAccount(projectId, account)
-                .orElseThrow(() -> new RuntimeException("Project not found or access denied: " + projectId));
+                .orElseThrow(() -> new ProjectNotFoundException("Project not found or access denied: " + projectId));
 
         // Delete all versions first
         projectVersionRepository.deleteByProjectId(projectId);

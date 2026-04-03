@@ -3,6 +3,10 @@ package com.dream.studio.service;
 import com.dream.studio.dto.UserDTO;
 import com.dream.studio.entity.User;
 import com.dream.studio.entity.UserLoginRecord;
+import com.dream.studio.exception.AccountAlreadyExistsException;
+import com.dream.studio.exception.AccountDisabledException;
+import com.dream.studio.exception.InvalidCredentialsException;
+import com.dream.studio.exception.UserNotFoundException;
 import com.dream.studio.repository.UserLoginRecordRepository;
 import com.dream.studio.repository.UserRepository;
 import com.dream.studio.util.JwtUtil;
@@ -27,7 +31,7 @@ public class UserService {
         log.info("Registering user: {}", request.getAccount());
 
         if (userRepository.existsByAccount(request.getAccount())) {
-            throw new RuntimeException("账号已存在");
+            throw new AccountAlreadyExistsException();
         }
 
         // 密码加密存储
@@ -51,15 +55,15 @@ public class UserService {
         log.info("User login: {}", request.getAccount());
 
         User user = userRepository.findByAccount(request.getAccount())
-                .orElseThrow(() -> new RuntimeException("账号或密码错误"));
+                .orElseThrow(() -> new InvalidCredentialsException());
 
         // 使用 BCrypt 验证密码
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            throw new RuntimeException("账号或密码错误");
+            throw new InvalidCredentialsException();
         }
 
         if (user.getStatus() != 1) {
-            throw new RuntimeException("账号已被禁用");
+            throw new AccountDisabledException();
         }
 
         // 记录登录
@@ -79,7 +83,7 @@ public class UserService {
     @Transactional(readOnly = true)
     public UserDTO.Response getUserInfo(String account) {
         User user = userRepository.findByAccount(account)
-                .orElseThrow(() -> new RuntimeException("用户不存在"));
+                .orElseThrow(() -> new UserNotFoundException("用户不存在"));
 
         // 生成新 token
         String token = jwtUtil.generateToken(user.getAccount(), user.getId());
@@ -90,7 +94,7 @@ public class UserService {
     @Transactional
     public UserDTO.Response updateUser(String account, UserDTO.UpdateRequest request) {
         User user = userRepository.findByAccount(account)
-                .orElseThrow(() -> new RuntimeException("用户不存在"));
+                .orElseThrow(() -> new UserNotFoundException("用户不存在"));
 
         if (request.getName() != null) {
             user.setName(request.getName());

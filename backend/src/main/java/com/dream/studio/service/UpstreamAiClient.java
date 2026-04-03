@@ -255,8 +255,8 @@ public class UpstreamAiClient {
                 DAGDTO.DAGNode dagNode = nodeMap.get(nodeId);
                 String nodeTypeCode = dagNode.getType();
                 ComponentType componentType = ComponentType.fromCode(nodeTypeCode);
-                String nodeName = componentType != null ? componentType.getName() : nodeTypeCode;
-                NodeSimulationData simData = SimulationDataProvider.getSimulationData(componentType);
+                String nodeName = componentType != null ? componentType.getName() : (nodeTypeCode != null ? nodeTypeCode : "Unknown");
+                NodeSimulationData simData = componentType != null ? SimulationDataProvider.getSimulationData(componentType) : null;
                 nodeResults.put(nodeId, simData);
 
                 log.info("Executing node: {} (type: {})", nodeId, nodeTypeCode);

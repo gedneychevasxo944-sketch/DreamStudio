@@ -666,7 +666,7 @@ const VisualNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragg
     }
   }, [node.data?.isResultExpanded]);
 
-  // 初始化时将本地数据同步到 node.data
+  // 初始化时将本地数据同步到 node.data（仅在挂载时执行一次）
   useEffect(() => {
     if (characters.length > 0 || scenes.length > 0 || props.length > 0) {
       onUpdateContent?.({
@@ -677,7 +677,8 @@ const VisualNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragg
         hasResult: true
       });
     }
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // 只在挂载时执行，避免无限循环
 
   const handleMessagesChange = useCallback((newMessages) => {
     // ChatConversation 可能传函数（函数式更新）或数组
@@ -1252,27 +1253,29 @@ const ProducerNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDra
 
   // 流式输出效果
   useEffect(() => {
-    if (isRunning && node.data?.result) {
-      setIsStreaming(true);
-      setHasResult(true);
-      setDisplayContent('');
-      let index = 0;
-      const text = node.data.result;
-
-      const interval = setInterval(() => {
-        if (index < text.length) {
-          setDisplayContent(prev => prev + text[index]);
-          index++;
-        } else {
-          clearInterval(interval);
-          setIsStreaming(false);
-          setResultContent(text);
-        }
-      }, 15);
-
-      return () => clearInterval(interval);
+    if (!isRunning || !node.data?.result) {
+      return;
     }
-  }, [isRunning, node.data?.result]);
+
+    setIsStreaming(true);
+    setHasResult(true);
+    setDisplayContent('');
+    let index = 0;
+    const text = node.data.result;
+
+    const interval = setInterval(() => {
+      if (index < text.length) {
+        setDisplayContent(prev => prev + text[index]);
+        index++;
+      } else {
+        clearInterval(interval);
+        setIsStreaming(false);
+        setResultContent(text);
+      }
+    }, 15);
+
+    return () => clearInterval(interval);
+  }, [isRunning, node.data]);
 
   const handleMessagesChange = useCallback((newMessages) => {
     // ChatConversation 可能传函数（函数式更新）或数组
@@ -1436,23 +1439,48 @@ const TechnicalNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDr
 
   // 触发创建视频节点（手动和自动模式都可用）
   const triggerAutoGenerate = () => {
+    console.log('[TechnicalNode] triggerAutoGenerate called:', { promptsLength: prompts.length, hasCallback: !!onGenerateVideoNodes, nodeId: node.id });
     if (prompts.length > 0 && onGenerateVideoNodes) {
       const count = autoGenConfig.count > 0 ? Math.min(autoGenConfig.count, prompts.length) : prompts.length;
+      console.log('[TechnicalNode] Calling onGenerateVideoNodes with count:', count);
       onGenerateVideoNodes(node.id, count);
+    } else {
+      console.log('[TechnicalNode] triggerAutoGenerate early return:', { promptsLength: prompts.length, hasCallback: !!onGenerateVideoNodes });
     }
   };
 
   useEffect(() => {
+    console.log('[TechnicalNode] useEffect triggered:', {
+      isRunning,
+      prevRunningRef: prevRunningRef.current,
+      autoGenConfig,
+      promptsLength: node.data?.prompts?.length,
+      hasGenParams: !!node.data?.genParams,
+      nodeId: node.id
+    });
     if (isRunning && !prevRunningRef.current) {
+      console.log('[TechnicalNode] Running started');
       setIsExpanded(true);
       onExpand?.();
     }
+    // 仅在 isRunning 从 true 变为 false 时（运行结束）且有数据时才创建节点
     if (!isRunning && prevRunningRef.current && autoGenConfig.mode === 'auto' && (node.data?.prompts?.length > 0 || node.data?.genParams)) {
+      console.log('[TechnicalNode] Auto generating video nodes, prompts:', node.data?.prompts?.length);
       const count = autoGenConfig.count > 0 ? Math.min(autoGenConfig.count, node.data?.prompts?.length || 0) : (node.data?.prompts?.length || 0);
+      console.log('[TechnicalNode] Calling onGenerateVideoNodes:', node.id, count);
       onGenerateVideoNodes?.(node.id, count);
+    } else {
+      console.log('[TechnicalNode] Auto gen condition not met:', {
+        notRunning: !isRunning,
+        wasRunning: prevRunningRef.current,
+        autoMode: autoGenConfig.mode === 'auto',
+        hasPrompts: node.data?.prompts?.length > 0,
+        hasGenParams: !!node.data?.genParams
+      });
     }
     prevRunningRef.current = isRunning;
-  }, [isRunning, autoGenConfig.mode, autoGenConfig.count, node.data?.prompts?.length, node.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isRunning, autoGenConfig.mode, autoGenConfig.count, node.data?.prompts?.length, node.id, onExpand, onGenerateVideoNodes]);
 
   useEffect(() => {
     // 同步 node.data 数据到本地状态
@@ -1479,7 +1507,7 @@ const TechnicalNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDr
     if (hasResult && hasThinking && isThinkingExpanded) {
       setIsThinkingExpanded(false);
     }
-  }, [node.data?.result, node.data?.thinking]);
+  }, [node.data?.result, node.data?.thinking, isThinkingExpanded]);
 
   // 监听外部传入的结果展开状态
   useEffect(() => {
@@ -1487,7 +1515,7 @@ const TechnicalNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDr
       setIsExpanded(true);
       onExpand?.();
     }
-  }, [node.data?.isResultExpanded]);
+  }, [node.data?.isResultExpanded, onExpand]);
 
   const handleMessagesChange = useCallback((newMessages) => {
     // ChatConversation 可能传函数（函数式更新）或数组
@@ -1706,9 +1734,13 @@ const TechnicalNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDr
                       className="generate-video-btn"
                       onClick={(e) => {
                         e.stopPropagation();
+                        console.log('[TechnicalNode] Generate button clicked:', { hasCallback: !!onGenerateVideoNodes, promptId: p.id });
                         if (onGenerateVideoNodes) {
                           // 创建单个视频节点
+                          console.log('[TechnicalNode] Calling onGenerateVideoNodes for single prompt');
                           onGenerateVideoNodes(node.id, 1, p.id);
+                        } else {
+                          console.log('[TechnicalNode] Generate button: no callback!');
                         }
                       }}
                       disabled={isRunning || !p.prompt}

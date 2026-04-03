@@ -37,6 +37,48 @@ public class GlobalExceptionHandler {
         return ApiResponse.error(404, e.getMessage());
     }
 
+    @ExceptionHandler(AccountAlreadyExistsException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ApiResponse<Void> handleAccountAlreadyExistsException(AccountAlreadyExistsException e) {
+        log.warn("Account already exists: {}", e.getMessage());
+        return ApiResponse.error(409, e.getMessage());
+    }
+
+    @ExceptionHandler(InvalidCredentialsException.class)
+    @ResponseStatus(HttpStatus.UNAUTHORIZED)
+    public ApiResponse<Void> handleInvalidCredentialsException(InvalidCredentialsException e) {
+        log.warn("Invalid credentials: {}", e.getMessage());
+        return ApiResponse.error(401, e.getMessage());
+    }
+
+    @ExceptionHandler(AccountDisabledException.class)
+    @ResponseStatus(HttpStatus.UNAUTHORIZED)
+    public ApiResponse<Void> handleAccountDisabledException(AccountDisabledException e) {
+        log.warn("Account disabled: {}", e.getMessage());
+        return ApiResponse.error(401, e.getMessage());
+    }
+
+    @ExceptionHandler(TemplateNotFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ApiResponse<Void> handleTemplateNotFoundException(TemplateNotFoundException e) {
+        log.warn("Template not found: {}", e.getMessage());
+        return ApiResponse.error(404, e.getMessage());
+    }
+
+    @ExceptionHandler(VersionNotFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ApiResponse<Void> handleVersionNotFoundException(VersionNotFoundException e) {
+        log.warn("Version not found: {}", e.getMessage());
+        return ApiResponse.error(404, e.getMessage());
+    }
+
+    @ExceptionHandler(InvalidOperationException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ApiResponse<Void> handleInvalidOperationException(InvalidOperationException e) {
+        log.warn("Invalid operation: {}", e.getMessage());
+        return ApiResponse.error(400, e.getMessage());
+    }
+
     @ExceptionHandler(RuntimeException.class)
     public ApiResponse<Void> handleRuntimeException(RuntimeException e) {
         String message = e.getMessage();
