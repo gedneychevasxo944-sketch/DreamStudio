@@ -459,16 +459,10 @@ const NodeCanvas = ({ isFullscreen, onToggleFullscreen, projectId, projectVersio
     // 新节点执行不传 executionId，从头开始
     const executionId = null;
 
-    console.log('[NodeCanvas] executeNewVideoNodes START');
-    console.log('[NodeCanvas] projectId:', projectId);
-    console.log('[NodeCanvas] nodes to execute:', nodesToExecute.map(n => ({ id: n.id, type: n.type })));
-    console.log('[NodeCanvas] connections:', connectionsToSend);
-
     try {
       const sseConnection = workSpaceApi.executeWorkflow(
         projectId, executionId, projectVersion, nodesToExecute, connectionsToSend,
         (event) => {
-          console.log('[NodeCanvas] SSE event type:', event.type, 'nodeId:', event.nodeId);
           if (event.type === 'status') {
             if (event.nodeId) updateNodeStatus(event.nodeId, event.status === 'completed' ? 'completed' : 'running');
           } else if (event.type === 'thinking') {
@@ -479,13 +473,10 @@ const NodeCanvas = ({ isFullscreen, onToggleFullscreen, projectId, projectVersio
               updateNodeData(event.nodeId, { thinking: [...existingThinking], thinkingIndex: existingThinking.length, isThinkingExpanded: true });
             }
           } else if (event.type === 'result') {
-            console.log('[NodeCanvas] result event:', event.nodeId, event.content);
             if (event.nodeId) updateNodeResult(event.nodeId, event.content, nodeThinkingMap.get(event.nodeId) || []);
           } else if (event.type === 'data') {
-            console.log('[NodeCanvas] data event:', event.nodeId, event.data);
             if (event.nodeId && event.data) updateNodeData(event.nodeId, { ...event.data, hasResult: true });
           } else if (event.type === 'videos') {
-            console.log('[NodeCanvas] videos event:', event.nodeId, event.videos);
             if (event.nodeId && event.videos) updateNodeData(event.nodeId, { videos: event.videos, hasResult: true });
           } else if (event.type === 'complete') {
             setIsRunning(false);
@@ -505,63 +496,42 @@ const NodeCanvas = ({ isFullscreen, onToggleFullscreen, projectId, projectVersio
 
   // 生成视频节点（处理技术节点的自动/手动视频生成请求）
   const handleGenerateVideoNodes = useCallback((sourceNodeId, count, promptId) => {
-    console.log('[NodeCanvas] handleGenerateVideoNodes called:', { sourceNodeId, count, promptId, agentTypesKeys: Object.keys(agentTypes) });
     const sourceNode = nodes.find(n => n.id === sourceNodeId);
-    console.log('[NodeCanvas] sourceNode found:', !!sourceNode, sourceNode?.data?.prompts?.length);
     if (!sourceNode || !sourceNode.data?.prompts) {
-      console.log('[NodeCanvas] Early return: no sourceNode or no prompts');
       return;
     }
 
     const prompts = sourceNode.data.prompts;
     const videoGenAgent = agentTypes['videoGen'];
-    console.log('[NodeCanvas] videoGenAgent:', !!videoGenAgent);
     if (!videoGenAgent) {
-      console.log('[NodeCanvas] Early return: no videoGenAgent');
       return;
     }
 
     // Determine which prompts to use
     let promptsToUse;
-    console.log('[NodeCanvas] prompts debug:', prompts.map(p => ({ id: p.id, type: typeof p.id, promptId, promptIdType: typeof promptId })));
     if (promptId) {
       // Single prompt specified (manual mode) - 只创建一个节点
       promptsToUse = prompts.filter(p => String(p.id) === String(promptId));
-      console.log('[NodeCanvas] Single prompt mode, promptId:', promptId, 'filtered count:', promptsToUse.length);
     } else {
       // All prompts or limited count
       const useCount = count > 0 ? Math.min(count, prompts.length) : prompts.length;
       promptsToUse = prompts.slice(0, useCount);
-      console.log('[NodeCanvas] Multi prompt mode, count:', count, 'useCount:', useCount);
     }
 
     // 计算基础位置（在源节点右侧，跳过源节点宽度 + 间隔）
-    // 技术节点实际渲染宽度约360-380，但定义的标准宽度是540
-    // 为确保不遮挡，使用更大的偏移量
-    const sourceNodeWidth = 540; // 使用定义宽度而非实际存储宽度
-    const horizontalGap = 300; // 增大间隔到300，确保完全不遮挡
+    const sourceNodeWidth = 540;
+    const horizontalGap = 300;
     const baseX = sourceNode.x + sourceNodeWidth + horizontalGap;
     const baseY = sourceNode.y;
-    const videoGenNodeHeight = 300; // 视频生成节点实际高度
-    const verticalGap = 150; // 增大垂直间隔确保不重叠
-
-    console.log('[NodeCanvas] Position calculation:', {
-      sourceNodeId,
-      sourceNodeX: sourceNode.x,
-      sourceNodeWidth,
-      horizontalGap,
-      baseX,
-      videoGenNodeHeight,
-      verticalGap
-    });
+    const videoGenNodeHeight = 300;
+    const verticalGap = 150;
 
     // 计算已有多少个视频节点，用于计算新节点的位置
     const existingVideoNodes = nodes.filter(n => n.id.startsWith('videoGen-'));
     const startIndex = existingVideoNodes.length;
 
     // Create videoGen nodes for each prompt
-    console.log('[NodeCanvas] Creating', promptsToUse.length, 'video nodes, starting at index:', startIndex);
-    const newNodeIds = []; // 记录这次创建的新节点ID
+    const newNodeIds = [];
     promptsToUse.forEach((prompt, index) => {
       const newNodeId = `videoGen-${Date.now()}-${index}`;
       newNodeIds.push(newNodeId);
@@ -570,21 +540,19 @@ const NodeCanvas = ({ isFullscreen, onToggleFullscreen, projectId, projectVersio
         ...videoGenAgent,
         id: newNodeId,
         name: `${videoGenAgent.name} ${nodeIndex + 1}`,
-        type: 'videoGen', // 确保 type 字段正确传递
+        type: 'videoGen',
         x: baseX,
-        y: baseY + nodeIndex * (videoGenNodeHeight + verticalGap), // 垂直堆叠，考虑已有节点
+        y: baseY + nodeIndex * (videoGenNodeHeight + verticalGap),
         data: {
           videoPrompt: prompt.prompt || prompt.text || '',
           promptId: prompt.id,
           status: 'pending'
         }
       };
-      console.log('[NodeCanvas] Adding node:', newNodeId, newNode.name, 'type:', newNode.type, 'at x:', newNode.x, 'y:', newNode.y, 'nodeIndex:', nodeIndex);
       addNode(newNode);
 
       // 创建从技术节点到视频生成节点的连线
       const connectionId = `${sourceNodeId}-output-${newNodeId}-input`;
-      console.log('[NodeCanvas] Adding connection:', connectionId, 'from', sourceNodeId, 'to', newNodeId);
       addConnection({
         id: connectionId,
         from: sourceNodeId,
@@ -598,11 +566,7 @@ const NodeCanvas = ({ isFullscreen, onToggleFullscreen, projectId, projectVersio
     // 从 store 获取最新状态，只取出这次创建的新节点
     setTimeout(() => {
       const storeState = useWorkflowStore.getState();
-      // 只选择这次创建的节点（通过ID匹配）
       const newVideoNodes = storeState.nodes.filter(n => newNodeIds.includes(n.id));
-      console.log('[NodeCanvas] New videoGen nodes to execute:', newVideoNodes.map(n => ({ id: n.id, type: n.type })));
-      console.log('[NodeCanvas] Executing ONLY these new nodes, no connections (parallel execution)');
-      // 只执行新节点，不传连线（新节点独立执行，并行）
       executeNewVideoNodes(newVideoNodes, []);
     }, 0);
   }, [nodes, agentTypes, addNode, addConnection]);
@@ -621,25 +585,10 @@ const NodeCanvas = ({ isFullscreen, onToggleFullscreen, projectId, projectVersio
     const savedExecutionId = localStorage.getItem(`execution_${projectId}`);
     const executionId = savedExecutionId ? parseInt(savedExecutionId, 10) : null;
 
-    console.log('[NodeCanvas] executeWorkflowWithBackend, nodes count:', currentNodes.length);
-    console.log('[NodeCanvas] nodes:', currentNodes.map(n => ({ id: n.id, type: n.type, x: n.x, y: n.y })));
-    console.log('[NodeCanvas] connections:', currentConnections);
-
     try {
-      console.log('[NodeCanvas] executeWorkflowWithBackend START');
-      console.log('[NodeCanvas] projectId:', projectId, 'executionId:', executionId, 'projectVersion:', projectVersion);
-      console.log('[NodeCanvas] ALL nodes being sent:', currentNodes.map(n => ({ id: n.id, type: n.type, status: n.status })));
-      console.log('[NodeCanvas] connections being sent:', currentConnections);
-
-      // 调试：检查每个节点的类型
-      currentNodes.forEach(n => {
-        console.log('[NodeCanvas] Node debug:', { id: n.id, type: n.type, typeOf: typeof n.type });
-      });
-
       const sseConnection = workSpaceApi.executeWorkflow(
         projectId, executionId, projectVersion, currentNodes, currentConnections,
         (event) => {
-          console.log('[NodeCanvas] SSE event type:', event.type, 'nodeId:', event.nodeId);
           if (event.type === 'init') {
             localStorage.setItem(`execution_${projectId}`, event.executionId.toString());
             if (event.completedNodes?.length > 0) {
@@ -658,13 +607,10 @@ const NodeCanvas = ({ isFullscreen, onToggleFullscreen, projectId, projectVersio
               updateNodeData(event.nodeId, { thinking: [...existingThinking], thinkingIndex: existingThinking.length, isThinkingExpanded: true });
             }
           } else if (event.type === 'result') {
-            console.log('[NodeCanvas] result event:', event.nodeId, event.content);
             if (event.nodeId) updateNodeResult(event.nodeId, event.content, nodeThinkingMap.get(event.nodeId) || []);
           } else if (event.type === 'data') {
-            console.log('[NodeCanvas] data event:', event.nodeId, event.data);
             if (event.nodeId && event.data) updateNodeData(event.nodeId, { ...event.data, hasResult: true });
           } else if (event.type === 'videos') {
-            console.log('[NodeCanvas] videos event:', event.nodeId, event.videos);
             if (event.nodeId && event.videos) updateNodeData(event.nodeId, { videos: event.videos, hasResult: true });
           } else if (event.type === 'complete') {
             setIsRunning(false);

@@ -1439,44 +1439,21 @@ const TechnicalNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDr
 
   // 触发创建视频节点（手动和自动模式都可用）
   const triggerAutoGenerate = () => {
-    console.log('[TechnicalNode] triggerAutoGenerate called:', { promptsLength: prompts.length, hasCallback: !!onGenerateVideoNodes, nodeId: node.id });
     if (prompts.length > 0 && onGenerateVideoNodes) {
       const count = autoGenConfig.count > 0 ? Math.min(autoGenConfig.count, prompts.length) : prompts.length;
-      console.log('[TechnicalNode] Calling onGenerateVideoNodes with count:', count);
       onGenerateVideoNodes(node.id, count);
-    } else {
-      console.log('[TechnicalNode] triggerAutoGenerate early return:', { promptsLength: prompts.length, hasCallback: !!onGenerateVideoNodes });
     }
   };
 
   useEffect(() => {
-    console.log('[TechnicalNode] useEffect triggered:', {
-      isRunning,
-      prevRunningRef: prevRunningRef.current,
-      autoGenConfig,
-      promptsLength: node.data?.prompts?.length,
-      hasGenParams: !!node.data?.genParams,
-      nodeId: node.id
-    });
     if (isRunning && !prevRunningRef.current) {
-      console.log('[TechnicalNode] Running started');
       setIsExpanded(true);
       onExpand?.();
     }
     // 仅在 isRunning 从 true 变为 false 时（运行结束）且有数据时才创建节点
     if (!isRunning && prevRunningRef.current && autoGenConfig.mode === 'auto' && (node.data?.prompts?.length > 0 || node.data?.genParams)) {
-      console.log('[TechnicalNode] Auto generating video nodes, prompts:', node.data?.prompts?.length);
       const count = autoGenConfig.count > 0 ? Math.min(autoGenConfig.count, node.data?.prompts?.length || 0) : (node.data?.prompts?.length || 0);
-      console.log('[TechnicalNode] Calling onGenerateVideoNodes:', node.id, count);
       onGenerateVideoNodes?.(node.id, count);
-    } else {
-      console.log('[TechnicalNode] Auto gen condition not met:', {
-        notRunning: !isRunning,
-        wasRunning: prevRunningRef.current,
-        autoMode: autoGenConfig.mode === 'auto',
-        hasPrompts: node.data?.prompts?.length > 0,
-        hasGenParams: !!node.data?.genParams
-      });
     }
     prevRunningRef.current = isRunning;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1734,13 +1711,8 @@ const TechnicalNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDr
                       className="generate-video-btn"
                       onClick={(e) => {
                         e.stopPropagation();
-                        console.log('[TechnicalNode] Generate button clicked:', { hasCallback: !!onGenerateVideoNodes, promptId: p.id });
                         if (onGenerateVideoNodes) {
-                          // 创建单个视频节点
-                          console.log('[TechnicalNode] Calling onGenerateVideoNodes for single prompt');
                           onGenerateVideoNodes(node.id, 1, p.id);
-                        } else {
-                          console.log('[TechnicalNode] Generate button: no callback!');
                         }
                       }}
                       disabled={isRunning || !p.prompt}

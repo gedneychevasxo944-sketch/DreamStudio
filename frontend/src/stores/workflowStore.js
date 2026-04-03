@@ -112,21 +112,28 @@ export const useWorkflowStore = create((set, get) => ({
   })),
 
   // 更新节点结果
-  updateNodeResult: (nodeId, result, thinking = []) => set((state) => ({
-    nodes: state.nodes.map(n =>
-      n.id === nodeId ? {
-        ...n,
-        status: 'completed',
-        data: {
-          ...n.data,
-          result,
-          thinking,
-          hasResult: true,
-          isResultExpanded: true
-        }
-      } : n
-    )
-  })),
+  updateNodeResult: (nodeId, result, thinking = []) => set((state) => {
+    const nodeExists = state.nodes.some(n => n.id === nodeId);
+    if (!nodeExists) {
+      console.warn('[workflowStore] updateNodeResult: node not found:', nodeId);
+      return state;
+    }
+    return {
+      nodes: state.nodes.map(n =>
+        n.id === nodeId ? {
+          ...n,
+          status: 'completed',
+          data: {
+            ...n.data,
+            result,
+            thinking,
+            hasResult: true,
+            isResultExpanded: true
+          }
+        } : n
+      )
+    };
+  }),
 
   // Actions - 待发送消息
   setPendingChatMessage: (message) => set({ pendingChatMessage: message }),
