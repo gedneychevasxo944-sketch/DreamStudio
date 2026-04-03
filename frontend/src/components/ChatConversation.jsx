@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { createPortal } from 'react-dom';
 import { Send, Bot, User, Copy, X, ExternalLink, Check, Sparkles, ChevronUp, ChevronDown, ZoomIn } from 'lucide-react';
+import { chatApi } from '../services/api';
 import './ChatConversation.css';
 
 const Toast = ({ message, onClose }) => {
@@ -62,7 +63,6 @@ const AssistantMessage = ({ message, onOpenModal, onShowToast }) => {
   useEffect(() => {
     const currentThinkingLength = message.thinking?.length || 0;
 
-    // 当有新的思考步骤时，自动展开
     if (currentThinkingLength > 0 && prevThinkingLengthRef.current === 0) {
       setThinkingExpanded(true);
     }
@@ -70,7 +70,6 @@ const AssistantMessage = ({ message, onOpenModal, onShowToast }) => {
   }, [message.thinking]);
 
   useEffect(() => {
-    // 当有结果时，自动收起思考内容
     if (message.result && message.result.length > 0) {
       setThinkingExpanded(false);
     }
@@ -321,6 +320,7 @@ const ChatConversation = forwardRef(({
   const messagesContainerRef = useRef(null);
   const messagesRef = useRef(messages);
   const sendMessageFnRef = useRef(null);
+  const sseConnectionRef = useRef(null);
 
   // 保持 messagesRef 同步
   useEffect(() => {
@@ -334,12 +334,10 @@ const ChatConversation = forwardRef(({
     }
   }), []);
 
-  // 自动滚动到最新消息（使用 scrollTop 避免影响父容器）
-  // 注意：这个滚动只影响容器内部的滚动条，不会触发父容器（画布）的滚动
+  // 自动滚动到最新消息
   useEffect(() => {
     if (messagesContainerRef.current) {
       const container = messagesContainerRef.current;
-      // 只有当内容超出容器时才滚动
       if (container.scrollHeight > container.clientHeight) {
         container.scrollTop = container.scrollHeight;
       }
@@ -350,8 +348,13 @@ const ChatConversation = forwardRef(({
     setToast(message);
   }, []);
 
-  const sendChatMessage = useCallback(async (messageContent) => {
+  const sendChatMessage = useCallback((messageContent) => {
     if (!messageContent.trim() || loading) return;
+
+    // 关闭之前的 SSE 连接
+    if (sseConnectionRef.current) {
+      sseConnectionRef.current.close();
+    }
 
     const timestamp = formatTimestamp();
     const userMsg = {
@@ -362,12 +365,10 @@ const ChatConversation = forwardRef(({
     };
 
     onMessagesChange([...messagesRef.current, userMsg]);
-    console.log('[ChatConversation] User message added, id:', userMsg.id);
     setInputValue('');
     setLoading(true);
 
     const assistantMsgId = Date.now() + 1;
-    console.log('[ChatConversation] Assistant message created, id:', assistantMsgId);
     const assistantMsg = {
       id: assistantMsgId,
       role: 'assistant',
@@ -377,111 +378,86 @@ const ChatConversation = forwardRef(({
       result: '',
       timestamp: formatTimestamp(),
     };
-    onMessagesChange(prev => {
-      console.log('[ChatConversation] Assistant added, prev count:', prev.length);
-      return [...prev, assistantMsg];
-    });
+    onMessagesChange(prev => [...prev, assistantMsg]);
 
     const thinkingSteps = [];
-    let resultType = 'text';
-    let result = '';
     let currentAssistantId = assistantMsgId;
 
-    try {
-      const response = await fetch('/api/workspace/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+    // 使用 chatApi 发送消息
+    sseConnectionRef.current = chatApi.sendMessageStream(
+      {
+        projectId,
+        projectVersion,
+        agentId,
+        agentName: agentId,
+        message: messageContent.trim(),
+      },
+      {
+        onThinking: (data) => {
+          // 思考步骤
+          if (data.step) {
+            thinkingSteps.push(data.step);
+            onMessagesChange(prev => prev.map(msg =>
+              msg.id === currentAssistantId
+                ? { ...msg, thinking: [...thinkingSteps] }
+                : msg
+            ));
+          }
         },
-        body: JSON.stringify({
-          projectId,
-          projectVersion,
-          agentId,
-          agentName: agentId,
-          message: messageContent.trim(),
-        }),
-      });
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
+        onResult: (data) => {
+          // 结果
+          const resultType = data.resultType || 'text';
+          const result = data.result || '';
+          const steps = data.thinkingSteps || thinkingSteps;
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+          onMessagesChange(prev => prev.map(msg =>
+            msg.id === currentAssistantId
+              ? { ...msg, resultType, result, thinking: steps }
+              : msg
+          ));
 
-        buffer += decoder.decode(value, { stream: true });
-
-        while (buffer.includes('\n')) {
-          const newlineIndex = buffer.indexOf('\n');
-          const line = buffer.slice(0, newlineIndex).trim();
-          buffer = buffer.slice(newlineIndex + 1);
-
-          if (line.startsWith('event:')) {
-            continue;
+          // 如果返回了工作流数据
+          if (data.workflowCreated && data.workflowNodes && data.workflowEdges) {
+            onWorkflowCreated?.(data.workflowNodes, data.workflowEdges);
           }
+        },
 
-          if (line.startsWith('data:')) {
-            const dataStr = line.slice(5).trim();
-            try {
-              const data = JSON.parse(dataStr);
-              console.log('[ChatConversation] SSE data:', data);
+        onComplete: (data) => {
+          // 完成
+          setLoading(false);
+          sseConnectionRef.current = null;
+        },
 
-              if (data.step) {
-                console.log('[ChatConversation] Thinking step:', data.step);
-                thinkingSteps.push(data.step);
-                onMessagesChange(prev => prev.map(msg =>
-                  msg.id === currentAssistantId
-                    ? { ...msg, thinking: [...thinkingSteps] }
-                    : msg
-                ));
-              }
-
-              if (data.resultType !== undefined || data.result !== undefined) {
-                console.log('[ChatConversation] Result:', data.resultType, data.result);
-                console.log('[ChatConversation] currentAssistantId:', currentAssistantId);
-                resultType = data.resultType || 'text';
-                result = data.result || '';
-                const steps = data.thinkingSteps || thinkingSteps;
-                console.log('[ChatConversation] Thinking steps:', steps);
-                // 不再用 data.id 覆盖 currentAssistantId，因为 SSE 返回的 id 与前端创建的不匹配
-                onMessagesChange(prev => {
-                  console.log('[ChatConversation] onMessagesChange - looking for id:', currentAssistantId);
-                  console.log('[ChatConversation] onMessagesChange - prev messages:', prev.map(m => ({id: m.id, role: m.role})));
-                  return prev.map(msg =>
-                    msg.id === currentAssistantId
-                      ? { ...msg, resultType, result, thinking: steps }
-                      : msg
-                  );
-                });
-
-                // 如果返回了工作流数据
-                if (data.workflowCreated && data.workflowNodes && data.workflowEdges) {
-                  onWorkflowCreated?.(data.workflowNodes, data.workflowEdges);
-                }
-              }
-            } catch (e) {
-              console.error('Parse error:', e);
-            }
-          }
-        }
+        onError: (data) => {
+          // 错误
+          console.error('[ChatConversation] SSE error:', data);
+          const errorMsg = data?.message || '抱歉，发生了错误，请稍后重试。';
+          onMessagesChange(prev => prev.map(msg =>
+            msg.id === assistantMsgId
+              ? { ...msg, result: errorMsg }
+              : msg
+          ));
+          setLoading(false);
+          sseConnectionRef.current = null;
+        },
       }
-    } catch (error) {
-      console.error('发送消息失败:', error);
-      onMessagesChange(prev => prev.map(msg =>
-        msg.id === assistantMsgId
-          ? { ...msg, result: '抱歉，发生了错误，请稍后重试。' }
-          : msg
-      ));
-    } finally {
-      setLoading(false);
-    }
+    );
   }, [loading, onMessagesChange, projectId, projectVersion, agentId, onWorkflowCreated]);
 
   // 更新 sendMessageFnRef
   useEffect(() => {
     sendMessageFnRef.current = sendChatMessage;
   }, [sendChatMessage]);
+
+  // 组件卸载时关闭 SSE 连接
+  useEffect(() => {
+    return () => {
+      if (sseConnectionRef.current) {
+        sseConnectionRef.current.close();
+      }
+    };
+  }, []);
 
   const handleSend = useCallback(() => {
     sendChatMessage(inputValue);

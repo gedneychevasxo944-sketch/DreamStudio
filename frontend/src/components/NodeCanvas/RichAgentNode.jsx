@@ -42,7 +42,6 @@ import ChatConversation from '../ChatConversation';
 
 // 图片预览弹窗组件
 const ImagePreviewModal = ({ src, alt, isOpen, onClose }) => {
-  console.log('[ImagePreviewModal] isOpen:', isOpen, 'src:', src, 'alt:', alt);
   if (!isOpen || !src) return null;
 
   return createPortal(
@@ -68,8 +67,8 @@ const ImagePreviewModal = ({ src, alt, isOpen, onClose }) => {
         <img
           src={src}
           alt={alt || '预览图片'}
-          onLoad={() => console.log('[ImagePreviewModal] image loaded:', src)}
-          onError={(e) => console.log('[ImagePreviewModal] image error:', src, e)}
+          onLoad={() => {}}
+          onError={(e) => {}}
         />
       </motion.div>
     </motion.div>,
@@ -396,12 +395,13 @@ const ScriptDetailModal = ({ isOpen, script, onClose }) => {
 };
 
 // 编剧节点内容 - 概览 + 弹窗详情模式
-const WriterNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragging: isParentDragging }) => {
+const WriterNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragging: isParentDragging, projectId, projectVersion }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isThinkingExpanded, setIsThinkingExpanded] = useState(false);
   const [hasResult, setHasResult] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const prevRunningRef = useRef(false);
+  const messagesRef = useRef(node.data?.messages || []);
 
   // 解析剧本
   const { episodes, totalScenes } = parseScript(node.data?.result);
@@ -445,20 +445,13 @@ const WriterNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragg
   }, [node.data?.isResultExpanded]);
 
   const handleMessagesChange = useCallback((newMessages) => {
-    console.log('[RichAgentNode] handleMessagesChange called, type:', typeof newMessages);
     // ChatConversation 可能传函数（函数式更新）或数组
-    // 需要判断处理
     if (typeof newMessages === 'function') {
-      console.log('[RichAgentNode] handleMessagesChange - received a function, using messagesRef');
       // 如果是函数，用 messagesRef 而非 node.data.messages 来解析（避免 stale closure）
       const resolvedMessages = newMessages(messagesRef.current);
-      console.log('[RichAgentNode] handleMessagesChange - resolved messages:', resolvedMessages);
-      // 更新 ref
       messagesRef.current = resolvedMessages;
       onUpdateContent?.({ ...node.data, messages: resolvedMessages });
     } else {
-      console.log('[RichAgentNode] handleMessagesChange - received array:', newMessages);
-      // 更新 ref
       messagesRef.current = newMessages;
       onUpdateContent?.({ ...node.data, messages: newMessages });
     }
@@ -564,12 +557,14 @@ const WriterNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragg
               <div className="chat-section" style={{ height: '280px', display: 'flex', flexDirection: 'column' }}>
                 <ChatConversation
                   agentId={node.type}
-                  projectId={1}
-                  projectVersion={1}
+                  projectId={projectId}
+                  projectVersion={projectVersion}
                   messages={node.data?.messages || []}
                   onMessagesChange={handleMessagesChange}
                   placeholder="输入消息..."
                   disabledPlaceholder="生成完成后可对话"
+                  inputMode="input"
+                  disableAutoScroll={true}
                 />
               </div>
             </motion.div>
@@ -592,12 +587,13 @@ const WriterNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragg
 };
 
 // 美术节点内容（概念美术总监）- 按照手绘图布局
-const VisualNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragging: isParentDragging }) => {
+const VisualNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragging: isParentDragging, projectId, projectVersion }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isThinkingExpanded, setIsThinkingExpanded] = useState(false);
   const [hasResult, setHasResult] = useState(false);
   const clickStartPos = useRef({ x: 0, y: 0 });
   const prevRunningRef = useRef(false);
+  const messagesRef = useRef(node.data?.messages || []);
 
   // 图片预览状态
   const [previewImage, setPreviewImage] = useState(null);
@@ -684,20 +680,13 @@ const VisualNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragg
   }, []);
 
   const handleMessagesChange = useCallback((newMessages) => {
-    console.log('[RichAgentNode] handleMessagesChange called, type:', typeof newMessages);
     // ChatConversation 可能传函数（函数式更新）或数组
-    // 需要判断处理
     if (typeof newMessages === 'function') {
-      console.log('[RichAgentNode] handleMessagesChange - received a function, using messagesRef');
       // 如果是函数，用 messagesRef 而非 node.data.messages 来解析（避免 stale closure）
       const resolvedMessages = newMessages(messagesRef.current);
-      console.log('[RichAgentNode] handleMessagesChange - resolved messages:', resolvedMessages);
-      // 更新 ref
       messagesRef.current = resolvedMessages;
       onUpdateContent?.({ ...node.data, messages: resolvedMessages });
     } else {
-      console.log('[RichAgentNode] handleMessagesChange - received array:', newMessages);
-      // 更新 ref
       messagesRef.current = newMessages;
       onUpdateContent?.({ ...node.data, messages: newMessages });
     }
@@ -938,8 +927,8 @@ const VisualNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragg
             <div className="chat-section" style={{ height: '280px', display: 'flex', flexDirection: 'column' }}>
               <ChatConversation
                 agentId={node.type}
-                projectId={1}
-                projectVersion={1}
+                projectId={projectId}
+                projectVersion={projectVersion}
                 messages={node.data?.messages || []}
                 onMessagesChange={handleMessagesChange}
                 placeholder="输入消息..."
@@ -956,12 +945,13 @@ const VisualNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragg
 };
 
 // 分镜导演节点内容 - 按照手绘图布局
-const DirectorNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragging: isParentDragging }) => {
+const DirectorNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragging: isParentDragging, projectId, projectVersion }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isThinkingExpanded, setIsThinkingExpanded] = useState(false);
   const [hasResult, setHasResult] = useState(false);
   const clickStartPos = useRef({ x: 0, y: 0 });
   const prevRunningRef = useRef(false);
+  const messagesRef = useRef(node.data?.messages || []);
 
   // 图片预览状态
   const [previewImage, setPreviewImage] = useState(null);
@@ -971,7 +961,6 @@ const DirectorNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDra
 
   // 处理图片点击预览
   const handleImageClick = (src, alt) => {
-    console.log('[DirectorNode] handleImageClick:', src, alt);
     setPreviewImage({ src, alt });
   };
 
@@ -1021,20 +1010,13 @@ const DirectorNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDra
   }, [node.data?.isResultExpanded]);
 
   const handleMessagesChange = useCallback((newMessages) => {
-    console.log('[RichAgentNode] handleMessagesChange called, type:', typeof newMessages);
     // ChatConversation 可能传函数（函数式更新）或数组
-    // 需要判断处理
     if (typeof newMessages === 'function') {
-      console.log('[RichAgentNode] handleMessagesChange - received a function, using messagesRef');
       // 如果是函数，用 messagesRef 而非 node.data.messages 来解析（避免 stale closure）
       const resolvedMessages = newMessages(messagesRef.current);
-      console.log('[RichAgentNode] handleMessagesChange - resolved messages:', resolvedMessages);
-      // 更新 ref
       messagesRef.current = resolvedMessages;
       onUpdateContent?.({ ...node.data, messages: resolvedMessages });
     } else {
-      console.log('[RichAgentNode] handleMessagesChange - received array:', newMessages);
-      // 更新 ref
       messagesRef.current = newMessages;
       onUpdateContent?.({ ...node.data, messages: newMessages });
     }
@@ -1195,8 +1177,8 @@ const DirectorNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDra
             <div className="chat-section" style={{ height: '280px', display: 'flex', flexDirection: 'column' }}>
               <ChatConversation
                 agentId={node.type}
-                projectId={1}
-                projectVersion={1}
+                projectId={projectId}
+                projectVersion={projectVersion}
                 messages={node.data?.messages || []}
                 onMessagesChange={handleMessagesChange}
                 placeholder="输入消息..."
@@ -1213,7 +1195,7 @@ const DirectorNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDra
 };
 
 // 制片人节点内容 - 新设计
-const ProducerNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragging: isParentDragging }) => {
+const ProducerNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragging: isParentDragging, projectId, projectVersion }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isThinkingExpanded, setIsThinkingExpanded] = useState(false);
   const [resultContent, setResultContent] = useState(node.data?.result || '');
@@ -1226,9 +1208,6 @@ const ProducerNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDra
   // 用 ref 跟踪最新消息，避免函数式更新时使用 stale 的 node.data.messages
   const messagesRef = useRef(node.data?.messages || []);
 
-  console.log('[ProducerNodeContent] render, node.data?.result:', node.data?.result);
-  console.log('[ProducerNodeContent] displayContent:', displayContent);
-  console.log('[ProducerNodeContent] isExpanded:', isExpanded);
 
   useEffect(() => {
     if (isRunning && !prevRunningRef.current) {
@@ -1296,20 +1275,13 @@ const ProducerNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDra
   }, [isRunning, node.data?.result]);
 
   const handleMessagesChange = useCallback((newMessages) => {
-    console.log('[RichAgentNode] handleMessagesChange called, type:', typeof newMessages);
     // ChatConversation 可能传函数（函数式更新）或数组
-    // 需要判断处理
     if (typeof newMessages === 'function') {
-      console.log('[RichAgentNode] handleMessagesChange - received a function, using messagesRef');
       // 如果是函数，用 messagesRef 而非 node.data.messages 来解析（避免 stale closure）
       const resolvedMessages = newMessages(messagesRef.current);
-      console.log('[RichAgentNode] handleMessagesChange - resolved messages:', resolvedMessages);
-      // 更新 ref
       messagesRef.current = resolvedMessages;
       onUpdateContent?.({ ...node.data, messages: resolvedMessages });
     } else {
-      console.log('[RichAgentNode] handleMessagesChange - received array:', newMessages);
-      // 更新 ref
       messagesRef.current = newMessages;
       onUpdateContent?.({ ...node.data, messages: newMessages });
     }
@@ -1410,8 +1382,8 @@ const ProducerNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDra
             <div className="chat-section" style={{ height: '280px', display: 'flex', flexDirection: 'column' }}>
               <ChatConversation
                 agentId={node.type}
-                projectId={1}
-                projectVersion={1}
+                projectId={projectId}
+                projectVersion={projectVersion}
                 messages={node.data?.messages || []}
                 onMessagesChange={handleMessagesChange}
                 placeholder="输入消息..."
@@ -1428,13 +1400,14 @@ const ProducerNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDra
 };
 
 // 技术节点内容（视频提示词工程师）- 按照手绘图布局
-const TechnicalNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragging: isParentDragging, onGenerateVideoNodes }) => {
+const TechnicalNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragging: isParentDragging, onGenerateVideoNodes, projectId, projectVersion }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isThinkingExpanded, setIsThinkingExpanded] = useState(false);
   const [hasResult, setHasResult] = useState(false);
   const [showAutoGenConfig, setShowAutoGenConfig] = useState(false);
   const clickStartPos = useRef({ x: 0, y: 0 });
   const prevRunningRef = useRef(false);
+  const messagesRef = useRef(node.data?.messages || []);
 
   // 图片预览状态
   const [previewImage, setPreviewImage] = useState(null);
@@ -1447,7 +1420,6 @@ const TechnicalNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDr
 
   // 处理图片点击预览
   const handleImageClick = (src, alt) => {
-    console.log('[TechnicalNode] handleImageClick:', src, alt);
     setPreviewImage({ src, alt });
   };
 
@@ -1518,20 +1490,13 @@ const TechnicalNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDr
   }, [node.data?.isResultExpanded]);
 
   const handleMessagesChange = useCallback((newMessages) => {
-    console.log('[RichAgentNode] handleMessagesChange called, type:', typeof newMessages);
     // ChatConversation 可能传函数（函数式更新）或数组
-    // 需要判断处理
     if (typeof newMessages === 'function') {
-      console.log('[RichAgentNode] handleMessagesChange - received a function, using messagesRef');
       // 如果是函数，用 messagesRef 而非 node.data.messages 来解析（避免 stale closure）
       const resolvedMessages = newMessages(messagesRef.current);
-      console.log('[RichAgentNode] handleMessagesChange - resolved messages:', resolvedMessages);
-      // 更新 ref
       messagesRef.current = resolvedMessages;
       onUpdateContent?.({ ...node.data, messages: resolvedMessages });
     } else {
-      console.log('[RichAgentNode] handleMessagesChange - received array:', newMessages);
-      // 更新 ref
       messagesRef.current = newMessages;
       onUpdateContent?.({ ...node.data, messages: newMessages });
     }
@@ -1769,8 +1734,8 @@ const TechnicalNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDr
             <div className="chat-section" style={{ height: '280px', display: 'flex', flexDirection: 'column' }}>
               <ChatConversation
                 agentId={node.type}
-                projectId={1}
-                projectVersion={1}
+                projectId={projectId}
+                projectVersion={projectVersion}
                 messages={node.data?.messages || []}
                 onMessagesChange={handleMessagesChange}
                 placeholder="输入消息..."
@@ -1787,16 +1752,14 @@ const TechnicalNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDr
 };
 
 // 视频生成节点内容 - 按照手绘图布局
-const VideoGenNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragging: isParentDragging }) => {
+const VideoGenNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragging: isParentDragging, projectId, projectVersion }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isThinkingExpanded, setIsThinkingExpanded] = useState(false);
   const [hasResult, setHasResult] = useState(!!(node.data?.videoPrompt || node.data?.videos?.length > 0 || node.data?.videoPreview));
   const clickStartPos = useRef({ x: 0, y: 0 });
   const prevRunningRef = useRef(false);
   const [showVideoEditor, setShowVideoEditor] = useState(false);
-
-  // 调试：每次渲染都打印
-  console.log('[VideoGenNodeContent] render, node.data:', node.data);
+  const messagesRef = useRef(node.data?.messages || []);
 
   // 视频提示词 - 从node.data获取
   const [videoPrompt, setVideoPrompt] = useState(node.data?.videoPrompt || '');
@@ -1827,9 +1790,7 @@ const VideoGenNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDra
 
   // 同步 node.data 数据到本地状态
   useEffect(() => {
-    console.log('[VideoGenNode] node.data changed:', node.data);
     if (node.data?.videoPrompt !== undefined) {
-      console.log('[VideoGenNode] Setting videoPrompt:', node.data.videoPrompt);
       setVideoPrompt(node.data.videoPrompt);
     }
     if (node.data?.genParams !== undefined) {
@@ -1845,20 +1806,13 @@ const VideoGenNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDra
   }, [node.data]);
 
   const handleMessagesChange = useCallback((newMessages) => {
-    console.log('[RichAgentNode] handleMessagesChange called, type:', typeof newMessages);
     // ChatConversation 可能传函数（函数式更新）或数组
-    // 需要判断处理
     if (typeof newMessages === 'function') {
-      console.log('[RichAgentNode] handleMessagesChange - received a function, using messagesRef');
       // 如果是函数，用 messagesRef 而非 node.data.messages 来解析（避免 stale closure）
       const resolvedMessages = newMessages(messagesRef.current);
-      console.log('[RichAgentNode] handleMessagesChange - resolved messages:', resolvedMessages);
-      // 更新 ref
       messagesRef.current = resolvedMessages;
       onUpdateContent?.({ ...node.data, messages: resolvedMessages });
     } else {
-      console.log('[RichAgentNode] handleMessagesChange - received array:', newMessages);
-      // 更新 ref
       messagesRef.current = newMessages;
       onUpdateContent?.({ ...node.data, messages: newMessages });
     }
@@ -2065,8 +2019,8 @@ const VideoGenNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDra
             <div className="chat-section" style={{ height: '280px', display: 'flex', flexDirection: 'column' }}>
               <ChatConversation
                 agentId={node.type}
-                projectId={1}
-                projectVersion={1}
+                projectId={projectId}
+                projectVersion={projectVersion}
                 messages={node.data?.messages || []}
                 onMessagesChange={handleMessagesChange}
                 placeholder="输入消息..."
@@ -2083,7 +2037,7 @@ const VideoGenNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDra
 };
 
 // 视频剪辑节点内容
-const VideoEditorNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragging: isParentDragging }) => {
+const VideoEditorNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragging: isParentDragging, projectId, projectVersion }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showVideoEditor, setShowVideoEditor] = useState(false);
   
@@ -2231,9 +2185,7 @@ const VideoEditorNodeContent = ({ node, isRunning, onUpdateContent, onExpand, is
               className="open-editor-btn"
               onClick={(e) => {
                 e.stopPropagation();
-                console.log('[VideoEditorNode] 打开剪辑器按钮被点击', { currentState: showVideoEditor });
                 setShowVideoEditor(true);
-                console.log('[VideoEditorNode] showVideoEditor 已设置为 true');
               }}
             >
               <Scissors size={14} />
@@ -2256,9 +2208,10 @@ const VideoEditorNodeContent = ({ node, isRunning, onUpdateContent, onExpand, is
 
 
 // 通用节点内容（未定义的类型）
-const GenericNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragging: isParentDragging }) => {
+const GenericNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragging: isParentDragging, projectId, projectVersion }) => {
   const [isThinkingExpanded, setIsThinkingExpanded] = useState(false);
   const clickStartPos = useRef({ x: 0, y: 0 });
+  const messagesRef = useRef(node.data?.messages || []);
 
   useEffect(() => {
     if (isRunning) {
@@ -2267,20 +2220,13 @@ const GenericNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDrag
   }, [isRunning]);
 
   const handleMessagesChange = useCallback((newMessages) => {
-    console.log('[RichAgentNode] handleMessagesChange called, type:', typeof newMessages);
     // ChatConversation 可能传函数（函数式更新）或数组
-    // 需要判断处理
     if (typeof newMessages === 'function') {
-      console.log('[RichAgentNode] handleMessagesChange - received a function, using messagesRef');
       // 如果是函数，用 messagesRef 而非 node.data.messages 来解析（避免 stale closure）
       const resolvedMessages = newMessages(messagesRef.current);
-      console.log('[RichAgentNode] handleMessagesChange - resolved messages:', resolvedMessages);
-      // 更新 ref
       messagesRef.current = resolvedMessages;
       onUpdateContent?.({ ...node.data, messages: resolvedMessages });
     } else {
-      console.log('[RichAgentNode] handleMessagesChange - received array:', newMessages);
-      // 更新 ref
       messagesRef.current = newMessages;
       onUpdateContent?.({ ...node.data, messages: newMessages });
     }
@@ -2326,12 +2272,14 @@ const GenericNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDrag
       <div className="chat-section" style={{ height: '280px', display: 'flex', flexDirection: 'column' }}>
         <ChatConversation
           agentId={node.type}
-          projectId={1}
-          projectVersion={1}
+          projectId={projectId}
+          projectVersion={projectVersion}
           messages={node.data?.messages || []}
           onMessagesChange={handleMessagesChange}
           placeholder="输入消息..."
           disabledPlaceholder="生成完成后可对话"
+          inputMode="input"
+          disableAutoScroll={true}
         />
       </div>
     </div>
@@ -2359,15 +2307,10 @@ const RichAgentNode = ({
   onOpenSettings,
   onPortPositionChange,
   onGenerateVideoNodes,
-  scale = 1
+  scale = 1,
+  projectId,
+  projectVersion
 }) => {
-  // 调试日志：监控 node 变化
-  useEffect(() => {
-    if (node.type === 'videoGen') {
-      console.log('[RichAgentNode] node updated:', node.id, node.data);
-    }
-  }, [node]);
-
   const nodeRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
@@ -2589,7 +2532,6 @@ const RichAgentNode = ({
   };
 
   const handleUpdateContent = (data) => {
-    console.log('[RichAgentNode] handleUpdateContent called, node.id:', node.id, 'data:', data);
     onUpdateData?.(node.id, data);
   };
 
@@ -2606,7 +2548,9 @@ const RichAgentNode = ({
       isRunning,
       onUpdateContent: handleUpdateContent,
       onExpand: onBringToFront ? () => onBringToFront(node.id) : undefined,
-      isDragging: isDragging || isResizing
+      isDragging: isDragging || isResizing,
+      projectId,
+      projectVersion
     };
 
     switch (node.type) {

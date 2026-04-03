@@ -5,6 +5,31 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>DreamStudio - AI驱动的智能电影生产线</title>
+    <script>
+      // 页面加载时立即检查认证状态
+      window.addEventListener('load', function() {
+        console.log('[Auth] Page loaded');
+        var token = localStorage.getItem('token');
+        var user = localStorage.getItem('user');
+        var authError = sessionStorage.getItem('authError');
+
+        if (authError) {
+          console.log('[Auth] Auth error found:', authError);
+          // 清除认证数据
+          localStorage.removeItem('token');
+          localStorage.removeItem('userId');
+          localStorage.removeItem('user');
+          // 不移除 authError，让 React 检测到后显示登录弹窗
+          return;
+        }
+
+        if (!token && user) {
+          console.log('[Auth] User exists but no token - clearing user');
+          localStorage.removeItem('user');
+          localStorage.removeItem('userId');
+        }
+      });
+    </script>
   </head>
   <body>
     <div id="root"></div>

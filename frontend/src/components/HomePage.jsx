@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Play, X, Maximize2, Film, ChevronRight, Zap, Wand2, Loader2, ChevronLeft, User, LogOut } from 'lucide-react';
 import ProjectCard from './ProjectCard';
 import AuthModal from './AuthModal/AuthModal';
-import { homePageApi } from '../services/api';
+import { homePageApi, authApi } from '../services/api';
 import './HomePage.css';
 
 // 模拟项目数据 - 2个未完成 + 1个已完成（带视频）
@@ -270,12 +270,53 @@ const HomePage = ({ onEnter }) => {
   // 登录状态
   const [currentUser, setCurrentUser] = useState(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authError, setAuthError] = useState(null);
 
-  // 检查登录状态
+  // 检查登录状态并验证 token 有效性
   useEffect(() => {
+    console.log('[HomePage] Checking auth status...');
     const user = localStorage.getItem('user');
-    if (user) {
+    const token = localStorage.getItem('token');
+    console.log('[HomePage] User:', !!user, 'Token:', !!token);
+
+    // 先检查是否有认证错误（从其他页面重定向过来）
+    const error = sessionStorage.getItem('authError');
+    if (error) {
+      console.log('[HomePage] Found auth error in sessionStorage:', error);
+      sessionStorage.removeItem('authError');
+      // 清除可能残留的登录信息，直接显示登录弹窗
+      localStorage.removeItem('token');
+      localStorage.removeItem('userId');
+      localStorage.removeItem('user');
+      setCurrentUser(null);
+      setAuthError(error);
+      setShowAuthModal(true);
+      return;
+    }
+
+    if (user && token) {
+      console.log('[HomePage] Has user and token, validating...');
       setCurrentUser(JSON.parse(user));
+
+      // 使用专门的 /auth/me 接口验证 token
+      authApi.checkStatus()
+        .then((res) => {
+          console.log('[HomePage] Token validation passed', res);
+          // 用后端返回的最新用户信息更新状态
+          if (res.data) {
+            setCurrentUser(res.data);
+          }
+        })
+        .catch((err) => {
+          console.log('[HomePage] Token validation failed:', err);
+          // token 无效，清除本地存储，直接显示登录弹窗
+          localStorage.removeItem('token');
+          localStorage.removeItem('userId');
+          localStorage.removeItem('user');
+          setCurrentUser(null);
+          setAuthError(err.message || '登录已失效，请重新登录');
+          setShowAuthModal(true);
+        });
     }
   }, []);
 
@@ -298,6 +339,7 @@ const HomePage = ({ onEnter }) => {
   // 处理登录成功
   const handleLoginSuccess = (user) => {
     setCurrentUser(user);
+    setAuthError(null); // 清除错误状态
   };
 
   // 处理登出
@@ -640,10 +682,18 @@ const HomePage = ({ onEnter }) => {
         )}
       </AnimatePresence>
 
+      {/* 认证错误提示 */}
+      {authError && (
+        <div className="auth-error-banner">
+          <span>{authError}</span>
+          <button onClick={() => setAuthError(null)}>×</button>
+        </div>
+      )}
+
       {/* 登录/注册弹窗 */}
       <AuthModal
         isOpen={showAuthModal}
-        onClose={() => setShowAuthModal(false)}
+        onClose={() => { setShowAuthModal(false); setAuthError(null); }}
         onLoginSuccess={handleLoginSuccess}
       />
     </div>

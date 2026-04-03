@@ -5,12 +5,12 @@ import com.dream.studio.entity.User;
 import com.dream.studio.entity.UserLoginRecord;
 import com.dream.studio.repository.UserLoginRecordRepository;
 import com.dream.studio.repository.UserRepository;
+import com.dream.studio.util.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.UUID;
 
 @Slf4j
 @Service
@@ -19,6 +19,8 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final UserLoginRecordRepository userLoginRecordRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final JwtUtil jwtUtil;
 
     @Transactional
     public UserDTO.Response register(UserDTO.RegisterRequest request) {
@@ -28,16 +30,20 @@ public class UserService {
             throw new RuntimeException("账号已存在");
         }
 
+        // 密码加密存储
         User user = User.builder()
                 .account(request.getAccount())
-                .password(request.getPassword()) // TODO: 加密
+                .password(passwordEncoder.encode(request.getPassword()))
                 .name(request.getName())
                 .status(1)
                 .build();
 
         User savedUser = userRepository.save(user);
 
-        return convertToResponse(savedUser);
+        // 生成 JWT token
+        String token = jwtUtil.generateToken(savedUser.getAccount(), savedUser.getId());
+
+        return convertToResponse(savedUser, token);
     }
 
     @Transactional
@@ -47,7 +53,8 @@ public class UserService {
         User user = userRepository.findByAccount(request.getAccount())
                 .orElseThrow(() -> new RuntimeException("账号或密码错误"));
 
-        if (!request.getPassword().equals(user.getPassword())) {
+        // 使用 BCrypt 验证密码
+        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             throw new RuntimeException("账号或密码错误");
         }
 
@@ -63,14 +70,21 @@ public class UserService {
                 .build();
         userLoginRecordRepository.save(record);
 
-        return convertToLoginResponse(user);
+        // 生成 JWT token
+        String token = jwtUtil.generateToken(user.getAccount(), user.getId());
+
+        return convertToLoginResponse(user, token);
     }
 
     @Transactional(readOnly = true)
     public UserDTO.Response getUserInfo(String account) {
         User user = userRepository.findByAccount(account)
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
-        return convertToResponse(user);
+
+        // 生成新 token
+        String token = jwtUtil.generateToken(user.getAccount(), user.getId());
+
+        return convertToResponse(user, token);
     }
 
     @Transactional
@@ -86,7 +100,11 @@ public class UserService {
         }
 
         User updatedUser = userRepository.save(user);
-        return convertToResponse(updatedUser);
+
+        // 生成新 token
+        String token = jwtUtil.generateToken(updatedUser.getAccount(), updatedUser.getId());
+
+        return convertToResponse(updatedUser, token);
     }
 
     // TODO: 发送验证码
@@ -94,23 +112,23 @@ public class UserService {
         log.info("Sending verify code to: {}", account);
     }
 
-    private UserDTO.Response convertToResponse(User user) {
+    private UserDTO.Response convertToResponse(User user, String token) {
         return UserDTO.Response.builder()
                 .id(user.getId())
                 .account(user.getAccount())
                 .name(user.getName())
                 .avatar(user.getAvatar())
-                .token(UUID.randomUUID().toString()) // TODO: JWT
+                .token(token)
                 .build();
     }
 
-    private UserDTO.LoginResponse convertToLoginResponse(User user) {
+    private UserDTO.LoginResponse convertToLoginResponse(User user, String token) {
         return UserDTO.LoginResponse.builder()
                 .id(user.getId())
                 .account(user.getAccount())
                 .name(user.getName())
                 .avatar(user.getAvatar())
-                .token(UUID.randomUUID().toString()) // TODO: JWT
+                .token(token)
                 .build();
     }
 }

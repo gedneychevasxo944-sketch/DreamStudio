@@ -174,21 +174,21 @@ public class HomePageService {
     }
 
     @Transactional(readOnly = true)
-    public ProjectDTO.Response getProject(Long projectId) {
-        log.info("Getting project: {}", projectId);
+    public ProjectDTO.Response getProject(Long projectId, String account) {
+        log.info("Getting project: {} for account: {}", projectId, account);
 
-        Project project = projectRepository.findById(projectId)
-                .orElseThrow(() -> new RuntimeException("Project not found: " + projectId));
+        Project project = projectRepository.findByIdAndAccount(projectId, account)
+                .orElseThrow(() -> new RuntimeException("Project not found or access denied: " + projectId));
 
         return convertToResponse(project);
     }
 
     @Transactional
     public ProjectDTO.Response saveProject(Long projectId, ProjectDTO.SaveRequest request, String account) {
-        log.info("Saving project: {}", projectId);
+        log.info("Saving project: {} for account: {}", projectId, account);
 
-        Project project = projectRepository.findById(projectId)
-                .orElseThrow(() -> new RuntimeException("Project not found: " + projectId));
+        Project project = projectRepository.findByIdAndAccount(projectId, account)
+                .orElseThrow(() -> new RuntimeException("Project not found or access denied: " + projectId));
 
         int newVersion = project.getCurrentVersion() + 1;
 
@@ -227,9 +227,13 @@ public class HomePageService {
     }
 
     @Transactional(readOnly = true)
-    public ProjectDTO.VersionListResponse getVersions(Long projectId) {
-        log.info("Getting versions for project: {}", projectId);
-        
+    public ProjectDTO.VersionListResponse getVersions(Long projectId, String account) {
+        log.info("Getting versions for project: {} for account: {}", projectId, account);
+
+        // Validate project ownership
+        projectRepository.findByIdAndAccount(projectId, account)
+                .orElseThrow(() -> new RuntimeException("Project not found or access denied: " + projectId));
+
         List<ProjectVersion> versions = projectVersionRepository.findByProjectIdOrderByVersionNumberDesc(projectId);
         
         List<ProjectDTO.VersionResponse> versionList = versions.stream()
@@ -243,9 +247,13 @@ public class HomePageService {
     }
 
     @Transactional(readOnly = true)
-    public ProjectDTO.VersionResponse getVersion(Long projectId, Integer versionNumber) {
-        log.info("Getting version {} of project {}", versionNumber, projectId);
-        
+    public ProjectDTO.VersionResponse getVersion(Long projectId, Integer versionNumber, String account) {
+        log.info("Getting version {} of project {} for account: {}", versionNumber, projectId, account);
+
+        // Validate project ownership
+        projectRepository.findByIdAndAccount(projectId, account)
+                .orElseThrow(() -> new RuntimeException("Project not found or access denied: " + projectId));
+
         ProjectVersion version = projectVersionRepository.findByProjectIdAndVersionNumber(projectId, versionNumber)
                 .orElseThrow(() -> new RuntimeException("Version not found: " + versionNumber));
         
@@ -254,13 +262,13 @@ public class HomePageService {
 
     @Transactional
     public ProjectDTO.Response restoreVersion(Long projectId, Integer versionNumber, String account) {
-        log.info("Restoring project {} to version {}", projectId, versionNumber);
+        log.info("Restoring project {} to version {} for account: {}", projectId, versionNumber, account);
+
+        Project project = projectRepository.findByIdAndAccount(projectId, account)
+                .orElseThrow(() -> new RuntimeException("Project not found or access denied: " + projectId));
 
         ProjectVersion version = projectVersionRepository.findByProjectIdAndVersionNumber(projectId, versionNumber)
                 .orElseThrow(() -> new RuntimeException("Version not found: " + versionNumber));
-
-        Project project = projectRepository.findById(projectId)
-                .orElseThrow(() -> new RuntimeException("Project not found: " + projectId));
 
         project.setTitle(version.getTitle());
         project.setDescription(version.getDescription());
@@ -275,11 +283,11 @@ public class HomePageService {
     }
 
     @Transactional
-    public void deleteVersion(Long projectId, Integer versionNumber) {
-        log.info("Deleting version {} of project {}", versionNumber, projectId);
+    public void deleteVersion(Long projectId, Integer versionNumber, String account) {
+        log.info("Deleting version {} of project {} for account: {}", versionNumber, projectId, account);
 
-        Project project = projectRepository.findById(projectId)
-                .orElseThrow(() -> new RuntimeException("Project not found: " + projectId));
+        Project project = projectRepository.findByIdAndAccount(projectId, account)
+                .orElseThrow(() -> new RuntimeException("Project not found or access denied: " + projectId));
 
         if (versionNumber.equals(project.getCurrentVersion())) {
             List<ProjectVersion> versions = projectVersionRepository.findByProjectIdOrderByVersionNumberDesc(projectId);
@@ -300,6 +308,20 @@ public class HomePageService {
         }
 
         projectVersionRepository.deleteByProjectIdAndVersionNumber(projectId, versionNumber);
+    }
+
+    @Transactional
+    public void deleteProject(Long projectId, String account) {
+        log.info("Deleting project: {} for account: {}", projectId, account);
+
+        Project project = projectRepository.findByIdAndAccount(projectId, account)
+                .orElseThrow(() -> new RuntimeException("Project not found or access denied: " + projectId));
+
+        // Delete all versions first
+        projectVersionRepository.deleteByProjectId(projectId);
+
+        // Delete the project
+        projectRepository.delete(project);
     }
 
     private ProjectDTO.Response convertToResponse(Project project) {

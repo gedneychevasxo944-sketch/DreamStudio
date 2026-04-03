@@ -15,4 +15,6 @@ public interface ProjectVersionRepository extends JpaRepository<ProjectVersion, 
     Optional<ProjectVersion> findByProjectIdAndVersionNumber(Long projectId, Integer versionNumber);
 
     void deleteByProjectIdAndVersionNumber(Long projectId, Integer versionNumber);
+
+    void deleteByProjectId(Long projectId);
 }

@@ -33,12 +33,15 @@ const AgentLibrary = ({ agents, onDragAgent, onClose, loading = false }) => {
   const [draggedAgent, setDraggedAgent] = useState(null);
   const libraryRef = useRef(null);
 
-  // 点击外部关闭
+  // 点击外部关闭 - 使用 setTimeout 避免动画期间事件问题
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (libraryRef.current && !libraryRef.current.contains(e.target)) {
-        onClose();
-      }
+      // 延迟关闭，确保动画完成
+      setTimeout(() => {
+        if (libraryRef.current && !libraryRef.current.contains(e.target)) {
+          onClose();
+        }
+      }, 100);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);

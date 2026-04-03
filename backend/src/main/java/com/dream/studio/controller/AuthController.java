@@ -2,12 +2,17 @@ package com.dream.studio.controller;
 
 import com.dream.studio.dto.ApiResponse;
 import com.dream.studio.dto.UserDTO;
+import com.dream.studio.exception.UserNotFoundException;
+import com.dream.studio.filter.JwtAuthenticationFilter.UserPrincipal;
+import com.dream.studio.repository.UserRepository;
 import com.dream.studio.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 @Slf4j
@@ -19,6 +24,32 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     private final UserService userService;
+    private final UserRepository userRepository;
+
+    @GetMapping("/me")
+    @Operation(summary = "检查登录状态", description = "验证当前token是否有效，返回用户信息")
+    public ApiResponse<UserDTO.Response> checkLoginStatus() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !(authentication.getPrincipal() instanceof UserPrincipal)) {
+            throw new UserNotFoundException("用户未登录");
+        }
+
+        UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
+        log.info("Checking login status for user: {}", principal.account());
+
+        // 从数据库验证用户是否仍然存在
+        var user = userRepository.findByAccount(principal.account())
+                .orElseThrow(() -> new UserNotFoundException("用户不存在"));
+
+        UserDTO.Response response = UserDTO.Response.builder()
+                .id(user.getId())
+                .account(user.getAccount())
+                .name(user.getName())
+                .avatar(user.getAvatar())
+                .build();
+
+        return ApiResponse.success(response);
+    }
 
     @PostMapping("/register")
     @Operation(summary = "用户注册", description = "注册新用户账号")
