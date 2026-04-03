@@ -428,12 +428,14 @@ const WriterNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragg
   }, [node.data?.isThinkingExpanded]);
 
   // 思考内容自动收起：当有结果时收起思考内容
+  // 注意：不将 isThinkingExpanded 放入依赖数组，避免用户点击展开后又被收起
   useEffect(() => {
     const hasResult = node.data?.result && node.data.result.length > 0;
     const hasThinking = node.data?.thinking && node.data.thinking.length > 0;
     if (hasResult && hasThinking && isThinkingExpanded) {
       setIsThinkingExpanded(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [node.data?.result, node.data?.thinking]);
 
   // 监听外部传入的结果展开状态
@@ -650,12 +652,14 @@ const VisualNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragg
   }, [node.data?.isThinkingExpanded]);
 
   // 思考内容自动收起：当有结果时收起思考内容
+  // 注意：不将 isThinkingExpanded 放入依赖数组，避免用户点击展开后又被收起
   useEffect(() => {
     const hasResult = node.data?.result && node.data.result.length > 0;
     const hasThinking = node.data?.thinking && node.data.thinking.length > 0;
     if (hasResult && hasThinking && isThinkingExpanded) {
       setIsThinkingExpanded(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [node.data?.result, node.data?.thinking]);
 
   // 监听外部传入的结果展开状态
@@ -994,12 +998,14 @@ const DirectorNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDra
   }, [node.data?.isThinkingExpanded]);
 
   // 思考内容自动收起：当有结果时收起思考内容
+  // 注意：不将 isThinkingExpanded 放入依赖数组，避免用户点击展开后又被收起
   useEffect(() => {
     const hasResult = node.data?.result && node.data.result.length > 0;
     const hasThinking = node.data?.thinking && node.data.thinking.length > 0;
     if (hasResult && hasThinking && isThinkingExpanded) {
       setIsThinkingExpanded(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [node.data?.result, node.data?.thinking]);
 
   // 监听外部传入的结果展开状态
@@ -1235,12 +1241,14 @@ const ProducerNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDra
   }, [node.data?.isThinkingExpanded]);
 
   // 思考内容自动收起：当有结果时收起思考内容
+  // 注意：不将 isThinkingExpanded 放入依赖数组，避免用户点击展开后又被收起
   useEffect(() => {
     const hasResult = node.data?.result && node.data.result.length > 0;
     const hasThinking = node.data?.thinking && node.data.thinking.length > 0;
     if (hasResult && hasThinking && isThinkingExpanded) {
       setIsThinkingExpanded(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [node.data?.result, node.data?.thinking]);
 
   // 监听外部传入的结果展开状态
@@ -1478,13 +1486,15 @@ const TechnicalNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDr
   }, [node.data?.isThinkingExpanded]);
 
   // 思考内容自动收起：当有结果时收起思考内容
+  // 注意：不将 isThinkingExpanded 放入依赖数组，避免用户点击展开后又被收起
   useEffect(() => {
     const hasResult = node.data?.result && node.data.result.length > 0;
     const hasThinking = node.data?.thinking && node.data.thinking.length > 0;
     if (hasResult && hasThinking && isThinkingExpanded) {
       setIsThinkingExpanded(false);
     }
-  }, [node.data?.result, node.data?.thinking, isThinkingExpanded]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [node.data?.result, node.data?.thinking]);
 
   // 监听外部传入的结果展开状态
   useEffect(() => {
@@ -1759,7 +1769,8 @@ const TechnicalNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDr
 const VideoGenNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragging: isParentDragging, projectId, projectVersion }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isThinkingExpanded, setIsThinkingExpanded] = useState(false);
-  const [hasResult, setHasResult] = useState(!!(node.data?.videoPrompt || node.data?.videos?.length > 0 || node.data?.videoPreview));
+  // hasResult 初始化为 false，只有当有实际视频数据时才为 true
+  const [hasResult, setHasResult] = useState(false);
   const clickStartPos = useRef({ x: 0, y: 0 });
   const prevRunningRef = useRef(false);
   const [showVideoEditor, setShowVideoEditor] = useState(false);
@@ -2385,6 +2396,28 @@ const RichAgentNode = ({
       return () => resizeObserver.disconnect();
     }
   }, [node.id, onDimensionChange]);
+
+  // 点击外部关闭智能体菜单
+  useEffect(() => {
+    if (!showAgentMenu) return;
+
+    const handleClickOutside = (e) => {
+      // 检查点击是否在菜单内，不在则关闭
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setShowAgentMenu(false);
+      }
+    };
+
+    // 延迟添加监听，避免打开菜单时立即触发关闭
+    const timer = setTimeout(() => {
+      document.addEventListener('click', handleClickOutside);
+    }, 0);
+
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [showAgentMenu]);
 
   const handleMouseDown = (e) => {
     // 检查是否点击了调整大小手柄
