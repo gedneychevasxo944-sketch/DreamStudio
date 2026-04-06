@@ -84,8 +84,6 @@ const DemoCard = ({ demo, onExpand, onFork }) => {
   return (
     <motion.div
       className="demo-card"
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
       whileHover={{ y: -4 }}
     >
       <div className="demo-thumbnail" onClick={() => onExpand(demo)}>
@@ -458,6 +456,8 @@ const HomePage = ({ onEnter }) => {
         <div className="grid-overlay"></div>
         <div className="glow-orb orb-1"></div>
         <div className="glow-orb orb-2"></div>
+        <div className="glow-orb orb-3"></div>
+        <div className="glow-orb orb-4"></div>
       </div>
 
       {/* 右上角登录/用户按钮 */}
@@ -615,14 +615,33 @@ const HomePage = ({ onEnter }) => {
           </button>
         </div>
         <div className="demos-grid">
-          {demoTemplates.slice(0, 3).map((demo) => (
-            <DemoCard
-              key={demo.id}
-              demo={demo}
-              onExpand={setActiveDemo}
-              onFork={handleForkTemplate}
-            />
-          ))}
+          {loading ? (
+            // Skeleton loading state
+            <>
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="skeleton-card">
+                  <div className="skeleton-thumbnail"></div>
+                  <div className="skeleton-info">
+                    <div className="skeleton-line short"></div>
+                    <div className="skeleton-line medium"></div>
+                    <div className="skeleton-tags">
+                      <div className="skeleton-tag"></div>
+                      <div className="skeleton-tag"></div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </>
+          ) : (
+            demoTemplates.slice(0, 3).map((demo) => (
+              <DemoCard
+                key={demo.id}
+                demo={demo}
+                onExpand={setActiveDemo}
+                onFork={handleForkTemplate}
+              />
+            ))
+          )}
         </div>
       </motion.div>
 
