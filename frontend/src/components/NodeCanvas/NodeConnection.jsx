@@ -56,7 +56,7 @@ const NodeConnection = ({ connection, nodes, isRunning, portPositions = {} }) =>
   if (!pathData) return null;
 
   // 连线颜色
-  const strokeColor = '#3b82f6';
+  const strokeColor = 'var(--accent-blue, #3b82f6)';
   const strokeWidth = 2;
 
   return (
@@ -76,21 +76,21 @@ const NodeConnection = ({ connection, nodes, isRunning, portPositions = {} }) =>
           <path
             d={pathData}
             stroke={strokeColor}
-            strokeWidth={strokeWidth + 2}
+            strokeWidth={strokeWidth + 3}
             fill="none"
             strokeLinecap="round"
-            opacity="0.3"
-            filter="blur(2px)"
+            opacity="0.25"
+            filter="blur(3px)"
           >
             <animate
               attributeName="stroke-dasharray"
-              values="0,20;20,0;0,20"
-              dur="1.5s"
+              values="0,24;24,0;0,24"
+              dur="1.2s"
               repeatCount="indefinite"
             />
           </path>
-          <circle r="4" fill="#fff" filter="drop-shadow(0 0 4px #fff)">
-            <animateMotion dur="1.5s" repeatCount="indefinite" path={pathData} />
+          <circle r="5" fill="#ffffff" filter="drop-shadow(0 0 6px rgba(6, 182, 212, 0.8))">
+            <animateMotion dur="1.2s" repeatCount="indefinite" path={pathData} />
           </circle>
         </>
       )}

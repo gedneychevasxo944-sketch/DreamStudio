@@ -1,5 +1,8 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { Workflow, Plus, MousePointer2 } from 'lucide-react';
+import { toast } from '../Toast/Toast';
+import { bottomToast } from '../Toast/BottomToast';
 import AgentLibrary from './AgentLibrary';
 import NodeConnection from './NodeConnection';
 import DraggingConnectionLine from './DraggingConnectionLine';
@@ -441,7 +444,7 @@ const NodeCanvas = ({ isFullscreen, onToggleFullscreen, projectId, projectVersio
         const fromOutput = fromNode.outputs?.find(o => o.id === connectingFrom.portId);
         const toInput = toNode.inputs?.find(i => i.id === toPortId);
         if (fromOutput && toInput && fromOutput.type !== toInput.type && toInput.type !== 'any') {
-          alert(`数据类型不匹配: ${fromOutput.type} → ${toInput.type}`);
+          toast.show({ message: `数据类型不匹配: ${fromOutput.type} → ${toInput.type}`, type: 'warning' });
           setIsConnecting(false);
           setConnectingFrom(null);
           return;
@@ -821,13 +824,13 @@ const NodeCanvas = ({ isFullscreen, onToggleFullscreen, projectId, projectVersio
         setShowSaveTemplateDialog(false);
         setTemplateName('');
         setTemplateDescribe('');
-        alert('团队保存成功！');
+        bottomToast.success('保存成功');
       } else {
-        alert('保存失败：' + (res.message || '未知错误'));
+        bottomToast.error('保存失败：' + (res.message || '未知错误'));
       }
     } catch (error) {
       console.error('保存团队失败:', error);
-      alert('保存失败，请重试');
+      bottomToast.error('保存失败，请重试');
     }
   }, [templateName, templateDescribe, nodes, connections]);
 
@@ -930,6 +933,26 @@ const NodeCanvas = ({ isFullscreen, onToggleFullscreen, projectId, projectVersio
             />
           ))}
         </div>
+
+        {/* 空状态引导 */}
+        {nodes.length === 0 && (
+          <div className="canvas-empty-state">
+            <div className="canvas-empty-state-icon">
+              <Workflow size={36} />
+            </div>
+            <div className="canvas-empty-state-title">画布空白</div>
+            <div className="canvas-empty-state-desc">
+              从左侧智能体库拖入节点，<br />或在模板中选择一个预设流程开始
+            </div>
+            <div
+              className="canvas-empty-state-hint"
+              onClick={() => setShowLibrary(true)}
+            >
+              <Plus size={14} />
+              打开智能体库
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 底部状态栏 */}

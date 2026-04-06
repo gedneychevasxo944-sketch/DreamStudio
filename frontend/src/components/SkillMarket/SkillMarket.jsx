@@ -6,6 +6,7 @@ import {
   Package, Shield, Users, FolderOpen, Wand2
 } from 'lucide-react';
 import './SkillMarket.css';
+import { toast } from '../Toast/Toast';
 
 // 模拟Skill数据
 const MOCK_SKILLS = [
@@ -286,7 +287,7 @@ const SkillMarket = ({ onClose, onInstallSkill }) => {
       setUploadFile(null);
       setUploadName('');
       setUploadDesc('');
-      alert('Skill上传成功！');
+      toast.show({ message: 'Skill 上传成功！', type: 'success' });
     }
   }, [uploadName, uploadFile, uploadDesc]);
 

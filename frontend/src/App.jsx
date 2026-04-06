@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Home, GitCompare, ChevronLeft, ChevronRight, PanelLeft, PanelRight, Package, Save, Plus, FileText, Edit2, Check, X, History, Trash2, AlertTriangle, FilePlus } from 'lucide-react';
 import Console from './components/Console';
+import ToastContainer from './components/Toast/Toast';
+import BottomToastContainer from './components/Toast/BottomToast';
 import NodeCanvas from './components/NodeCanvas/NodeCanvas';
 import AssetPanel from './components/AssetPanel/AssetPanel';
 import Modal from './components/Modal';
@@ -806,6 +808,8 @@ function App() {
           )}
         </div>
       )}
+      <ToastContainer />
+      <BottomToastContainer />
     </div>
   );
 }
