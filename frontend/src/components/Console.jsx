@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Bot } from 'lucide-react';
 import ChatConversation from './ChatConversation';
-import { COMPONENT_TYPE } from '../constants/ComponentType';
+import { COMPONENT_TYPE, ASSISTANT_AGENT_ID } from '../constants/ComponentType';
 import { useProjectStore, useWorkflowStore } from '../stores';
 import './Console.css';
 
@@ -39,7 +39,7 @@ const Console = ({ onLoadWorkflow, pendingChatMessage, onPendingChatMessageSent 
 
       <ChatConversation
         ref={chatRef}
-        agentId={COMPONENT_TYPE.ASSISTANT}
+        agentId={ASSISTANT_AGENT_ID}
         projectId={currentProjectId}
         projectVersion={currentVersion?.version}
         messages={messages}

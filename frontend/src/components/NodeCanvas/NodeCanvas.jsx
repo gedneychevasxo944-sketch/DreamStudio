@@ -6,40 +6,14 @@ import DraggingConnectionLine from './DraggingConnectionLine';
 import AgentSettings from '../AgentSettings/AgentSettings';
 import ConfirmDialog from '../ConfirmDialog/ConfirmDialog';
 import RichAgentNode from './RichAgentNode';
-import { workSpaceApi } from '../../services/api';
-import { useWorkflowStore } from '../../stores';
+import { workSpaceApi, teamApi, agentApi } from '../../services/api';
+import { useWorkflowStore, calculateNodePositions } from '../../stores';
 import { CanvasToolbar, CanvasStatusBar, FullscreenToolbar, SaveTemplateDialog } from '../Canvas';
 import './NodeCanvas.css';
 
-// 获取节点默认宽度
+// 获取节点默认宽度（统一700px）
 const getDefaultNodeWidth = (nodeType) => {
-  if (nodeType === 'visual' || nodeType === 'director' || nodeType === 'technical') {
-    return 540;
-  }
-  return 360;
-};
-
-// 计算节点位置
-const calculateNodePositions = (columns, startX = 50, startY = 200, gap = 100) => {
-  const nodes = [];
-  let currentX = startX;
-
-  columns.forEach((column) => {
-    const { type, label } = column;
-    const nodeWidth = getDefaultNodeWidth(type);
-
-    nodes.push({
-      id: type,
-      type: type,
-      x: currentX,
-      y: startY,
-      label: label
-    });
-
-    currentX += nodeWidth + gap;
-  });
-
-  return nodes;
+  return 700;
 };
 
 // 思考内容生成
@@ -88,6 +62,7 @@ const NodeCanvas = ({ isFullscreen, onToggleFullscreen, projectId, projectVersio
   const [loadingAgents, setLoadingAgents] = useState(false);
   const [showSaveTemplateDialog, setShowSaveTemplateDialog] = useState(false);
   const [templateName, setTemplateName] = useState('');
+  const [templateDescribe, setTemplateDescribe] = useState('');
 
   // 确认对话框状态
   const [confirmDialog, setConfirmDialog] = useState({
@@ -113,6 +88,8 @@ const NodeCanvas = ({ isFullscreen, onToggleFullscreen, projectId, projectVersio
     deleteConnection,
     setIsRunning,
     batchUpdateNodes,
+    resetCanvas,
+    loadTemplateNodes,
   } = useWorkflowStore();
 
   // 用于存储 executeWorkflowWithBackend 的 ref，避免初始化顺序问题
@@ -204,36 +181,89 @@ const NodeCanvas = ({ isFullscreen, onToggleFullscreen, projectId, projectVersio
     const loadData = async () => {
       setLoadingAgents(true);
       try {
-        const [agentsRes, workflowsRes] = await Promise.all([
-          workSpaceApi.getAgents(),
-          workSpaceApi.getWorkflows()
+        const [agentsRes, teamsRes] = await Promise.all([
+          agentApi.search([], 1, 100),  // 使用新 API
+          teamApi.search([], 1, 100)  // 使用团队 API 加载模板
         ]);
 
         if (agentsRes.code === 200 && agentsRes.data) {
           const agentsMap = {};
-          agentsRes.data.agents.forEach(agent => {
-            agentsMap[agent.type] = {
-              id: agent.type,
-              name: agent.name,
-              category: agent.category,
-              icon: agent.icon,
-              color: agent.color,
-              inputs: agent.inputs || [],
-              outputs: agent.outputs || [],
+          // icon 映射：后端值 -> 前端 ICON_MAP 值
+          const iconMap = {
+            'PRODUCER': 'Target',
+            'CONTENT': 'PenTool',
+            'VISUAL': 'Palette',
+            'DIRECTOR': 'Video',
+            'TECHNICAL': 'Code',
+            'VIDEO_GEN': 'Play',
+            'VIDEO_EDITOR': 'Scissors',
+          };
+          agentsRes.data.list.forEach(agent => {
+            // 使用 agentCode 作为 key，兼容前端 type 字段
+            const type = agent.agentCode || agent.type;
+            agentsMap[type] = {
+              ...agent,
+              id: type,  // 兼容
+              type: type,  // 使用 agentCode
+              name: agent.agentName || agent.name,
+              category: agent.category,  // 后端直接返回 category: "官方认证"
+              description: agent.describe || agent.description,
+              agentId: agent.agentId,  // 新增：后端 agentId
+              agentCode: agent.agentCode,  // 新增
+              agentTags: agent.agentTags || [],  // 新增
+              icon: iconMap[agent.icon] || agent.icon || 'Bot',  // 映射 icon
             };
           });
           setAgentTypes(agentsMap);
         }
 
-        if (workflowsRes.code === 200 && workflowsRes.data) {
-          const templateList = workflowsRes.data.workflows.map(wf => ({
-            id: wf.id,
-            name: wf.name,
-            description: wf.description,
-            category: wf.id,
-            nodes: calculateNodePositions(wf.nodes.map(n => ({ type: n.type, label: n.label }))),
-            connections: wf.connections,
-          }));
+        if (teamsRes.code === 200 && teamsRes.data) {
+          const templateList = (teamsRes.data.list || []).map(team => {
+            // 节点数据：后端返回的 name/icon/color 优先，agentTypes 兜底
+            const nodesWithPosition = (team.dag?.nodes || []).map((n, index) => {
+              // agentTypes 兜底数据
+              const fallbackData = agentTypes[n.agentCode] || {
+                name: n.agentCode,
+                category: '未知',
+                icon: 'Bot',
+                color: '#888888',
+                inputs: [{ id: 'input', label: '输入', type: 'any' }],
+                outputs: [{ id: 'output', label: '输出', type: 'any' }]
+              };
+              // 后端返回的节点数据优先，否则用 fallbackData
+              return {
+                ...fallbackData,  // 先放兜底数据
+                id: n.nodeId || `${n.agentCode}-${index}`,
+                nodeId: n.nodeId,
+                agentId: n.agentId,
+                agentCode: n.agentCode,
+                type: n.agentCode,
+                // 后端返回的 name/icon/color 覆盖兜底数据
+                name: n.name || fallbackData.name,
+                icon: n.icon || fallbackData.icon,
+                color: n.color || fallbackData.color,
+                // 暂时不设置 x/y，由 calculateNodePositions 统一计算
+                status: 'idle'
+              };
+            });
+            // 使用统一的节点位置计算函数
+            const nodesWithPositions = calculateNodePositions(nodesWithPosition, {
+              startX: 50,
+              startY: 200,
+              gap: 100,  // 节点之间的间距
+            });
+            return {
+              id: team.teamId,
+              name: team.teamName,
+              description: team.teamDescribe || '',
+              category: team.tags?.[0] || 'default',
+              nodes: nodesWithPositions,
+              connections: (team.dag?.edges || []).map(e => ({
+                from: e.fromNodeId || e.from,
+                to: e.toNodeId || e.to
+              })),
+            };
+          });
           setTemplates(templateList);
         }
       } catch (error) {
@@ -269,63 +299,51 @@ const NodeCanvas = ({ isFullscreen, onToggleFullscreen, projectId, projectVersio
   // 加载预设模板
   const loadTemplate = useCallback((templateId) => {
     const template = templates.find(t => t.id === templateId);
-    if (template && Object.keys(agentTypes).length > 0) {
-      const loadedNodes = template.nodes.map(n => {
-        const agentData = agentTypes[n.type] || {
-          id: n.type,
-          name: n.type,
-          category: '未知',
-          icon: 'Bot',
-          color: '#888888',
-          inputs: [{ id: 'input', label: '输入', type: 'any' }],
-          outputs: [{ id: 'output', label: '输出', type: 'any' }]
-        };
-        return { ...agentData, id: n.id, type: n.type, x: n.x, y: n.y, status: 'idle' };
-      });
+    if (template) {
+      // 先重置画布，再加载模板节点
+      resetCanvas();
 
-      loadedNodes.forEach(node => addNode(node));
+      // 模板已包含完整节点数据，直接使用
+      const loadedNodes = template.nodes.map(n => ({
+        ...n,
+        id: n.id || n.nodeId,
+        status: 'idle'
+      }));
 
-      template.connections.forEach((conn, index) => {
-        const fromNode = loadedNodes.find(n => n.id === conn.from);
-        const toNode = loadedNodes.find(n => n.id === conn.to);
-        addConnection({
+      const connections = template.connections.map((conn, index) => {
+        const fromNode = loadedNodes.find(n => n.id === (conn.from || conn.fromNodeId));
+        const toNode = loadedNodes.find(n => n.id === (conn.to || conn.toNodeId));
+        return {
           ...conn,
-          id: `${conn.from}-${conn.to}-${index}`,
+          id: `${conn.from || conn.fromNodeId}-${conn.to || conn.toNodeId}-${index}`,
+          from: conn.from || conn.fromNodeId,
+          to: conn.to || conn.toNodeId,
           fromPort: fromNode?.outputs?.[0]?.id || 'output',
           toPort: toNode?.inputs?.[0]?.id || 'input'
-        });
+        };
       });
+
+      loadTemplateNodes(loadedNodes, connections);
     }
-  }, [templates, agentTypes, addNode, addConnection]);
+  }, [templates, resetCanvas, loadTemplateNodes]);
 
-  // 添加节点
+  // 添加节点 - 横向排列，间距基于最右侧节点的 endX
   const handleAddNode = useCallback((agentType, x, y) => {
-    const nodeWidth = 200, nodeHeight = 80, gap = nodeWidth;
-    let newX = x - position.x / scale;
-    let newY = y - position.y / scale;
+    const gap = 100;
+    const startY = 200;
 
-    const findNonOverlappingPosition = (baseX, baseY) => {
-      let offsetX = 0, offsetY = 0, attempts = 0;
-      while (attempts < 50) {
-        const testX = baseX + offsetX, testY = baseY + offsetY;
-        const hasOverlap = nodes.some(node =>
-          testX < node.x + nodeWidth + gap && testX + nodeWidth + gap > node.x &&
-          testY < node.y + nodeHeight + gap && testY + nodeHeight + gap > node.y
-        );
-        if (!hasOverlap) return { x: testX, y: testY };
-        offsetX += nodeWidth + gap;
-        if (offsetX > 600) { offsetX = 0; offsetY += nodeHeight + gap; }
-        attempts++;
-      }
-      return { x: baseX + nodeWidth + gap, y: baseY };
-    };
+    // 计算最右侧节点的 endX
+    const maxEndX = nodes.reduce((max, n) => {
+      const nodeWidth = getDefaultNodeWidth(n.type || n.agentCode);
+      return Math.max(max, n.x + nodeWidth);
+    }, 50);
 
-    const { x: finalX, y: finalY } = findNonOverlappingPosition(newX, newY);
+    const newX = maxEndX + gap;
     const agentTypeData = agentTypes[agentType] || Object.values(agentTypes)[0];
     if (!agentTypeData) return;
 
-    addNode({ id: `${agentType}-${Date.now()}`, type: agentType, x: finalX, y: finalY, ...agentTypeData });
-  }, [position, scale, nodes, agentTypes, addNode]);
+    addNode({ id: `${agentType}-${Date.now()}`, type: agentType, x: newX, y: startY, ...agentTypeData });
+  }, [nodes, agentTypes, addNode]);
 
   // 画布拖拽
   const handleMouseDown = (e) => {
@@ -398,7 +416,7 @@ const NodeCanvas = ({ isFullscreen, onToggleFullscreen, projectId, projectVersio
     }
   };
 
-  // 添加连接节点
+  // 添加连接节点 - 使用统一的间距算法
   const addConnectedNode = useCallback((fromNodeId, agentType) => {
     const newNodeId = `${agentType}-${Date.now()}`;
     const fromNode = nodes.find(n => n.id === fromNodeId);
@@ -407,7 +425,16 @@ const NodeCanvas = ({ isFullscreen, onToggleFullscreen, projectId, projectVersio
     const agentTypeData = agentTypes[agentType] || Object.values(agentTypes)[0];
     if (!agentTypeData) return;
 
-    addNode({ ...agentTypeData, id: newNodeId, type: agentType, x: fromNode.x + 200 + 200, y: fromNode.y });
+    // 计算新节点位置：基于最右侧节点的 endX + gap
+    const gap = 100;
+    const startY = 200;
+    const maxEndX = nodes.reduce((max, n) => {
+      const nodeWidth = getDefaultNodeWidth(n.type || n.agentCode);
+      return Math.max(max, n.x + nodeWidth);
+    }, 50);
+    const newX = maxEndX + gap;
+
+    addNode({ ...agentTypeData, id: newNodeId, type: agentType, x: newX, y: startY });
     addConnection({
       id: `${fromNodeId}-${fromNode.outputs?.[0]?.id || 'output'}-${newNodeId}-${agentTypeData.inputs?.[0]?.id || 'input'}`,
       from: fromNodeId,
@@ -463,17 +490,17 @@ const NodeCanvas = ({ isFullscreen, onToggleFullscreen, projectId, projectVersio
       const sseConnection = workSpaceApi.executeWorkflow(
         projectId, executionId, projectVersion, nodesToExecute, connectionsToSend,
         (event) => {
-          if (event.type === 'status') {
+          if (event.type === 'node_status' || event.type === 'status') {
             if (event.nodeId) updateNodeStatus(event.nodeId, event.status === 'completed' ? 'completed' : 'running');
           } else if (event.type === 'thinking') {
             if (event.nodeId) {
               const existingThinking = nodeThinkingMap.get(event.nodeId) || [];
-              existingThinking.push(event.content);
+              existingThinking.push(event.delta);
               nodeThinkingMap.set(event.nodeId, existingThinking);
               updateNodeData(event.nodeId, { thinking: [...existingThinking], thinkingIndex: existingThinking.length, isThinkingExpanded: true });
             }
           } else if (event.type === 'result') {
-            if (event.nodeId) updateNodeResult(event.nodeId, event.content, nodeThinkingMap.get(event.nodeId) || []);
+            if (event.nodeId) updateNodeResult(event.nodeId, event.delta, nodeThinkingMap.get(event.nodeId) || []);
           } else if (event.type === 'data') {
             if (event.nodeId && event.data) updateNodeData(event.nodeId, { ...event.data, hasResult: true });
           } else if (event.type === 'videos') {
@@ -585,6 +612,8 @@ const NodeCanvas = ({ isFullscreen, onToggleFullscreen, projectId, projectVersio
     const savedExecutionId = localStorage.getItem(`execution_${projectId}`);
     const executionId = savedExecutionId ? parseInt(savedExecutionId, 10) : null;
 
+    console.log('[DEBUG executeWorkflow] calling workSpaceApi.executeWorkflow...');
+
     try {
       const sseConnection = workSpaceApi.executeWorkflow(
         projectId, executionId, projectVersion, currentNodes, currentConnections,
@@ -597,17 +626,17 @@ const NodeCanvas = ({ isFullscreen, onToggleFullscreen, projectId, projectVersio
                 data: { ...c, thinking: c.thinking || [], result: c.result || '', hasResult: !!c.result, isThinkingExpanded: true, isResultExpanded: true }
               })));
             }
-          } else if (event.type === 'status') {
+          } else if (event.type === 'node_status' || event.type === 'status') {
             if (event.nodeId) updateNodeStatus(event.nodeId, event.status === 'completed' ? 'completed' : 'running');
           } else if (event.type === 'thinking') {
             if (event.nodeId) {
               const existingThinking = nodeThinkingMap.get(event.nodeId) || [];
-              existingThinking.push(event.content);
+              existingThinking.push(event.delta);
               nodeThinkingMap.set(event.nodeId, existingThinking);
               updateNodeData(event.nodeId, { thinking: [...existingThinking], thinkingIndex: existingThinking.length, isThinkingExpanded: true });
             }
           } else if (event.type === 'result') {
-            if (event.nodeId) updateNodeResult(event.nodeId, event.content, nodeThinkingMap.get(event.nodeId) || []);
+            if (event.nodeId) updateNodeResult(event.nodeId, event.delta, nodeThinkingMap.get(event.nodeId) || []);
           } else if (event.type === 'data') {
             if (event.nodeId && event.data) updateNodeData(event.nodeId, { ...event.data, hasResult: true });
           } else if (event.type === 'videos') {
@@ -621,10 +650,9 @@ const NodeCanvas = ({ isFullscreen, onToggleFullscreen, projectId, projectVersio
             sseConnection.close();
           }
         },
-        (error) => { console.error('SSE error:', error); setIsRunning(false); }
+        (error) => { setIsRunning(false); }
       );
     } catch (error) {
-      console.error('Failed to execute workflow:', error);
       setIsRunning(false);
     }
   }, [projectId, projectVersion, setIsRunning, batchUpdateNodes, updateNodeStatus, updateNodeData, updateNodeResult]);
@@ -702,17 +730,50 @@ const NodeCanvas = ({ isFullscreen, onToggleFullscreen, projectId, projectVersio
     setEditingAgent(null);
   }, [addNode]);
 
-  // 保存模板
-  const handleSaveTemplate = useCallback(() => {
+  // 保存模板（改为保存团队）
+  const handleSaveTemplate = useCallback(async () => {
     if (!templateName.trim()) return;
-    const template = { id: `custom-${Date.now()}`, name: templateName, nodes, connections, createdAt: new Date().toISOString() };
-    const savedTemplates = JSON.parse(localStorage.getItem('customTemplates') || '[]');
-    savedTemplates.push(template);
-    localStorage.setItem('customTemplates', JSON.stringify(savedTemplates));
-    setShowSaveTemplateDialog(false);
-    setTemplateName('');
-    alert('模板保存成功！');
-  }, [templateName, nodes, connections]);
+    try {
+      // 构造 DAG 数据
+      const dag = {
+        nodes: nodes.map(node => ({
+          nodeId: node.id,
+          agentId: node.agentId,
+          agentCode: node.agentCode || node.type,
+          inputParam: node.data || {}
+        })),
+        edges: connections.map(conn => ({
+          fromNodeId: conn.from,
+          toNodeId: conn.to
+        }))
+      };
+
+      // 调用团队保存 API
+      const res = await teamApi.save({
+        teamName: templateName,
+        teamDescribe: templateDescribe || '',  // 新增描述字段
+        tags: [],
+        dag
+      });
+
+      if (res.code === 200) {
+        // 同时存本地一份
+        const savedTeams = JSON.parse(localStorage.getItem('customTeams') || '[]');
+        savedTeams.push({ id: `local-${Date.now()}`, name: templateName, nodes, connections, createdAt: new Date().toISOString() });
+        localStorage.setItem('customTeams', JSON.stringify(savedTeams));
+
+        setShowSaveTemplateDialog(false);
+        setTemplateName('');
+        setTemplateDescribe('');
+        alert('团队保存成功！');
+      } else {
+        alert('保存失败：' + (res.message || '未知错误'));
+      }
+    } catch (error) {
+      console.error('保存团队失败:', error);
+      alert('保存失败，请重试');
+    }
+  }, [templateName, templateDescribe, nodes, connections]);
 
   return (
     <div className={`node-canvas-container ${isFullscreen ? 'fullscreen' : ''}`}>
@@ -844,6 +905,8 @@ const NodeCanvas = ({ isFullscreen, onToggleFullscreen, projectId, projectVersio
         isOpen={showSaveTemplateDialog}
         templateName={templateName}
         onTemplateNameChange={setTemplateName}
+        templateDescribe={templateDescribe}
+        onTemplateDescribeChange={setTemplateDescribe}
         onSave={handleSaveTemplate}
         onClose={() => setShowSaveTemplateDialog(false)}
       />

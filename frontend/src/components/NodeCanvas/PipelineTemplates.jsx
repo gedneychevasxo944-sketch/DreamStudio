@@ -85,7 +85,6 @@ const PipelineTemplates = ({ templates = [], onSelect, loading = false }) => {
           className={`trigger-arrow ${isOpen ? 'open' : ''}`}
         />
       </button>
-
       {/* 下拉菜单 */}
       <AnimatePresence>
         {isOpen && (
@@ -98,7 +97,7 @@ const PipelineTemplates = ({ templates = [], onSelect, loading = false }) => {
           >
             <div className="dropdown-header">
               <Sparkles size={14} />
-              <span>流派预设栏</span>
+              <span>团队列表</span>
             </div>
 
             <div className="preset-list">

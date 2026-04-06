@@ -161,6 +161,7 @@ function createSSEConnectionForExecution(url, body, onMessage, onError) {
     reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
+    let eventType = 'message';  // 持久化 eventType，跨 chunk 保持
 
     function read() {
       if (closed) return;
@@ -174,8 +175,6 @@ function createSSEConnectionForExecution(url, body, onMessage, onError) {
         const lines = buffer.split('\n');
         buffer = lines.pop();
 
-        let eventType = 'message';
-
         for (const line of lines) {
           if (line.startsWith('event:')) {
             eventType = line.slice(6).trim();
@@ -184,8 +183,13 @@ function createSSEConnectionForExecution(url, body, onMessage, onError) {
             if (dataStr) {
               try {
                 const data = JSON.parse(dataStr);
-                if (eventType === 'message' || eventType === 'data') {
-                  onMessage?.(data);
+                // 将 eventType 添加到 data 对象中
+                const eventWithType = { ...data, type: eventType };
+                if (eventType === 'message') {
+                  onMessage?.(eventWithType);
+                } else {
+                  // 所有事件类型都通过 onMessage 传递
+                  onMessage?.(eventWithType);
                 }
               } catch (e) {
                 apiLogger.warn('[SSE] Parse error:', e, 'dataStr:', dataStr);
@@ -374,7 +378,8 @@ export function sendChatMessageStream(params, callbacks) {
   let closed = false;
   let reader = null;
 
-  fetch(`${API_BASE_URL}/workspace/chat`, {
+  // 使用新的 /v1/agents/{agentId}/chat/stream 端点
+  fetch(`${API_BASE_URL}/v1/agents/${agentId}/chat/stream`, {
     method: 'POST',
     headers,
     body,
@@ -398,6 +403,7 @@ export function sendChatMessageStream(params, callbacks) {
       reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
+      let eventType = 'message';  // 持久化eventType，跨chunk保持
 
       function read() {
         if (closed) return;
@@ -409,9 +415,7 @@ export function sendChatMessageStream(params, callbacks) {
 
           buffer += decoder.decode(value, { stream: true });
           const lines = buffer.split('\n');
-          buffer = lines.pop();
-
-          let eventType = 'message';
+          buffer = lines.pop();  // 剩余不完整的行留在buffer中
 
           for (const line of lines) {
             const trimmed = line.trim();
@@ -421,45 +425,48 @@ export function sendChatMessageStream(params, callbacks) {
               eventType = trimmed.slice(6).trim();
             } else if (trimmed.startsWith('data:')) {
               const dataStr = trimmed.slice(5).trim();
+              if (!dataStr) continue;
               try {
                 const data = JSON.parse(dataStr);
+                // 将 eventType 添加到 data 对象中，前端可以通过 event.type 获取事件类型
+                const eventWithType = { ...data, type: eventType };
 
                 switch (eventType) {
                   case 'init':
-                    callbacks.onInit?.(data);
+                    callbacks.onInit?.(eventWithType);
                     break;
                   case 'thinking':
-                    callbacks.onThinking?.(data);
+                    callbacks.onThinking?.(eventWithType);
                     break;
                   case 'status':
-                    callbacks.onStatus?.(data);
+                    callbacks.onStatus?.(eventWithType);
                     break;
                   case 'result':
-                    callbacks.onResult?.(data);
+                    callbacks.onResult?.(eventWithType);
                     break;
                   case 'data':
-                    callbacks.onData?.(data);
+                    callbacks.onData?.(eventWithType);
                     break;
                   case 'complete':
-                    callbacks.onComplete?.(data);
+                    callbacks.onComplete?.(eventWithType);
                     break;
                   case 'error':
-                    callbacks.onError?.(data);
+                    callbacks.onError?.(eventWithType);
                     break;
                   default:
                     // 处理老格式数据
                     if (data.step) {
-                      callbacks.onThinking?.(data);
+                      callbacks.onThinking?.(eventWithType);
                     } else if (data.resultType !== undefined || data.result !== undefined) {
-                      callbacks.onResult?.(data);
+                      callbacks.onResult?.(eventWithType);
                     } else if (data.workflowCreated) {
-                      callbacks.onWorkflowCreated?.(data.workflowNodes, data.workflowEdges);
+                      callbacks.onWorkflowCreated?.(eventWithType.workflowNodes, eventWithType.workflowEdges);
                     } else {
-                      callbacks.onMessage?.(data);
+                      callbacks.onMessage?.(eventWithType);
                     }
                 }
               } catch (e) {
-                console.error('[Chat API] Parse error:', e);
+                console.error('[Chat API] Parse error:', e, 'dataStr was:', dataStr);
               }
             }
           }
@@ -521,24 +528,27 @@ export const workSpaceApi = {
   executeWorkflow: (projectId, executionId, projectVersion, nodes, connections, onMessage, onError) => {
     const dag = {
       nodes: nodes.map(node => ({
-        id: node.id,
-        type: node.type,
-        config: node.data || {}
+        nodeId: node.id,
+        agentId: node.agentId,
+        agentCode: node.agentCode || node.type,
+        inputParam: node.data || {}
       })),
       edges: connections.map(conn => ({
-        from: conn.from,
-        to: conn.to
+        fromNodeId: conn.from,
+        toNodeId: conn.to
       }))
     };
 
     const body = JSON.stringify({
-      executionId,
-      projectVersion,
-      dag
+      dag,
+      edges: connections.map(conn => ({
+        fromNodeId: conn.from,
+        toNodeId: conn.to
+      }))
     });
 
     return createSSEConnectionForExecution(
-      `/workspace/projects/${projectId}/execute`,
+      `/v1/workflows/executions/stream?projectId=${projectId}`,
       body,
       onMessage,
       onError
@@ -574,9 +584,190 @@ export const workSpaceApi = {
   },
 };
 
+// ========== 新的 API 对象 (对接文档接口) ==========
+
+/**
+ * 智能体 API
+ */
+export const agentApi = {
+  // 6.1 搜索智能体列表
+  search: (tags = [], pageNo = 1, pageSize = 10) => {
+    return request('/v1/agents/search', {
+      method: 'POST',
+      body: JSON.stringify({ tags, pageNo, pageSize }),
+    });
+  },
+
+  // 6.2 获取智能体详情
+  getDetail: (agentId) => {
+    return request(`/v1/agents/${agentId}`);
+  },
+
+  // 6.3 更新智能体
+  update: (agentId, data) => {
+    return request(`/v1/agents/${agentId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // 6.4 智能体对话 (SSE)
+  chat: (agentId, params, callbacks) => {
+    const token = getToken();
+    const userId = getUserId();
+    const headers = {
+      'Content-Type': 'application/json',
+      ...(userId && { 'X-User-Id': userId }),
+      ...(token && { 'Authorization': `Bearer ${token}` }),
+    };
+
+    let closed = false;
+    let reader = null;
+
+    fetch(`${API_BASE_URL}/v1/agents/${agentId}/chat/stream`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(params),
+    })
+      .then(response => {
+        if (!response.ok) {
+          closed = true;
+          response.json().then(errData => {
+            const errorMessage = errData.message || `HTTP error! status: ${response.status}`;
+            handleAuthError(errorMessage);
+            callbacks.onError?.({ message: errorMessage });
+          }).catch(() => {
+            callbacks.onError?.({ message: `HTTP error! status: ${response.status}` });
+          });
+          return;
+        }
+
+        reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        function read() {
+          if (closed) return;
+          reader.read().then(({ done, value }) => {
+            if (done || closed) return;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop();
+
+            let eventType = 'message';
+
+            for (const line of lines) {
+              const trimmed = line.trim();
+              if (!trimmed) continue;
+              if (trimmed.startsWith('event:')) {
+                eventType = trimmed.slice(6).trim();
+              } else if (trimmed.startsWith('data:')) {
+                const dataStr = trimmed.slice(5).trim();
+                try {
+                  const data = JSON.parse(dataStr);
+                  switch (eventType) {
+                    case 'init': callbacks.onInit?.(data); break;
+                    case 'thinking': callbacks.onThinking?.(data); break;
+                    case 'result': callbacks.onResult?.(data); break;
+                    case 'complete': callbacks.onComplete?.(data); break;
+                    case 'error': callbacks.onError?.(data); break;
+                    default: callbacks.onMessage?.(data);
+                  }
+                } catch (e) {
+                  console.error('[agentApi chat] Parse error:', e);
+                }
+              }
+            }
+            read();
+          }).catch(error => {
+            if (!closed) callbacks.onError?.({ message: error.message });
+          });
+        }
+        read();
+      })
+      .catch(error => {
+        if (!closed) callbacks.onError?.({ message: error.message });
+      });
+
+    return {
+      close: () => {
+        closed = true;
+        if (reader) reader.cancel();
+      },
+    };
+  },
+};
+
+/**
+ * 工作流 API
+ */
+export const workflowApi = {
+  // 6.6 工作流执行 (SSE)
+  execute: (projectId, nodes, connections, callbacks) => {
+    const dag = {
+      nodes: nodes.map(node => ({
+        nodeId: node.id,
+        agentId: node.agentId,
+        agentCode: node.agentCode || node.type,
+        inputParam: node.data || {}
+      }))
+    };
+
+    const body = JSON.stringify({
+      dag,
+      edges: connections.map(conn => ({
+        fromNodeId: conn.from,
+        toNodeId: conn.to
+      }))
+    });
+
+    return createSSEConnectionForExecution(
+      `/v1/workflows/executions/stream${projectId ? `?projectId=${projectId}` : ''}`,
+      body,
+      callbacks.onMessage,
+      callbacks.onError
+    );
+  },
+
+  // 6.7 获取执行详情
+  getExecutionDetail: (executionId) => {
+    return request(`/v1/workflows/executions/${executionId}`);
+  },
+};
+
+/**
+ * 团队 API
+ */
+export const teamApi = {
+  // 6.8 保存团队
+  save: (teamData) => {
+    return request('/v1/teams', {
+      method: 'POST',
+      body: JSON.stringify(teamData),
+    });
+  },
+
+  // 6.9 获取团队详情
+  getDetail: (teamId) => {
+    return request(`/v1/teams/${teamId}`);
+  },
+
+  // 6.10 搜索团队
+  search: (tags = [], pageNo = 1, pageSize = 10) => {
+    return request('/v1/teams/search', {
+      method: 'POST',
+      body: JSON.stringify({ tags, pageNo, pageSize }),
+    });
+  },
+};
+
 export default {
   authApi,
   homePageApi,
   workSpaceApi,
   chatApi,
+  agentApi,
+  workflowApi,
+  teamApi,
 };

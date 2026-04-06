@@ -43,7 +43,7 @@ const FullscreenToolbar = ({
       </button>
       <button className="toolbar-btn" onClick={onSaveTemplate}>
         <Save size={16} />
-        <span>保存模板</span>
+        <span>保存团队</span>
       </button>
       <button className="toolbar-btn" onClick={onClearCanvas}>
         <Trash2 size={16} />

@@ -2,12 +2,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Save } from 'lucide-react';
 
 /**
- * 保存模板对话框组件
+ * 保存团队对话框组件
  */
 const SaveTemplateDialog = ({
   isOpen,
   templateName,
   onTemplateNameChange,
+  templateDescribe,      // 新增
+  onTemplateDescribeChange,  // 新增
   onSave,
   onClose,
 }) => {
@@ -30,16 +32,24 @@ const SaveTemplateDialog = ({
       >
         <div className="dialog-header">
           <Save size={18} />
-          <span>保存团队模板</span>
+          <span>保存团队</span>
         </div>
         <div className="dialog-content">
-          <label>模板名称</label>
+          <label>团队名称</label>
           <input
             type="text"
-            placeholder="输入模板名称..."
+            placeholder="输入团队名称..."
             value={templateName}
             onChange={(e) => onTemplateNameChange(e.target.value)}
             autoFocus
+          />
+          <label style={{ marginTop: '12px' }}>团队描述</label>
+          <textarea
+            type="text"
+            placeholder="输入团队描述（可选）..."
+            value={templateDescribe || ''}
+            onChange={(e) => onTemplateDescribeChange(e.target.value)}
+            rows={3}
           />
           <p className="dialog-hint">
             保存后可在"我的私有"中一键载入此团队配置

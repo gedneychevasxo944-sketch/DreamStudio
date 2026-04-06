@@ -1,14 +1,34 @@
 import { create } from 'zustand';
 
-// 生成节点默认宽度的函数
+// 生成节点默认宽度的函数（统一700px）
 const getDefaultNodeWidth = (nodeType) => {
-  if (nodeType === 'visual' || nodeType === 'director' || nodeType === 'technical') {
-    return 540;
-  }
-  return 360;
+  return 700;
 };
 
-// 计算模板节点位置
+// 计算节点位置 - 横向排列，间距基于前一个节点的 endX
+export const calculateNodePositions = (nodes, options = {}) => {
+  const {
+    startX = 50,
+    startY = 200,
+    gap = 100,  // 节点之间的间距
+  } = options;
+
+  let currentX = startX;
+
+  return nodes.map((node, index) => {
+    const nodeWidth = getDefaultNodeWidth(node.type || node.agentCode);
+    const x = currentX;
+    currentX = x + nodeWidth + gap;
+
+    return {
+      ...node,
+      x,
+      y: startY,
+    };
+  });
+};
+
+// 计算模板节点位置（保留兼容）
 const calculateTemplateNodePositions = (columns, startX = 50, startY = 200, gap = 100) => {
   const nodes = [];
   let currentX = startX;

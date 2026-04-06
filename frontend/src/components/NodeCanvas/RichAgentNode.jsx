@@ -402,6 +402,7 @@ const WriterNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragg
   const [showDetailModal, setShowDetailModal] = useState(false);
   const prevRunningRef = useRef(false);
   const messagesRef = useRef(node.data?.messages || []);
+  const clickStartPos = useRef({ x: 0, y: 0 });
 
   // 解析剧本
   const { episodes, totalScenes } = parseScript(node.data?.result);
@@ -459,14 +460,25 @@ const WriterNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragg
     }
   }, [node.data, onUpdateContent]);
 
+  const handleMouseDown = (e) => {
+    clickStartPos.current = { x: e.clientX, y: e.clientY };
+  };
+
   const handleToggleExpand = (e) => {
-    if (isParentDragging) return;
+    // 检测是否是拖动操作（移动超过5px认为是拖动）
+    if (clickStartPos.current) {
+      const dx = Math.abs(e.clientX - clickStartPos.current.x);
+      const dy = Math.abs(e.clientY - clickStartPos.current.y);
+      if (dx > 5 || dy > 5) {
+        return; // 是拖动操作，不展开/收起
+      }
+    }
     setIsExpanded(!isExpanded);
   };
 
   return (
     <>
-      <div className="rich-node-content writer-node">
+      <div className="rich-node-content writer-node" onMouseDown={handleMouseDown}>
         {/* 头部 */}
         <div className="content-header" onClick={handleToggleExpand}>
           <div className="content-icon" style={{ backgroundColor: node.color }}>
@@ -558,7 +570,7 @@ const WriterNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragg
               {/* 对话区域 */}
               <div className="chat-section" style={{ height: '280px', display: 'flex', flexDirection: 'column' }}>
                 <ChatConversation
-                  agentId={node.type}
+                  agentId={node.agentId}
                   projectId={projectId}
                   projectVersion={projectVersion}
                   messages={node.data?.messages || []}
@@ -931,7 +943,7 @@ const VisualNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDragg
             {/* 对话区域 */}
             <div className="chat-section" style={{ height: '280px', display: 'flex', flexDirection: 'column' }}>
               <ChatConversation
-                agentId={node.type}
+                agentId={node.agentId}
                 projectId={projectId}
                 projectVersion={projectVersion}
                 messages={node.data?.messages || []}
@@ -1183,7 +1195,7 @@ const DirectorNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDra
             {/* 对话区域 */}
             <div className="chat-section" style={{ height: '280px', display: 'flex', flexDirection: 'column' }}>
               <ChatConversation
-                agentId={node.type}
+                agentId={node.agentId}
                 projectId={projectId}
                 projectVersion={projectVersion}
                 messages={node.data?.messages || []}
@@ -1392,7 +1404,7 @@ const ProducerNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDra
             {/* 对话区域 */}
             <div className="chat-section" style={{ height: '280px', display: 'flex', flexDirection: 'column' }}>
               <ChatConversation
-                agentId={node.type}
+                agentId={node.agentId}
                 projectId={projectId}
                 projectVersion={projectVersion}
                 messages={node.data?.messages || []}
@@ -1747,7 +1759,7 @@ const TechnicalNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDr
             {/* 对话区域 */}
             <div className="chat-section" style={{ height: '280px', display: 'flex', flexDirection: 'column' }}>
               <ChatConversation
-                agentId={node.type}
+                agentId={node.agentId}
                 projectId={projectId}
                 projectVersion={projectVersion}
                 messages={node.data?.messages || []}
@@ -2033,7 +2045,7 @@ const VideoGenNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDra
             {/* 对话区域 */}
             <div className="chat-section" style={{ height: '280px', display: 'flex', flexDirection: 'column' }}>
               <ChatConversation
-                agentId={node.type}
+                agentId={node.agentId}
                 projectId={projectId}
                 projectVersion={projectVersion}
                 messages={node.data?.messages || []}
@@ -2286,7 +2298,7 @@ const GenericNodeContent = ({ node, isRunning, onUpdateContent, onExpand, isDrag
 
       <div className="chat-section" style={{ height: '280px', display: 'flex', flexDirection: 'column' }}>
         <ChatConversation
-          agentId={node.type}
+          agentId={node.agentId}
           projectId={projectId}
           projectVersion={projectVersion}
           messages={node.data?.messages || []}
@@ -2338,15 +2350,9 @@ const RichAgentNode = ({
   const outputPortRef = useRef(null);
   const dragStartPos = useRef({ x: 0, y: 0 });
 
-  // 获取节点默认宽度 - 视频生成节点和技术节点默认宽度为2倍，美术、分镜为1.5倍
+  // 获取节点默认宽度 - 统一700px
   const getDefaultWidth = useCallback(() => {
-    if (node.type === 'videoGen' || node.type === 'technical') {
-      return 720; // 360 * 2
-    }
-    if (node.type === 'visual' || node.type === 'director') {
-      return 540; // 360 * 1.5
-    }
-    return 360;
+    return 700;
   }, [node.type]);
 
   // 获取当前节点宽度（优先使用node.data中的width，否则使用默认值）

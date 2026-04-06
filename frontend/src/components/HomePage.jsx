@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Play, X, Maximize2, Film, ChevronRight, Zap, Wand2, Loader2, ChevronLeft, User, LogOut } from 'lucide-react';
 import ProjectCard from './ProjectCard';
 import AuthModal from './AuthModal/AuthModal';
-import { homePageApi, authApi } from '../services/api';
+import { homePageApi, authApi, teamApi } from '../services/api';
 import './HomePage.css';
 
 // 模拟项目数据 - 2个未完成 + 1个已完成（带视频）
@@ -65,19 +65,19 @@ const transformProjectData = (project) => ({
   lastResult: project.lastResult,
 });
 
-// 转换后端模板数据为前端演示案例格式
+// 转换后端团队数据为前端演示案例格式
 const transformTemplateToDemo = (template) => ({
-  id: template.id,
-  projectId: template.projectId,
-  title: template.name,
-  description: template.description,
-  thumbnail: template.coverImage || `https://picsum.photos/seed/${template.id}/800/500`,
+  id: template.id || template.projectId,
+  teamId: template.id || template.projectId,
+  title: template.name || template.teamName || '未命名模板',
+  description: template.description || template.teamDescribe || '',
+  thumbnail: template.coverImage || `https://picsum.photos/seed/${template.id || template.projectId}/800/500`,
   duration: '2:00',
-  views: `${template.useCount || 0} 使用`,
+  views: template.useCount || 0,
   category: '',
   style: '',
   difficulty: '',
-  tags: template.tags ? template.tags.split(',') : [],
+  tags: template.tags ? (Array.isArray(template.tags) ? template.tags : [template.tags]) : [],
 });
 
 const DemoCard = ({ demo, onExpand, onFork }) => {
@@ -356,9 +356,9 @@ const HomePage = ({ onEnter }) => {
     setLoading(true);
     setError(null);
     try {
-      const templatesRes = await homePageApi.getTemplates();
+      const templatesRes = await homePageApi.getTemplates();  // 使用 /templates 接口获取演示模板
       if (templatesRes.code === 200 && templatesRes.data) {
-        const transformedDemos = templatesRes.data.templates?.map(transformTemplateToDemo) || [];
+        const transformedDemos = (templatesRes.data.templates || []).map(transformTemplateToDemo);
         setDemoTemplates(transformedDemos);
       }
     } catch (err) {
@@ -423,7 +423,9 @@ const HomePage = ({ onEnter }) => {
     setCreating(true);
     try {
       // Fork时传入的是模板关联的项目ID (projectId)
-      const response = await homePageApi.forkTemplate(demo.projectId);
+      // 如果有 projectId，使用 forkTemplate；否则使用 teamId 获取详情后创建
+      const projectId = demo.projectId || demo.teamId;
+      const response = await homePageApi.forkTemplate(projectId);
       if (response.code === 200 && response.data) {
         onEnter(response.data.title, true, response.data.id);
       } else {

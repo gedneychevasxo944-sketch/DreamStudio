@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { createPortal } from 'react-dom';
+import ReactMarkdown from 'react-markdown';
 import { Send, Bot, User, Copy, X, ExternalLink, Check, Sparkles, ChevronUp, ChevronDown, ZoomIn } from 'lucide-react';
 import { chatApi } from '../services/api';
 import './ChatConversation.css';
@@ -80,40 +81,73 @@ const AssistantMessage = ({ message, onOpenModal, onShowToast }) => {
     onShowToast('已复制到剪贴板');
   };
 
-  const imageUrls = message.resultType === 'image' && message.result
+  // 从 result 解析的图片 URL（旧逻辑，用于纯图片类型）
+  const legacyImageUrls = message.resultType === 'image' && message.result
     ? message.result.split(',').map(u => u.trim())
     : [];
 
+  // 混合类型的图片 URL
+  const mixedImageUrls = message.imageUrls || [];
+  // 混合类型的视频
+  const mixedVideoItems = message.videoItems || [];
+
+  // ImageViewer 使用的图片 URL（优先使用混合类型）
+  const imageUrls = mixedImageUrls.length > 0 ? mixedImageUrls : legacyImageUrls;
+
   const renderResult = () => {
-    if (!message.result && !message.content) return null;
-
     const content = message.result || message.content;
+    const hasText = content && content.length > 0;
+    const hasImages = mixedImageUrls.length > 0 || legacyImageUrls.length > 0;
+    const hasVideos = mixedVideoItems.length > 0;
 
-    if (message.resultType === 'markdown') {
-      return <div className="cc-result-markdown">{content}</div>;
-    }
-    if (message.resultType === 'image') {
-      return (
-        <div className="cc-result-image">
-          {imageUrls.map((url, idx) => (
-            <div key={idx} className="cc-result-image-item" onClick={() => { setCurrentImageIndex(idx); setImageViewerOpen(true); }}>
-              <img src={url} alt={`图片${idx + 1}`} />
-              <div className="cc-result-image-overlay">
-                <ZoomIn size={20} />
-              </div>
+    // 无内容
+    if (!hasText && !hasImages && !hasVideos) return null;
+
+    // 渲染图片的函数
+    const renderImages = (urls) => (
+      <div className="cc-result-image">
+        {urls.map((url, idx) => (
+          <div key={idx} className="cc-result-image-item" onClick={() => { setCurrentImageIndex(idx); setImageViewerOpen(true); }}>
+            <img src={url} alt={`图片${idx + 1}`} />
+            <div className="cc-result-image-overlay">
+              <ZoomIn size={20} />
             </div>
-          ))}
-        </div>
-      );
-    }
-    if (message.resultType === 'video') {
+          </div>
+        ))}
+      </div>
+    );
+
+    // 渲染视频的函数
+    const renderVideos = (items) => (
+      <div className="cc-result-video">
+        {items.map((item, idx) => (
+          <video key={idx} src={item.url || item} controls />
+        ))}
+      </div>
+    );
+
+    // 渲染文字
+    const renderText = () => {
+      if (!hasText) return null;
+      if (message.resultType === 'markdown') {
+        return <div className="cc-result-markdown">{content}</div>;
+      }
+      return <div className="cc-result-text">{content}</div>;
+    };
+
+    // 混合类型：有图片或视频
+    if (hasImages || hasVideos) {
       return (
-        <div className="cc-result-video">
-          <video src={content} controls />
-        </div>
+        <>
+          {renderText()}
+          {hasImages && renderImages(mixedImageUrls.length > 0 ? mixedImageUrls : legacyImageUrls)}
+          {hasVideos && renderVideos(mixedVideoItems)}
+        </>
       );
     }
-    return <div className="cc-result-text">{content}</div>;
+
+    // 纯文字类型
+    return renderText();
   };
 
   return (
@@ -128,7 +162,7 @@ const AssistantMessage = ({ message, onOpenModal, onShowToast }) => {
         </div>
 
         <div className="cc-message-body">
-          {message.thinking && message.thinking.length > 0 && (
+          {message.thinking && (
             <div className={`cc-thinking-section ${thinkingExpanded ? 'expanded' : ''}`}>
               <button className="cc-thinking-toggle" onClick={() => setThinkingExpanded(!thinkingExpanded)}>
                 <Sparkles size={12} />
@@ -137,9 +171,7 @@ const AssistantMessage = ({ message, onOpenModal, onShowToast }) => {
               </button>
               {thinkingExpanded && (
                 <div className="cc-thinking-content">
-                  {message.thinking.map((step, idx) => (
-                    <div key={idx} className="cc-thinking-step">• {step}</div>
-                  ))}
+                  <ReactMarkdown>{message.thinking}</ReactMarkdown>
                 </div>
               )}
             </div>
@@ -215,33 +247,65 @@ const ResultModal = ({ message, onClose, onShowToast }) => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const imageUrls = message.resultType === 'image' && message.result
+  // 从 result 解析的图片 URL（旧逻辑）
+  const legacyImageUrls = message.resultType === 'image' && message.result
     ? message.result.split(',').map(u => u.trim())
     : [];
 
+  // 混合类型的图片 URL
+  const mixedImageUrls = message.imageUrls || [];
+  // 混合类型的视频
+  const mixedVideoItems = message.videoItems || [];
+
   const renderResult = () => {
     const content = message.result || message.content;
+    const hasText = content && content.length > 0;
+    const hasImages = mixedImageUrls.length > 0 || legacyImageUrls.length > 0;
+    const hasVideos = mixedVideoItems.length > 0;
 
-    if (message.resultType === 'markdown') {
-      return <div className="cc-result-markdown">{content}</div>;
-    }
-    if (message.resultType === 'image') {
+    // 无内容
+    if (!hasText && !hasImages && !hasVideos) return null;
+
+    // 渲染图片
+    const renderImages = (urls) => (
+      <div className="cc-result-image">
+        {urls.map((url, idx) => (
+          <img key={idx} src={url.trim()} alt={`图片${idx + 1}`} />
+        ))}
+      </div>
+    );
+
+    // 渲染视频
+    const renderVideos = (items) => (
+      <div className="cc-result-video">
+        {items.map((item, idx) => (
+          <video key={idx} src={item.url || item} controls />
+        ))}
+      </div>
+    );
+
+    // 渲染文字
+    const renderText = () => {
+      if (!hasText) return null;
+      if (message.resultType === 'markdown') {
+        return <div className="cc-result-markdown">{content}</div>;
+      }
+      return <div className="cc-result-text">{content}</div>;
+    };
+
+    // 混合类型
+    if (hasImages || hasVideos) {
       return (
-        <div className="cc-result-image">
-          {imageUrls.map((url, idx) => (
-            <img key={idx} src={url.trim()} alt={`图片${idx + 1}`} />
-          ))}
-        </div>
+        <>
+          {renderText()}
+          {hasImages && renderImages(mixedImageUrls.length > 0 ? mixedImageUrls : legacyImageUrls)}
+          {hasVideos && renderVideos(mixedVideoItems)}
+        </>
       );
     }
-    if (message.resultType === 'video') {
-      return (
-        <div className="cc-result-video">
-          <video src={content} controls />
-        </div>
-      );
-    }
-    return <div className="cc-result-text">{content}</div>;
+
+    // 纯文字类型
+    return renderText();
   };
 
   return createPortal(
@@ -252,7 +316,7 @@ const ResultModal = ({ message, onClose, onShowToast }) => {
         </button>
 
         <div className="cc-modal-body">
-          {message.thinking && message.thinking.length > 0 && (
+          {message.thinking && (
             <div className={`cc-modal-thinking-section ${thinkingExpanded ? 'expanded' : ''}`}>
               <button className="cc-modal-thinking-toggle" onClick={() => setThinkingExpanded(!thinkingExpanded)}>
                 <Sparkles size={12} />
@@ -261,9 +325,7 @@ const ResultModal = ({ message, onClose, onShowToast }) => {
               </button>
               {thinkingExpanded && (
                 <div className="cc-modal-thinking-content">
-                  {message.thinking.map((step, idx) => (
-                    <div key={idx} className="cc-thinking-step">• {step}</div>
-                  ))}
+                  <ReactMarkdown>{message.thinking}</ReactMarkdown>
                 </div>
               )}
             </div>
@@ -373,15 +435,20 @@ const ChatConversation = forwardRef(({
       id: assistantMsgId,
       role: 'assistant',
       content: '',
-      thinking: [],
+      thinking: '',
       resultType: 'text',
       result: '',
+      imageUrls: [],
+      videoItems: [],
       timestamp: formatTimestamp(),
     };
     onMessagesChange(prev => [...prev, assistantMsg]);
 
-    const thinkingSteps = [];
-    let currentAssistantId = assistantMsgId;
+    let thinkingText = '';
+    let resultText = '';
+    let resultType = 'text';
+    let imageUrls = [];
+    let videoItems = [];
 
     // 使用 chatApi 发送消息
     sseConnectionRef.current = chatApi.sendMessageStream(
@@ -394,32 +461,53 @@ const ChatConversation = forwardRef(({
       },
       {
         onThinking: (data) => {
-          // 思考步骤
-          if (data.step) {
-            thinkingSteps.push(data.step);
+          // 思考步骤 - 增量累加
+          if (data.delta) {
+            thinkingText += data.delta;
             onMessagesChange(prev => prev.map(msg =>
-              msg.id === currentAssistantId
-                ? { ...msg, thinking: [...thinkingSteps] }
+              msg.id === assistantMsgId
+                ? { ...msg, thinking: thinkingText }
                 : msg
             ));
           }
         },
 
         onResult: (data) => {
-          // 结果
-          const resultType = data.resultType || 'text';
-          const result = data.result || '';
-          const steps = data.thinkingSteps || thinkingSteps;
-
+          // 结果 - 增量累加
+          if (data.delta) {
+            resultText += data.delta;
+          }
+          if (data.contentType) {
+            resultType = data.contentType;
+          }
           onMessagesChange(prev => prev.map(msg =>
-            msg.id === currentAssistantId
-              ? { ...msg, resultType, result, thinking: steps }
+            msg.id === assistantMsgId
+              ? { ...msg, resultType, result: resultText }
               : msg
           ));
 
           // 如果返回了工作流数据
           if (data.workflowCreated && data.workflowNodes && data.workflowEdges) {
             onWorkflowCreated?.(data.workflowNodes, data.workflowEdges);
+          }
+        },
+
+        onData: (data) => {
+          // 处理图片/视频数据
+          if (data.type === 'image' && data.items) {
+            imageUrls = [...imageUrls, ...data.items];
+            onMessagesChange(prev => prev.map(msg =>
+              msg.id === assistantMsgId
+                ? { ...msg, imageUrls }
+                : msg
+            ));
+          } else if (data.type === 'video' && data.items) {
+            videoItems = [...videoItems, ...data.items];
+            onMessagesChange(prev => prev.map(msg =>
+              msg.id === assistantMsgId
+                ? { ...msg, videoItems }
+                : msg
+            ));
           }
         },
 

@@ -13,7 +13,10 @@ import {
   Star,
   User,
   Plus,
-  Loader2
+  Loader2,
+  Bot,
+  Play,
+  Scissors
 } from 'lucide-react';
 import './AgentLibrary.css';
 
@@ -24,7 +27,10 @@ const ICON_MAP = {
   Video,
   Code,
   Sparkles,
-  Shield
+  Shield,
+  Bot,
+  Play,
+  Scissors
 };
 
 const AgentLibrary = ({ agents, onDragAgent, onClose, loading = false }) => {
@@ -49,11 +55,11 @@ const AgentLibrary = ({ agents, onDragAgent, onClose, loading = false }) => {
 
   // 过滤智能体
   const filteredAgents = Object.values(agents).filter(agent => {
-    const matchesTab = activeTab === 'official' 
-      ? agent.category === '官方认证' 
+    const matchesTab = activeTab === 'official'
+      ? agent.category === '官方认证'
       : agent.category === '我的私有';
-    const matchesSearch = agent.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         agent.id.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = (agent.agentName || agent.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         (agent.agentId || agent.id || '').toLowerCase().includes(searchQuery.toLowerCase());
     return matchesTab && matchesSearch;
   });
 
@@ -160,15 +166,28 @@ const AgentLibrary = ({ agents, onDragAgent, onClose, loading = false }) => {
           </div>
         ) : (
           filteredAgents.map((agent) => {
-            const IconComponent = ICON_MAP[agent.icon] || Target;
+            // 将后端图标枚举值映射到前端图标组件名
+            const iconNameMap = {
+              'PRODUCER': 'Target',
+              'CONTENT': 'PenTool',
+              'VISUAL': 'Palette',
+              'DIRECTOR': 'Video',
+              'TECHNICAL': 'Code',
+              'VIDEO_GEN': 'Play',
+              'VIDEO_EDITOR': 'Scissors',
+            };
+            const frontendIconName = iconNameMap[agent.icon] || agent.icon || 'Target';
+            const IconComponent = ICON_MAP[frontendIconName] || Target;
+            // 使用 agentCode 作为唯一标识（与 NodeCanvas.agentTypes 的 key 对应）
+            const agentKey = agent.agentCode || agent.type;
             return (
               <motion.div
-                key={agent.id}
+                key={agentKey}
                 className="agent-item"
                 draggable
-                onDragStart={(e) => handleDragStart(e, agent.id)}
+                onDragStart={(e) => handleDragStart(e, agentKey)}
                 onDragEnd={handleDragEnd}
-                onClick={() => handleClickAdd(agent.id)}
+                onClick={() => handleClickAdd(agentKey)}
                 whileHover={{ scale: 1.02, x: 4 }}
                 whileTap={{ scale: 0.98 }}
                 layout
@@ -180,8 +199,8 @@ const AgentLibrary = ({ agents, onDragAgent, onClose, loading = false }) => {
                   <IconComponent size={20} style={{ color: agent.color }} />
                 </div>
                 <div className="agent-item-info">
-                  <span className="agent-item-name">{agent.name}</span>
-                  <span className="agent-item-type">{agent.id}</span>
+                  <span className="agent-item-name">{agent.agentName || agent.name}</span>
+                  <span className="agent-item-type">{agent.agentId || agent.id}</span>
                 </div>
                 <div className="agent-item-ports">
                   <div className="port-hint in" title={`${agent.inputs?.length || 0} 输入`}>
