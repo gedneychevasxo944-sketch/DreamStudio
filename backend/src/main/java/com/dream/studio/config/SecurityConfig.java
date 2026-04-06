@@ -56,6 +56,12 @@ public class SecurityConfig {
                 // SSE端点公开（JWT认证已在filter中完成）
                 .requestMatchers("/workspace/chat").permitAll()
                 .requestMatchers("/workspace/projects/*/execute").permitAll()
+                // 团队模块公开（浏览模板不需要登录）
+                .requestMatchers("/v1/teams/**").permitAll()
+                // 智能体模块公开（对话不需要登录）
+                .requestMatchers("/v1/agents/**").permitAll()
+                // 工作流执行SSE端点公开
+                .requestMatchers("/v1/workflows/executions/stream").permitAll()
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
                 .requestMatchers("/error").permitAll()
                 // OPTIONS 请求直接放行（CORS preflight）

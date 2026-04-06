@@ -3,7 +3,7 @@ package com.dream.studio.controller;
 import com.dream.studio.dto.AgentDTO;
 import com.dream.studio.dto.ApiResponse;
 import com.dream.studio.dto.ChatDTO;
-import com.dream.studio.dto.ExecutionRequest;
+import com.dream.studio.dto.DAGDTO;
 import com.dream.studio.entity.User;
 import com.dream.studio.exception.ProjectNotFoundException;
 import com.dream.studio.exception.UserNotFoundException;
@@ -12,7 +12,7 @@ import com.dream.studio.repository.ProjectRepository;
 import com.dream.studio.repository.UserRepository;
 import com.dream.studio.service.ChatService;
 import com.dream.studio.service.ExecutionService;
-import com.dream.studio.service.UpstreamAiClient;
+import com.dream.studio.service.UpstreamClient;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -23,15 +23,18 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
 @Slf4j
 @RestController
-@RequestMapping("/workspace")
+@RequestMapping("/v1")
 @RequiredArgsConstructor
 @Tag(name = "工作台模块", description = "智能体、执行、对话")
 @CrossOrigin(origins = "*")
 public class WorkSpaceController {
 
-    private final UpstreamAiClient upstreamAiClient;
+    private final UpstreamClient upstreamClient;
     private final ExecutionService executionService;
     private final ChatService chatService;
     private final ProjectRepository projectRepository;
@@ -69,44 +72,99 @@ public class WorkSpaceController {
                 .orElseThrow(() -> new ProjectNotFoundException("项目不存在或无权访问"));
     }
 
-    @GetMapping("/agents")
-    @Operation(summary = "获取智能体列表", description = "获取所有可用的AI智能体")
-    public ApiResponse<AgentDTO.ListResponse> getAgents() {
-        log.info("Getting agents list");
+    // ========== 6.1 搜索智能体列表 ==========
+    @PostMapping("/agents/search")
+    @Operation(summary = "搜索智能体列表", description = "根据标签搜索智能体，支持分页")
+    public ApiResponse<AgentDTO.ListResponse> searchAgents(
+            @RequestBody AgentSearchRequest request) {
+        log.info("Searching agents: tags={}, pageNo={}, pageSize={}",
+                request.getTags(), request.getPageNo(), request.getPageSize());
+
+        List<String> tags = request.getTags() != null ? request.getTags() : List.of();
+        int pageNo = request.getPageNo() != null ? request.getPageNo() : 1;
+        int pageSize = request.getPageSize() != null ? request.getPageSize() : 10;
+
+        List<AgentDTO.Response> agents = upstreamClient.searchAgents(tags, pageNo, pageSize);
+
         AgentDTO.ListResponse response = AgentDTO.ListResponse.builder()
-                .agents(upstreamAiClient.getAgents())
-                .total(upstreamAiClient.getAgents().size())
+                .list(agents)
+                .pageNo(pageNo)
+                .pageSize(pageSize)
+                .total(agents.size())
                 .build();
+
         return ApiResponse.success(response);
     }
 
-    @PostMapping(value = "/projects/{id}/execute", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    @Operation(summary = "启动执行", description = "启动工作流执行，同时建立SSE连接")
-    public SseEmitter startExecution(
-            @PathVariable Long id,
-            @RequestBody ExecutionRequest request) {
-        validateProjectOwnership(id);
-        log.info("Starting execution for project: {}, executionId: {}", id, request.getExecutionId());
-        return executionService.startExecution(id, request);
+    // ========== 6.2 获取智能体详情 ==========
+    @GetMapping("/agents/{agentId}")
+    @Operation(summary = "获取智能体详情", description = "根据智能体ID获取详情")
+    public ApiResponse<AgentDTO.Response> getAgent(@PathVariable Long agentId) {
+        log.info("Getting agent detail: agentId={}", agentId);
+        AgentDTO.Response agent = upstreamClient.getAgent(agentId);
+        return ApiResponse.success(agent);
     }
 
-    @PostMapping(value = "/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    @Operation(summary = "发送消息", description = "向智能体发送消息，SSE流式返回")
-    public SseEmitter sendMessage(@RequestBody ChatDTO.SendRequest request) {
+    // ========== 6.3 更新智能体 ==========
+    @PatchMapping("/agents/{agentId}")
+    @Operation(summary = "更新智能体", description = "更新指定智能体的信息")
+    public ApiResponse<Void> updateAgent(
+            @PathVariable Long agentId,
+            @RequestBody AgentDTO.UpdateRequest request) {
+        log.info("Updating agent: agentId={}", agentId);
+        upstreamClient.updateAgent(agentId, request);
+        return ApiResponse.success(null);
+    }
+
+    // ========== 6.4 智能体对话 ==========
+    @PostMapping(value = "/agents/{agentId}/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @Operation(summary = "智能体对话", description = "与指定智能体进行SSE流式对话")
+    public SseEmitter chatStream(
+            @PathVariable Long agentId,
+            @RequestBody ChatDTO.SendRequest request) {
+        log.info("Chat with agent: agentId={}, projectId={}", agentId, request.getProjectId());
         validateProjectOwnership(request.getProjectId());
-        log.info("Sending chat message, project: {}, agent: {}", request.getProjectId(), request.getAgentId());
-        return chatService.sendMessageStream(request);
+        return upstreamClient.chatStream(agentId, request);
     }
 
-    @GetMapping("/chat")
-    @Operation(summary = "获取对话历史", description = "获取项目的对话历史记录")
-    public ApiResponse<ChatDTO.HistoryResponse> getChatHistory(
-            @RequestParam Long project_id,
-            @RequestParam(required = false) Integer version,
-            @RequestParam(required = false) String agent_id) {
-        validateProjectOwnership(project_id);
-        log.info("Getting chat history for project: {}, version: {}, agent: {}", project_id, version, agent_id);
-        ChatDTO.HistoryResponse response = chatService.getChatHistory(project_id, version, agent_id);
-        return ApiResponse.success(response);
+    // ========== 6.6 工作流执行 ==========
+    @PostMapping(value = "/workflows/executions/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @Operation(summary = "工作流执行", description = "提交DAG工作流并以SSE增量返回执行过程")
+    public SseEmitter executeWorkflow(
+            @RequestBody WorkflowExecuteRequest request,
+            @RequestParam(required = false) Long projectId) {
+        log.info("Executing workflow: projectId={}", projectId);
+        if (projectId != null) {
+            validateProjectOwnership(projectId);
+        }
+
+        DAGDTO dag = request.getDag();
+        List<ChatDTO.WorkflowEdge> edges = request.getEdges();
+
+        return upstreamClient.executeWorkflow(dag, edges, projectId);
+    }
+
+    // ========== 6.7 获取执行详情 ==========
+    @GetMapping("/workflows/executions/{executionId}")
+    @Operation(summary = "获取执行详情", description = "根据执行ID查询执行详情")
+    public ApiResponse<Object> getExecutionDetail(@PathVariable String executionId) {
+        log.info("Getting execution detail: executionId={}", executionId);
+        Object detail = upstreamClient.getExecutionDetail(executionId);
+        return ApiResponse.success(detail);
+    }
+
+    // ========== 内部请求类 ==========
+
+    @lombok.Data
+    public static class AgentSearchRequest {
+        private List<String> tags;
+        private Integer pageNo;
+        private Integer pageSize;
+    }
+
+    @lombok.Data
+    public static class WorkflowExecuteRequest {
+        private DAGDTO dag;
+        private List<ChatDTO.WorkflowEdge> edges;
     }
 }

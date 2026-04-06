@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import AgentLibrary from './AgentLibrary';
 import NodeConnection from './NodeConnection';
 import DraggingConnectionLine from './DraggingConnectionLine';
@@ -47,6 +47,15 @@ const NodeCanvas = ({ isFullscreen, onToggleFullscreen, projectId, projectVersio
   const [scale, setScale] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
+
+  // nodeDimensions 的 ref 版本，避免初始化顺序问题
+  const nodeDimensionsRef = useRef({});
+
+  // 自动跟踪状态
+  const [autoTrackEnabled, setAutoTrackEnabled] = useState(true);
+  const [showTrackTip, setShowTrackTip] = useState(false);
+  const autoTrackEnabledRef = useRef(true);
+
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [selectedNodeId, setSelectedNodeId] = useState(null);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -92,12 +101,45 @@ const NodeCanvas = ({ isFullscreen, onToggleFullscreen, projectId, projectVersio
     loadTemplateNodes,
   } = useWorkflowStore();
 
+  // 自动滚动到指定节点（运行节点时调用）
+  const scrollToNode = useCallback((nodeId) => {
+    if (!autoTrackEnabledRef.current) return;
+    const storeState = useWorkflowStore.getState();
+    const node = storeState.nodes.find(n => n.id === nodeId);
+    if (!node || !canvasRef.current) return;
+
+    const canvasRect = canvasRef.current.getBoundingClientRect();
+    const nodeWidth = nodeDimensionsRef.current[nodeId]?.width || 700;
+    const nodeHeight = nodeDimensionsRef.current[nodeId]?.height || 200;
+
+    // 计算节点中心在画布坐标系中的位置
+    const nodeCenterX = node.x + nodeWidth / 2;
+    const nodeCenterY = node.y + nodeHeight / 2;
+
+    // 计算新的viewport位置，使节点居中
+    const newX = canvasRect.width / 2 - nodeCenterX * scale;
+    const newY = canvasRect.height / 2 - nodeCenterY * scale;
+
+    setPosition({ x: newX, y: newY });
+  }, [scale]);
+
+  // 禁用自动跟踪并显示提示
+  const disableAutoTrack = useCallback(() => {
+    if (autoTrackEnabledRef.current) {
+      autoTrackEnabledRef.current = false;
+      setAutoTrackEnabled(false);
+      setShowTrackTip(true);
+      setTimeout(() => setShowTrackTip(false), 3000);
+    }
+  }, []);
+
   // 用于存储 executeWorkflowWithBackend 的 ref，避免初始化顺序问题
   const executeWorkflowRef = useRef(null);
 
   // 节点尺寸报告回调
   const handleNodeDimensionChange = useCallback((nodeId, width, height) => {
     setNodeDimensions(prev => ({ ...prev, [nodeId]: { width, height } }));
+    nodeDimensionsRef.current = { ...nodeDimensionsRef.current, [nodeId]: { width, height } };
   }, []);
 
   // 端口位置报告回调
@@ -140,6 +182,7 @@ const NodeCanvas = ({ isFullscreen, onToggleFullscreen, projectId, projectVersio
           y: prev.y - e.deltaY
         }));
       }
+      disableAutoTrack();
     };
 
     let touchStartX = 0, touchStartY = 0, isTouching = false;
@@ -161,7 +204,7 @@ const NodeCanvas = ({ isFullscreen, onToggleFullscreen, projectId, projectVersio
       }
     };
 
-    const handleTouchEnd = () => { isTouching = false; };
+    const handleTouchEnd = () => { isTouching = false; disableAutoTrack(); };
 
     canvas.addEventListener('wheel', handleWheel, { passive: false });
     canvas.addEventListener('touchstart', handleTouchStart, { passive: true });
@@ -174,7 +217,7 @@ const NodeCanvas = ({ isFullscreen, onToggleFullscreen, projectId, projectVersio
       canvas.removeEventListener('touchmove', handleTouchMove);
       canvas.removeEventListener('touchend', handleTouchEnd);
     };
-  }, []);
+  }, [disableAutoTrack]);
 
   // 加载智能体类型和模板
   useEffect(() => {
@@ -353,6 +396,7 @@ const NodeCanvas = ({ isFullscreen, onToggleFullscreen, projectId, projectVersio
     if (!isNode && !isPort && !isButton) {
       setIsDragging(true);
       setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
+      disableAutoTrack();
     }
   };
 
@@ -491,7 +535,11 @@ const NodeCanvas = ({ isFullscreen, onToggleFullscreen, projectId, projectVersio
         projectId, executionId, projectVersion, nodesToExecute, connectionsToSend,
         (event) => {
           if (event.type === 'node_status' || event.type === 'status') {
-            if (event.nodeId) updateNodeStatus(event.nodeId, event.status === 'completed' ? 'completed' : 'running');
+            if (event.nodeId) {
+              const status = event.status === 'completed' ? 'completed' : 'running';
+              updateNodeStatus(event.nodeId, status);
+              if (status === 'running') scrollToNode(event.nodeId);
+            }
           } else if (event.type === 'thinking') {
             if (event.nodeId) {
               const existingThinking = nodeThinkingMap.get(event.nodeId) || [];
@@ -519,7 +567,7 @@ const NodeCanvas = ({ isFullscreen, onToggleFullscreen, projectId, projectVersio
       console.error('Failed to execute new video nodes:', error);
       setIsRunning(false);
     }
-  }, [projectId, projectVersion, setIsRunning, updateNodeStatus, updateNodeData, updateNodeResult]);
+  }, [projectId, projectVersion, setIsRunning, updateNodeStatus, updateNodeData, updateNodeResult, scrollToNode]);
 
   // 生成视频节点（处理技术节点的自动/手动视频生成请求）
   const handleGenerateVideoNodes = useCallback((sourceNodeId, count, promptId) => {
@@ -608,6 +656,10 @@ const NodeCanvas = ({ isFullscreen, onToggleFullscreen, projectId, projectVersio
     if (!projectId || currentNodes.length === 0) return;
     setIsRunning(true);
 
+    // 开始运行时启用自动跟踪
+    autoTrackEnabledRef.current = true;
+    setAutoTrackEnabled(true);
+
     const nodeThinkingMap = new Map();
     const savedExecutionId = localStorage.getItem(`execution_${projectId}`);
     const executionId = savedExecutionId ? parseInt(savedExecutionId, 10) : null;
@@ -627,7 +679,11 @@ const NodeCanvas = ({ isFullscreen, onToggleFullscreen, projectId, projectVersio
               })));
             }
           } else if (event.type === 'node_status' || event.type === 'status') {
-            if (event.nodeId) updateNodeStatus(event.nodeId, event.status === 'completed' ? 'completed' : 'running');
+            if (event.nodeId) {
+              const status = event.status === 'completed' ? 'completed' : 'running';
+              updateNodeStatus(event.nodeId, status);
+              if (status === 'running') scrollToNode(event.nodeId);
+            }
           } else if (event.type === 'thinking') {
             if (event.nodeId) {
               const existingThinking = nodeThinkingMap.get(event.nodeId) || [];
@@ -655,7 +711,7 @@ const NodeCanvas = ({ isFullscreen, onToggleFullscreen, projectId, projectVersio
     } catch (error) {
       setIsRunning(false);
     }
-  }, [projectId, projectVersion, setIsRunning, batchUpdateNodes, updateNodeStatus, updateNodeData, updateNodeResult]);
+  }, [projectId, projectVersion, setIsRunning, batchUpdateNodes, updateNodeStatus, updateNodeData, updateNodeResult, scrollToNode]);
 
   // 更新 ref 以便在其他回调中使用 executeWorkflowWithBackend
   useEffect(() => {
@@ -878,6 +934,32 @@ const NodeCanvas = ({ isFullscreen, onToggleFullscreen, projectId, projectVersio
 
       {/* 底部状态栏 */}
       <CanvasStatusBar scale={scale} nodesCount={nodes.length} connectionsCount={connections.length} />
+
+      {/* 自动跟踪提示 */}
+      <AnimatePresence>
+        {showTrackTip && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            style={{
+              position: 'absolute',
+              bottom: 60,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              background: 'rgba(0,0,0,0.8)',
+              color: '#fff',
+              padding: '8px 16px',
+              borderRadius: 8,
+              fontSize: 14,
+              zIndex: 1000,
+              pointerEvents: 'none'
+            }}
+          >
+            已退出自动跟踪模式，你可以手动滚动画布
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* 智能体设置弹窗 */}
       <AnimatePresence>

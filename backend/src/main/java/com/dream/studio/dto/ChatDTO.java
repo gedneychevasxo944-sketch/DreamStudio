@@ -47,7 +47,11 @@ public class ChatDTO {
     @AllArgsConstructor
     @Builder
     public static class WorkflowNode {
-        private String id;
+        private String nodeId;         // 新增：节点ID（原 id）
+        private Long agentId;           // 新增：智能体ID
+        private String agentCode;      // 新增：智能体代码
+        private Object inputParam;      // 新增：输入参数（原 config）
+        private String id;              // 保留兼容
         private String type;
         private String label;
     }
@@ -58,8 +62,12 @@ public class ChatDTO {
     @Builder
     public static class WorkflowEdge {
         private String id;
-        private String source;
-        private String target;
+        private String fromNodeId;      // 新增：源节点ID（原 from）
+        private String toNodeId;        // 新增：目标节点ID（原 to）
+        private String from;            // 保留兼容
+        private String to;              // 保留兼容
+        private String source;          // 保留兼容
+        private String target;          // 保留兼容
     }
 
     @Data

@@ -84,6 +84,67 @@ public class SimulationDataProvider {
             .build();
         ASSISTANT_SIMULATION_DATA_MAP.put("video", assistantVideo);
 
+        // 智能助理 - 文字+图片 回复
+        NodeSimulationData assistantTextImage = NodeSimulationData.builder()
+            .thinkingSteps(List.of(
+                "正在理解您的需求...",
+                "搜索相关图片资源...",
+                "生成文字和图片内容..."
+            ))
+            .resultType("text_image")
+            .textResult("以下是与您需求相关的图片资料：")
+            .imageResults(List.of(
+                "https://picsum.photos/800/400?random=10",
+                "https://picsum.photos/800/400?random=11",
+                "https://picsum.photos/800/400?random=12"
+            ))
+            .build();
+        ASSISTANT_SIMULATION_DATA_MAP.put("text_image", assistantTextImage);
+
+        // 智能助理 - 文字+视频 回复
+        NodeSimulationData assistantTextVideo = NodeSimulationData.builder()
+            .thinkingSteps(List.of(
+                "正在理解您的需求...",
+                "检索相关视频资源...",
+                "生成文字和视频内容..."
+            ))
+            .resultType("text_video")
+            .textResult("以下是为您推荐的视频资料：")
+            .videoResults(List.of(
+                NodeSimulationData.VideoResult.builder()
+                    .url("https://www.w3schools.com/html/mov_bbb.mp4")
+                    .title("相关视频推荐")
+                    .duration(30)
+                    .description("这是一段与您需求相关的视频内容")
+                    .build()
+            ))
+            .build();
+        ASSISTANT_SIMULATION_DATA_MAP.put("text_video", assistantTextVideo);
+
+        // 智能助理 - 文字+图片+视频 回复
+        NodeSimulationData assistantTextImageVideo = NodeSimulationData.builder()
+            .thinkingSteps(List.of(
+                "正在理解您的需求...",
+                "搜索相关图片和视频资源...",
+                "生成完整的多媒体内容..."
+            ))
+            .resultType("text_image_video")
+            .textResult("以下是为您准备的完整资料，包含图片和视频：")
+            .imageResults(List.of(
+                "https://picsum.photos/800/400?random=20",
+                "https://picsum.photos/800/400?random=21"
+            ))
+            .videoResults(List.of(
+                NodeSimulationData.VideoResult.builder()
+                    .url("https://www.w3schools.com/html/mov_bbb.mp4")
+                    .title("精彩视频内容")
+                    .duration(45)
+                    .description("包含丰富的视觉内容")
+                    .build()
+            ))
+            .build();
+        ASSISTANT_SIMULATION_DATA_MAP.put("text_image_video", assistantTextImageVideo);
+
         // 资深影视制片人 - result字段存储项目立项书文本
         SIMULATION_DATA_MAP.put(ComponentType.PRODUCER, NodeSimulationData.builder()
             .thinkingSteps(List.of(
@@ -254,6 +315,15 @@ public class SimulationDataProvider {
     }
 
     public static NodeSimulationData getSimulationData(ComponentType componentType) {
+        if (componentType == ComponentType.ASSISTANT) {
+            // ASSISTANT 使用默认的文本回复
+            return ASSISTANT_SIMULATION_DATA_MAP.getOrDefault("text",
+                NodeSimulationData.builder()
+                    .thinkingSteps(List.of("正在理解您的问题...", "分析问题意图...", "生成回答..."))
+                    .resultType("text")
+                    .textResult("您好！我是智能助理，有什么可以帮您的？")
+                    .build());
+        }
         NodeSimulationData data = SIMULATION_DATA_MAP.get(componentType);
         if (data == null) {
             log.warn("No simulation data found for component type: {}", componentType);
@@ -263,13 +333,14 @@ public class SimulationDataProvider {
     }
 
     private static NodeSimulationData getDefaultSimulationData(ComponentType componentType) {
+        String name = componentType != null ? componentType.getName() : "Unknown";
         return NodeSimulationData.builder()
             .thinkingSteps(List.of(
                 "正在处理...",
                 "分析数据...",
                 "生成结果..."
             ))
-            .textResult(componentType.getName() + "任务执行完成")
+            .textResult(name + "任务执行完成")
             .build();
     }
 
@@ -292,5 +363,49 @@ public class SimulationDataProvider {
         if (data.getVideoResults() != null && !data.getVideoResults().isEmpty()) return true;
         if (data.getDataJson() != null && data.getDataJson().contains("\"videos\":")) return true;
         return false;
+    }
+
+    public static String extractFromDataJson(String dataJson, String field) {
+        if (dataJson == null || dataJson.isEmpty()) return "[]";
+        try {
+            // Simple JSON parsing for extracting array field
+            String pattern = "\"" + field + "\":";
+            int idx = dataJson.indexOf(pattern);
+            if (idx == -1) return "[]";
+            int start = idx + pattern.length();
+            // Find the array start
+            while (start < dataJson.length() && !Character.toString(dataJson.charAt(start)).matches("[\\[{\"]")) {
+                start++;
+            }
+            if (start >= dataJson.length()) return "[]";
+            char startChar = dataJson.charAt(start);
+            if (startChar == '[') {
+                // Find matching closing bracket
+                int bracketCount = 1;
+                int end = start + 1;
+                while (end < dataJson.length() && bracketCount > 0) {
+                    if (dataJson.charAt(end) == '[') bracketCount++;
+                    else if (dataJson.charAt(end) == ']') bracketCount--;
+                    else if (dataJson.charAt(end) == '{' && bracketCount == 1) bracketCount++; // nested object
+                    else if (dataJson.charAt(end) == '}' && bracketCount > 1) bracketCount--;
+                    end++;
+                }
+                return dataJson.substring(start, end);
+            } else if (startChar == '{') {
+                // Single object
+                int bracketCount = 1;
+                int end = start + 1;
+                while (end < dataJson.length() && bracketCount > 0) {
+                    if (dataJson.charAt(end) == '{') bracketCount++;
+                    else if (dataJson.charAt(end) == '}') bracketCount--;
+                    end++;
+                }
+                return dataJson.substring(start, end);
+            }
+            return "[]";
+        } catch (Exception e) {
+            log.warn("Failed to extract {} from dataJson: {}", field, e.getMessage());
+            return "[]";
+        }
     }
 }
