@@ -128,13 +128,13 @@ const NodeCanvas = ({ isFullscreen, onToggleFullscreen, projectId, projectVersio
 
   // 禁用自动跟踪并显示提示
   const disableAutoTrack = useCallback(() => {
-    if (autoTrackEnabledRef.current) {
+    if (autoTrackEnabledRef.current && isRunning) {
       autoTrackEnabledRef.current = false;
       setAutoTrackEnabled(false);
       setShowTrackTip(true);
       setTimeout(() => setShowTrackTip(false), 3000);
     }
-  }, []);
+  }, [isRunning]);
 
   // 用于存储 executeWorkflowWithBackend 的 ref，避免初始化顺序问题
   const executeWorkflowRef = useRef(null);

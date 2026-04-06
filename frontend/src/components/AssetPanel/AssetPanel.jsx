@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Download, FileText, Video, Palette, Target, Code, Maximize2, Users, Image, Layers, Sparkles, ChevronUp, ChevronDown, Shield, CheckCircle, AlertCircle, Play, ChevronDown as ChevronDownIcon } from 'lucide-react';
 import { createPortal } from 'react-dom';
+import ReactMarkdown from 'react-markdown';
 import './AssetPanel.css';
 
 // 流式文本组件
@@ -31,7 +32,9 @@ const StreamingText = ({ text, isStreaming }) => {
 };
 
 // 思考过程展开组件
-const ThinkingExpanded = ({ thinking, thinkingIndex }) => {
+const ThinkingExpanded = ({ thinking }) => {
+  // 兼容字符串和数组格式
+  const content = Array.isArray(thinking) ? thinking.join('\n\n') : thinking;
   return (
     <motion.div
       className="thinking-expanded"
@@ -39,12 +42,9 @@ const ThinkingExpanded = ({ thinking, thinkingIndex }) => {
       animate={{ height: 'auto', opacity: 1 }}
       exit={{ height: 0, opacity: 0 }}
     >
-      {thinking.slice(0, thinkingIndex).map((item, index) => (
-        <div key={index} className="thinking-item">
-          <div className="thinking-step">步骤 {index + 1}</div>
-          <div className="thinking-text-content">{item}</div>
-        </div>
-      ))}
+      <div className="thinking-text-content">
+        <ReactMarkdown>{content}</ReactMarkdown>
+      </div>
     </motion.div>
   );
 };
@@ -55,7 +55,7 @@ const ProducerAssetContent = ({ data }) => {
 
   return (
     <div className="asset-node-content producer-node">
-      {data?.thinking && data.thinking.length > 0 && (
+      {data?.thinking && (
         <>
           <div
             className="thinking-preview"
@@ -68,10 +68,7 @@ const ProducerAssetContent = ({ data }) => {
           </div>
           <AnimatePresence>
             {isThinkingExpanded && (
-              <ThinkingExpanded
-                thinking={data.thinking}
-                thinkingIndex={data.thinking.length}
-              />
+              <ThinkingExpanded thinking={data.thinking} />
             )}
           </AnimatePresence>
         </>
@@ -113,7 +110,7 @@ const WriterAssetContent = ({ data }) => {
 
   return (
     <div className="asset-node-content writer-node">
-      {data?.thinking && data.thinking.length > 0 && (
+      {data?.thinking && (
         <>
           <div
             className="thinking-preview"
@@ -126,10 +123,7 @@ const WriterAssetContent = ({ data }) => {
           </div>
           <AnimatePresence>
             {isThinkingExpanded && (
-              <ThinkingExpanded
-                thinking={data.thinking}
-                thinkingIndex={data.thinking.length}
-              />
+              <ThinkingExpanded thinking={data.thinking} />
             )}
           </AnimatePresence>
         </>
@@ -214,7 +208,7 @@ const VisualAssetContent = ({ data }) => {
 
   return (
     <div className="asset-node-content visual-node">
-      {data?.thinking && data.thinking.length > 0 && (
+      {data?.thinking && (
         <>
           <div
             className="thinking-preview"
@@ -227,10 +221,7 @@ const VisualAssetContent = ({ data }) => {
           </div>
           <AnimatePresence>
             {isThinkingExpanded && (
-              <ThinkingExpanded
-                thinking={data.thinking}
-                thinkingIndex={data.thinking.length}
-              />
+              <ThinkingExpanded thinking={data.thinking} />
             )}
           </AnimatePresence>
         </>
@@ -333,7 +324,7 @@ const DirectorAssetContent = ({ data }) => {
 
   return (
     <div className="asset-node-content director-node">
-      {data?.thinking && data.thinking.length > 0 && (
+      {data?.thinking && (
         <>
           <div
             className="thinking-preview"
@@ -346,10 +337,7 @@ const DirectorAssetContent = ({ data }) => {
           </div>
           <AnimatePresence>
             {isThinkingExpanded && (
-              <ThinkingExpanded
-                thinking={data.thinking}
-                thinkingIndex={data.thinking.length}
-              />
+              <ThinkingExpanded thinking={data.thinking} />
             )}
           </AnimatePresence>
         </>
@@ -395,7 +383,7 @@ const TechnicalAssetContent = ({ data }) => {
 
   return (
     <div className="asset-node-content technical-node">
-      {data?.thinking && data.thinking.length > 0 && (
+      {data?.thinking && (
         <>
           <div
             className="thinking-preview"
@@ -408,10 +396,7 @@ const TechnicalAssetContent = ({ data }) => {
           </div>
           <AnimatePresence>
             {isThinkingExpanded && (
-              <ThinkingExpanded
-                thinking={data.thinking}
-                thinkingIndex={data.thinking.length}
-              />
+              <ThinkingExpanded thinking={data.thinking} />
             )}
           </AnimatePresence>
         </>
@@ -479,7 +464,7 @@ const VideoGenAssetContent = ({ data }) => {
 
   return (
     <div className="asset-node-content video-gen-node">
-      {data?.thinking && data.thinking.length > 0 && (
+      {data?.thinking && (
         <>
           <div
             className="thinking-preview"
@@ -492,10 +477,7 @@ const VideoGenAssetContent = ({ data }) => {
           </div>
           <AnimatePresence>
             {isThinkingExpanded && (
-              <ThinkingExpanded
-                thinking={data.thinking}
-                thinkingIndex={data.thinking.length}
-              />
+              <ThinkingExpanded thinking={data.thinking} />
             )}
           </AnimatePresence>
         </>
