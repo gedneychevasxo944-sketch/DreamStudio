@@ -350,7 +350,7 @@ const ResultModal = ({ message, onClose, onShowToast }) => {
   );
 };
 
-const formatTimestamp = () => {
+export const formatTimestamp = () => {
   return new Date().toLocaleString('zh-CN', {
     year: 'numeric',
     month: '2-digit',

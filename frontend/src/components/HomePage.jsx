@@ -80,7 +80,7 @@ const transformTemplateToDemo = (template) => ({
   tags: template.tags ? (Array.isArray(template.tags) ? template.tags : [template.tags]) : [],
 });
 
-const DemoCard = ({ demo, onExpand, onFork }) => {
+const DemoCard = ({ demo, onExpand }) => {
   return (
     <motion.div
       className="demo-card"
@@ -108,12 +108,8 @@ const DemoCard = ({ demo, onExpand, onFork }) => {
           ))}
         </div>
         <div className="demo-meta">
-          <span className="demo-views">{demo.views}</span>
+          <span className="demo-views">{demo.views} 次浏览</span>
           <div className="demo-actions">
-            <button className="demo-fork-btn" onClick={(e) => { e.stopPropagation(); onFork(demo); }}>
-              <Sparkles size={12} />
-              使用模板
-            </button>
             <button className="demo-play-btn" onClick={() => onExpand(demo)}>
               <Play size={12} />
               预览
@@ -125,15 +121,7 @@ const DemoCard = ({ demo, onExpand, onFork }) => {
   );
 };
 
-const VideoModal = ({ demo, onClose, onEnter, onFork, currentUser, onRequireLogin }) => {
-  const handleFork = () => {
-    if (!currentUser) {
-      onRequireLogin();
-      return;
-    }
-    onFork(demo);
-  };
-
+const VideoModal = ({ demo, onClose, onEnter, currentUser, onRequireLogin }) => {
   const handleEnter = () => {
     if (!currentUser) {
       onRequireLogin();
@@ -176,11 +164,7 @@ const VideoModal = ({ demo, onClose, onEnter, onFork, currentUser, onRequireLogi
             </div>
           )}
           <div className="video-actions">
-            <button className="action-btn primary" onClick={handleFork}>
-              <Sparkles size={14} />
-              使用此模板创建
-            </button>
-            <button className="action-btn secondary" onClick={handleEnter}>
+            <button className="action-btn primary" onClick={handleEnter}>
               <ChevronRight size={14} />
               进入工作台
             </button>
@@ -532,7 +516,7 @@ const HomePage = ({ onEnter }) => {
           <input
             type="text"
             className="search-input"
-            placeholder="输入你的创意想法..."
+            placeholder="输入剧本、创意或提示词，支持上传文档和参考素材..."
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onFocus={() => setSearchFocused(true)}
@@ -541,11 +525,11 @@ const HomePage = ({ onEnter }) => {
             disabled={creating}
           />
           <div className="search-actions">
-            <button 
+            <button
               className="action-btn generate-btn"
               onClick={handleCreateProject}
               disabled={!inputValue.trim() || creating}
-              title="输入创意想法一键出片"
+              title="输入创意，一键创建项目并进入工作台"
             >
               {creating ? <Loader2 size={18} className="spin" /> : <Wand2 size={18} />}
             </button>
@@ -555,7 +539,7 @@ const HomePage = ({ onEnter }) => {
                 if (!checkLogin()) return;
                 onEnter('', false);
               }}
-              title="直接进入造梦工作台"
+              title="直接进入空白工作台，从零开始搭建"
             >
               <Zap size={18} />
             </button>
@@ -638,7 +622,6 @@ const HomePage = ({ onEnter }) => {
                 key={demo.id}
                 demo={demo}
                 onExpand={setActiveDemo}
-                onFork={handleForkTemplate}
               />
             ))
           )}
@@ -651,7 +634,6 @@ const HomePage = ({ onEnter }) => {
             demo={activeDemo}
             onClose={() => setActiveDemo(null)}
             onEnter={() => onEnter('', false)}
-            onFork={handleForkTemplate}
             currentUser={currentUser}
             onRequireLogin={() => setShowAuthModal(true)}
           />
@@ -695,7 +677,6 @@ const HomePage = ({ onEnter }) => {
                   key={demo.id}
                   demo={demo}
                   onExpand={setActiveDemo}
-                  onFork={handleForkTemplate}
                 />
               ))}
             </div>

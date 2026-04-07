@@ -1,4 +1,5 @@
-import { Plus, Play, Loader2, Save, Trash2, Maximize2, Minimize2 } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Plus, Play, Loader2, Save, Trash2, Maximize2, Minimize2, ChevronDown, AlertCircle } from 'lucide-react';
 import PipelineTemplates from '../NodeCanvas/PipelineTemplates';
 
 /**
@@ -16,10 +17,82 @@ const CanvasToolbar = ({
   onClearCanvas,
   onToggleFullscreen,
   onLoadTemplate,
+  // 新增：模式和运行相关
+  projectMode = 'factory',
+  onModeChange,
+  runButtonText = '运行',
+  runExplanation = '',
+  hasStaleNodes = false,
+  onViewImpact,
 }) => {
+  const [showRunMenu, setShowRunMenu] = useState(false);
+
+  const runMenuOptions = [
+    { key: 'restart', label: '从头运行', description: '重新运行整个流程' },
+    { key: 'continue', label: '继续运行', description: '从受影响节点继续', disabled: !hasStaleNodes },
+    { key: 'fromCurrent', label: '从当前节点运行', description: '从选中节点重新开始' },
+    { key: 'currentOnly', label: '仅运行当前节点', description: '只运行选中的节点' },
+    { key: 'viewImpact', label: '查看影响范围', description: '查看哪些节点会被影响', action: onViewImpact }
+  ];
+
+  const handleRunClick = (e) => {
+    if (e.shiftKey || showRunMenu) {
+      // Shift+点击 或已打开菜单时，切换菜单
+      setShowRunMenu(!showRunMenu);
+    } else {
+      // 普通点击直接运行
+      if (onRun) onRun();
+    }
+  };
+
+  const handleMenuItemClick = (option) => {
+    setShowRunMenu(false);
+    if (option.action) {
+      option.action();
+    } else if (option.key === 'restart') {
+      if (onRun) onRun('restart');
+    } else if (option.key === 'continue') {
+      if (onRun) onRun('continue');
+    } else if (option.key === 'fromCurrent') {
+      if (onRun) onRun('fromCurrent');
+    } else if (option.key === 'currentOnly') {
+      if (onRun) onRun('currentOnly');
+    }
+  };
+
+  // 点击空白关闭菜单
+  useEffect(() => {
+    const handleClickOutside = () => setShowRunMenu(false);
+    if (showRunMenu) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [showRunMenu]);
+
   return (
     <div className="canvas-toolbar">
+      {/* 左侧：模式切换 */}
       <div className="toolbar-left">
+        <div className="mode-switcher-inline">
+          <span className="mode-label">模式</span>
+          <div className="mode-tabs-inline">
+            <button
+              className={`mode-tab-inline ${projectMode === 'factory' ? 'active' : ''}`}
+              onClick={() => onModeChange?.('factory')}
+            >
+              <span className="mode-dot"></span>
+              工厂
+            </button>
+            <button
+              className={`mode-tab-inline ${projectMode === 'director' ? 'active' : ''}`}
+              onClick={() => onModeChange?.('director')}
+            >
+              <span className="mode-dot"></span>
+              导演
+            </button>
+          </div>
+        </div>
+
         <button
           className="toolbar-btn"
           onClick={onToggleLibrary}
@@ -35,18 +108,56 @@ const CanvasToolbar = ({
       </div>
 
       <div className="toolbar-center">
-        <button
-          className={`toolbar-btn ${isRunning ? 'active' : ''}`}
-          onClick={onRun}
-          disabled={isRunning}
-        >
-          {isRunning ? (
-            <Loader2 size={16} className="spinning" />
-          ) : (
-            <Play size={16} />
+        {/* stale 警告 */}
+        {hasStaleNodes && (
+          <div className="stale-warning" title="存在依赖失效的节点">
+            <AlertCircle size={14} />
+          </div>
+        )}
+
+        {/* 运行按钮（支持下拉） */}
+        <div className="run-btn-wrapper">
+          <button
+            className={`toolbar-run-btn ${isRunning ? 'running' : ''}`}
+            onClick={handleRunClick}
+            disabled={isRunning}
+          >
+            {isRunning ? (
+              <Loader2 size={16} className="spinning" />
+            ) : (
+              <Play size={16} fill="currentColor" />
+            )}
+            <span>{isRunning ? '运行中...' : runButtonText}</span>
+            {!isRunning && <ChevronDown size={14} className="run-dropdown-icon" />}
+          </button>
+
+          {showRunMenu && !isRunning && (
+            <div className="run-menu-dropdown">
+              {runMenuOptions.map((option) => (
+                <button
+                  key={option.key}
+                  className="run-menu-item"
+                  disabled={option.disabled}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleMenuItemClick(option);
+                  }}
+                >
+                  <span className="menu-item-label">{option.label}</span>
+                  <span className="menu-item-desc">{option.description}</span>
+                </button>
+              ))}
+            </div>
           )}
-          <span>{isRunning ? '运行中...' : '运行'}</span>
-        </button>
+        </div>
+
+        {/* 运行说明 */}
+        {runExplanation && (
+          <div className="run-explanation">
+            {runExplanation}
+          </div>
+        )}
+
         <button className="toolbar-btn" onClick={onSaveTemplate}>
           <Save size={16} />
           <span>保存团队</span>

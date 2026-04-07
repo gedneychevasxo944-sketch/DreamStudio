@@ -204,11 +204,11 @@
 .content-header {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
+  gap: 8px;
+  padding: 8px 10px;
   background: rgba(255, 255, 255, 0.03);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  cursor: pointer;
+  cursor: default;
   transition: background 0.2s ease;
 }
 
@@ -217,12 +217,12 @@
 }
 
 .content-icon {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
+  border-radius: 6px;
   color: white;
   flex-shrink: 0;
 }
@@ -348,6 +348,53 @@
   color: rgba(255, 255, 255, 0.4);
   font-size: 11px;
   min-width: 20px;
+}
+
+/* 极简节点内容样式 - 画布节点不再展示详细信息 */
+.simple-node {
+  /* 移除了 content-expanded 的 padding 和高度限制 */
+}
+
+.simple-node .content-header {
+  cursor: default;
+}
+
+/* 极简思考过程气泡 */
+.thinking-preview.minimal {
+  padding: 6px 12px;
+  font-size: 11px;
+  background: rgba(59, 130, 246, 0.08);
+  border-left: 2px solid var(--node-color, #3b82f6);
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.thinking-preview.minimal:hover {
+  background: rgba(59, 130, 246, 0.12);
+}
+
+.thinking-preview.minimal .thinking-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 结果预览极简样式 */
+.result-preview-minimal {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.03);
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.result-preview-minimal svg {
+  color: rgba(255, 255, 255, 0.4);
+  flex-shrink: 0;
 }
 
 /* 展开内容区域 */
@@ -800,51 +847,6 @@
 
 .spin {
   animation: spin 1s linear infinite;
-}
-
-/* 简单节点样式 */
-.simple-node {
-  position: absolute;
-  width: 180px;
-  background: var(--bg-secondary, #1a1a2e);
-  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
-  border-radius: 8px;
-  padding: 12px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-}
-
-.simple-node.selected {
-  border-color: var(--node-color, #3b82f6);
-}
-
-.simple-node-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.simple-node-icon {
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 6px;
-  color: white;
-  font-size: 12px;
-}
-
-.simple-node-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.9);
-}
-
-.simple-node-content {
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.6);
-  line-height: 1.4;
 }
 
 /* 信息输入框 */

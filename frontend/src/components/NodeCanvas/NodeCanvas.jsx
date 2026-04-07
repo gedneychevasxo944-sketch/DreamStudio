@@ -45,7 +45,23 @@ const generateResultContent = (nodeType) => {
   return results[nodeType] || '任务执行完成';
 };
 
-const NodeCanvas = ({ isFullscreen, onToggleFullscreen, projectId, projectVersion }) => {
+const NodeCanvas = ({
+  isFullscreen,
+  onToggleFullscreen,
+  projectId,
+  projectVersion,
+  // 模式和运行相关 props
+  projectMode = 'factory',
+  onModeChange,
+  runButtonText = '运行',
+  runExplanation = '',
+  hasStaleNodes = false,
+  onViewImpact,
+  // 节点选择回调
+  onNodeSelect,
+  // 视频生成回调（供 NodeWorkspace 使用）
+  onGenerateVideo,
+}) => {
   const canvasRef = useRef(null);
   const [scale, setScale] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -53,6 +69,14 @@ const NodeCanvas = ({ isFullscreen, onToggleFullscreen, projectId, projectVersio
 
   // nodeDimensions 的 ref 版本，避免初始化顺序问题
   const nodeDimensionsRef = useRef({});
+
+  // 处理节点选择 - 同时更新内部状态和调用外部回调
+  const handleNodeSelect = useCallback((node) => {
+    setSelectedNodeId(node.id);
+    if (onNodeSelect) {
+      onNodeSelect(node);
+    }
+  }, [onNodeSelect]);
 
   // 自动跟踪状态
   const [autoTrackEnabled, setAutoTrackEnabled] = useState(true);
@@ -143,6 +167,21 @@ const NodeCanvas = ({ isFullscreen, onToggleFullscreen, projectId, projectVersio
   const handleNodeDimensionChange = useCallback((nodeId, width, height) => {
     setNodeDimensions(prev => ({ ...prev, [nodeId]: { width, height } }));
     nodeDimensionsRef.current = { ...nodeDimensionsRef.current, [nodeId]: { width, height } };
+  }, []);
+
+  // 用于存储 handleGenerateVideoNodes 的 ref，避免初始化顺序问题
+  const handleGenerateVideoNodesRef = useRef(null);
+
+  // 监听外部触发的视频生成事件（来自 NodeWorkspace）
+  useEffect(() => {
+    const handleGenerateVideoEvent = (e) => {
+      const { sourceNodeId, count, promptId } = e.detail;
+      if (handleGenerateVideoNodesRef.current) {
+        handleGenerateVideoNodesRef.current(sourceNodeId, count, promptId);
+      }
+    };
+    document.addEventListener('generateVideo', handleGenerateVideoEvent);
+    return () => document.removeEventListener('generateVideo', handleGenerateVideoEvent);
   }, []);
 
   // 端口位置报告回调
@@ -649,6 +688,11 @@ const NodeCanvas = ({ isFullscreen, onToggleFullscreen, projectId, projectVersio
     }, 0);
   }, [nodes, agentTypes, addNode, addConnection]);
 
+  // 将 handleGenerateVideoNodes 存入 ref
+  useEffect(() => {
+    handleGenerateVideoNodesRef.current = handleGenerateVideoNodes;
+  }, [handleGenerateVideoNodes]);
+
   // 执行工作流（带后端API）
   const executeWorkflowWithBackend = useCallback(async () => {
     // 使用 useWorkflowStore.getState() 获取最新状态，避免闭包问题
@@ -849,6 +893,13 @@ const NodeCanvas = ({ isFullscreen, onToggleFullscreen, projectId, projectVersio
         onClearCanvas={handleClearCanvas}
         onToggleFullscreen={onToggleFullscreen}
         onLoadTemplate={loadTemplate}
+        // 新增 props
+        projectMode={projectMode}
+        onModeChange={onModeChange}
+        runButtonText={runButtonText}
+        runExplanation={runExplanation}
+        hasStaleNodes={hasStaleNodes}
+        onViewImpact={onViewImpact}
       />
 
       {/* 全屏模式悬浮工具栏 */}
@@ -913,7 +964,7 @@ const NodeCanvas = ({ isFullscreen, onToggleFullscreen, projectId, projectVersio
               projectVersion={projectVersion}
               isSelected={selectedNodeId === node.id}
               isRunning={node.status === 'running'}
-              onSelect={() => setSelectedNodeId(node.id)}
+              onSelect={() => handleNodeSelect(node)}
               onDelete={() => handleDeleteNode(node.id)}
               onEdit={() => handleOpenAgentSettings(node)}
               onUpdatePosition={handleUpdateNodePosition}
@@ -930,6 +981,7 @@ const NodeCanvas = ({ isFullscreen, onToggleFullscreen, projectId, projectVersio
               onAddNode={addConnectedNode}
               onPortPositionChange={handlePortPositionChange}
               onGenerateVideoNodes={handleGenerateVideoNodes}
+              onGenerateVideo={onGenerateVideo}
             />
           ))}
         </div>

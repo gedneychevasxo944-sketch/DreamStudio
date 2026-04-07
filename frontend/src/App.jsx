@@ -1,13 +1,17 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Home, GitCompare, ChevronLeft, ChevronRight, PanelLeft, PanelRight, Package, Save, Plus, FileText, Edit2, Check, X, History, Trash2, AlertTriangle, FilePlus } from 'lucide-react';
+import { GitCompare, ChevronLeft, ChevronRight, PanelLeft, PanelRight, Package, Save, Plus, FileText, Edit2, Check, X, History, Trash2, AlertTriangle, FilePlus, Home, Download, Settings, FolderOpen } from 'lucide-react';
 import Console from './components/Console';
 import ToastContainer from './components/Toast/Toast';
 import BottomToastContainer from './components/Toast/BottomToast';
 import NodeCanvas from './components/NodeCanvas/NodeCanvas';
 import AssetPanel from './components/AssetPanel/AssetPanel';
+import NodeWorkspace from './components/NodeWorkspace';
 import Modal from './components/Modal';
 import HomePage from './components/HomePage';
 import SkillMarket from './components/SkillMarket/SkillMarket';
+import ProjectTopBar from './components/ProjectTopBar';
+import AssetDrawer from './components/AssetDrawer';
+import PlanningPage from './components/PlanningPage';
 import { homePageApi, workSpaceApi } from './services/api';
 import { useProjectStore, useWorkflowStore, useUIStore, calculateTemplateNodePositions } from './stores';
 import './App.css';
@@ -15,6 +19,10 @@ import './App.css';
 function App() {
   const containerRef = useRef(null);
   const versionDropdownRef = useRef(null);
+
+  // Planning state
+  const [planningRawInput, setPlanningRawInput] = useState('');
+  const [planningAttachments, setPlanningAttachments] = useState([]);
 
   // Project Store
   const {
@@ -49,6 +57,7 @@ function App() {
     viewport: canvasViewport,
     pendingChatMessage,
     canvasKey,
+    isRunning,
     setNodes: setCanvasNodes,
     setConnections: setCanvasConnections,
     setViewport: setCanvasViewport,
@@ -94,6 +103,21 @@ function App() {
     closeDeleteConfirm,
     getActualWidths,
   } = useUIStore();
+
+  // 资产抽屉状态
+  const [assetDrawerOpen, setAssetDrawerOpen] = useState(false);
+
+  // 项目模式状态（工厂/导演）
+  const [projectMode, setProjectMode] = useState('factory');
+
+  // 运行按钮状态（模拟）
+  const [runButtonText, setRunButtonText] = useState('运行');
+  const [runExplanation, setRunExplanation] = useState('');
+  const [hasStaleNodes, setHasStaleNodes] = useState(false);
+
+  // 项目名称编辑状态
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [tempProjectName, setTempProjectName] = useState('');
 
   // 脏状态检测 - 使用稳定比较
   useEffect(() => {
@@ -302,14 +326,11 @@ function App() {
         }
       } catch (error) {
         console.error('Failed to create project:', error);
-        // 检查是否是认证错误
         const authErrors = ['用户不存在', '用户未登录', '登录已过期', '认证失败', '没有访问权限'];
         if (authErrors.some(e => error.message && error.message.includes(e))) {
-          // 清除本地存储的登录信息
           localStorage.removeItem('token');
           localStorage.removeItem('userId');
           localStorage.removeItem('user');
-          // 设置错误信息并跳转到首页
           sessionStorage.setItem('authError', '登录已失效，请重新登录');
           alert('登录已失效，请重新登录');
           window.location.href = '/';
@@ -320,16 +341,19 @@ function App() {
       }
     }
 
-    setCurrentView('workspace');
-
+    // 有用户输入时进入规划态，否则直接进入执行态
     if (shouldTriggerSystem && userInput) {
-      setPendingChatMessage(userInput);
+      setCurrentView('planning');
+      setPlanningRawInput(userInput);
+      setPlanningAttachments([]);
+    } else {
+      setCurrentView('workspace');
     }
   }, [
     resetCanvas, setSavedProjectState, setHasUnsavedChanges, setCurrentProjectId,
     setProjectName, incrementCanvasKey, setCanvasNodes, setCanvasConnections,
     setCanvasViewport, loadVersions, setVersions, setCurrentVersion, setCurrentView,
-    setPendingChatMessage
+    setPlanningRawInput, setPlanningAttachments
   ]);
 
   // 新建项目
@@ -347,7 +371,6 @@ function App() {
       }
     } catch (error) {
       console.error('Failed to create project:', error);
-      // 检查是否是认证错误
       const authErrors = ['用户不存在', '用户未登录', '登录已过期', '认证失败', '没有访问权限'];
       if (authErrors.some(e => error.message && error.message.includes(e))) {
         localStorage.removeItem('token');
@@ -376,9 +399,6 @@ function App() {
   }, [handleSaveProject, createNewProject]);
 
   // 项目名称编辑
-  const [isEditingName, setIsEditingName] = useState(false);
-  const [tempProjectName, setTempProjectName] = useState('');
-
   const startEditingName = () => {
     setTempProjectName(projectName);
     setIsEditingName(true);
@@ -495,156 +515,120 @@ function App() {
     };
   }, [isDraggingLeft, isDraggingRight, setLeftWidth, setRightWidth, setIsDraggingLeft, setIsDraggingRight]);
 
-  // 节点选择
+  // 节点选择 - NodeWorkspace 模式下不需要弹窗
   const handleNodeSelect = useCallback((node) => {
     setSelectedNode(node);
-    setActiveModal('nodeDetail');
-  }, [setSelectedNode, setActiveModal]);
+  }, [setSelectedNode]);
 
   // 计算实际宽度
   const { actualLeftWidth, actualRightWidth, centerWidth } = getActualWidths();
 
+  // 运行相关处理
+  const handleRun = (runType = 'restart') => {
+    // runType: 'restart' | 'continue' | 'fromCurrent' | 'currentOnly'
+    console.log('Running workflow with type:', runType);
+    // TODO: 根据 runType 调用不同的运行逻辑
+  };
+
+  const handleViewImpact = () => {
+    console.log('Viewing impact...');
+    // TODO: 显示影响范围面板
+  };
+
+  // 模式切换处理
+  const handleModeChange = (mode) => {
+    setProjectMode(mode);
+    // 后续可以根据模式更新其他状态，如默认审批点等
+  };
+
+  // 资产抽屉处理
+  const handleOpenAssetDrawer = () => {
+    setAssetDrawerOpen(true);
+  };
+
+  const handleLocateNode = (nodeId) => {
+    // 定位到指定节点
+    console.log('Locate node:', nodeId);
+    setAssetDrawerOpen(false);
+  };
+
+  const handleRestoreVersion = (nodeKey, version) => {
+    console.log('Restore version:', nodeKey, version);
+    // 恢复版本逻辑
+  };
+
+  // 导出处理
+  const handleExport = () => {
+    console.log('Export project');
+    alert('导出功能开发中...');
+  };
+
   return (
     <div className="app-container">
-      {currentView === 'home' ? (
+      {currentView === 'home' && (
         <HomePage onEnter={handleHomePageEnter} />
-      ) : (
+      )}
+      {currentView === 'planning' && (
+        <PlanningPage
+          projectName={projectName}
+          rawInput={planningRawInput}
+          attachments={planningAttachments}
+          onConfirmPlan={(plan) => {
+            console.log('Plan confirmed:', plan);
+            setCurrentView('workspace');
+          }}
+          onCancel={() => setCurrentView('home')}
+          onGoToExecution={() => setCurrentView('workspace')}
+        />
+      )}
+      {currentView === 'workspace' && (
         <div className="workspace">
-          <header className="workspace-header glass">
-            <div className="header-left">
-              <div className="logo-mini" onClick={() => setCurrentView('home')} style={{ cursor: 'pointer' }}>
-                <span className="logo-text">造梦</span>
-                <span className="logo-sub">AI</span>
-              </div>
+          {/* 项目顶栏 - 包含项目级控制 */}
+          <ProjectTopBar
+            projectName={projectName}
+            hasUnsavedChanges={hasUnsavedChanges}
+            isSaving={isSaving}
+            saveSuccess={saveSuccess}
+            currentVersion={currentVersion}
+            versions={versions}
+            showVersionDropdown={showVersionDropdown}
+            onSave={handleSaveProject}
+            onNewProject={handleNewProjectClick}
+            onGoHome={() => setCurrentView('home')}
+            onVersionSelect={handleSwitchVersion}
+            onVersionDelete={confirmDeleteVersion}
+            onToggleVersionDropdown={() => setShowVersionDropdown(!showVersionDropdown)}
+            onOpenAssetDrawer={handleOpenAssetDrawer}
+            onExport={handleExport}
+            onOpenSettings={() => setShowSkillMarket(true)}
+            // 项目名称编辑
+            isEditingName={isEditingName}
+            tempProjectName={tempProjectName}
+            onStartEditName={startEditingName}
+            onSaveName={saveProjectName}
+            onCancelEdit={cancelEditingName}
+            onNameChange={setTempProjectName}
+            // 版本下拉
+            versionDropdownRef={versionDropdownRef}
+            // 删除版本确认
+            showDeleteConfirm={showDeleteConfirm}
+            versionToDelete={versionToDelete}
+            onOpenDeleteConfirm={openDeleteConfirm}
+            onCloseDeleteConfirm={closeDeleteConfirm}
+            onConfirmDelete={confirmDeleteVersion}
+            // 新建项目确认
+            showNewProjectConfirm={showNewProjectConfirm}
+            onCloseNewProjectConfirm={() => setShowNewProjectConfirm(false)}
+            onDiscardNewProject={createNewProject}
+            onSaveAndCreateNewProject={saveAndCreateNewProject}
+          />
 
-              <div className="project-name-section">
-                <FileText size={16} className="project-icon" />
-                {isEditingName ? (
-                  <div className="project-name-edit">
-                    <input
-                      type="text"
-                      value={tempProjectName}
-                      onChange={(e) => setTempProjectName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') saveProjectName();
-                        if (e.key === 'Escape') cancelEditingName();
-                      }}
-                      autoFocus
-                      className="project-name-input"
-                    />
-                    <button className="name-action-btn save" onClick={saveProjectName}>
-                      <Check size={14} />
-                    </button>
-                    <button className="name-action-btn cancel" onClick={cancelEditingName}>
-                      <X size={14} />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="project-name-display">
-                    <span className="project-name-text" title={projectName}>
-                      {projectName}
-                    </span>
-                    {hasUnsavedChanges && <span className="unsaved-indicator">●</span>}
-                    <button className="edit-name-btn" onClick={startEditingName} title="编辑项目名称">
-                      <Edit2 size={14} />
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              <div className="version-selector" ref={versionDropdownRef}>
-                <button
-                  className="version-dropdown-trigger"
-                  onClick={() => setShowVersionDropdown(!showVersionDropdown)}
-                >
-                  <History size={14} />
-                  <span>{currentVersion?.name || 'V1.0'}</span>
-                  <ChevronRight
-                    size={14}
-                    className={`dropdown-arrow ${showVersionDropdown ? 'open' : ''}`}
-                  />
-                </button>
-
-                {showVersionDropdown && (
-                  <div className="version-dropdown-menu">
-                    <div className="version-dropdown-header">
-                      <span>版本历史</span>
-                    </div>
-                    {versions.map((version) => (
-                      <div
-                        key={version.id}
-                        className={`version-dropdown-item ${currentVersion?.id === version.id ? 'active' : ''}`}
-                        onClick={() => handleSwitchVersion(version)}
-                      >
-                        <div className="version-info">
-                          <span className="version-name">{version.name}</span>
-                          <span className="version-desc">{version.description}</span>
-                          <span className="version-time">{version.createdAt}</span>
-                        </div>
-                        {!version.isDefault && (
-                          <button
-                            className="version-delete-btn"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openDeleteConfirm(version);
-                            }}
-                            title="删除版本"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <nav className="header-nav">
-              <button className="nav-btn active">生产流</button>
-              <button className="nav-btn">监控台</button>
-              <button className="nav-btn">资产库</button>
-              <button className="nav-btn" onClick={() => setShowSkillMarket(true)}>
-                <Package size={14} />
-                <span>Skill市场</span>
-              </button>
-              <button className="nav-btn diff-btn" onClick={() => openModal('diffView')}>
-                <GitCompare size={14} />
-                <span>代码审查</span>
-              </button>
-            </nav>
-
-            <div className="header-right">
-              <button
-                className={`header-action-btn save-btn ${saveSuccess ? 'success' : ''}`}
-                onClick={handleSaveProject}
-                disabled={isSaving}
-              >
-                {isSaving ? (
-                  <span className="save-spinner" />
-                ) : saveSuccess ? (
-                  <Check size={16} />
-                ) : (
-                  <Save size={16} />
-                )}
-                <span>{saveSuccess ? '已保存' : '保存'}</span>
-              </button>
-
-              <button className="header-action-btn new-btn" onClick={handleNewProjectClick}>
-                <Plus size={16} />
-                <span>新建</span>
-              </button>
-
-              <button className="home-btn" onClick={() => setCurrentView('home')} title="返回主页">
-                <Home size={18} />
-              </button>
-            </div>
-          </header>
-
+          {/* 主内容区 */}
           <main
             ref={containerRef}
             className={`workspace-main ${isCanvasFullscreen ? 'canvas-fullscreen' : ''} ${isDraggingLeft || isDraggingRight ? 'dragging' : ''}`}
           >
+            {/* 左侧面板 - 全局对话 */}
             <aside
               className={`panel-left ${leftCollapsed ? 'collapsed' : ''} ${isCanvasFullscreen ? 'hidden' : ''}`}
               style={{ flex: `0 0 ${actualLeftWidth}vw` }}
@@ -682,6 +666,7 @@ function App() {
               />
             )}
 
+            {/* 中间画布区域 */}
             <section
               className="panel-center"
               style={{ flex: `1 1 ${centerWidth}vw` }}
@@ -692,6 +677,13 @@ function App() {
                 onToggleFullscreen={toggleCanvasFullscreen}
                 projectId={currentProjectId}
                 projectVersion={currentVersion?.version}
+                projectMode={projectMode}
+                onModeChange={handleModeChange}
+                runButtonText={runButtonText}
+                runExplanation={runExplanation}
+                hasStaleNodes={hasStaleNodes}
+                onViewImpact={handleViewImpact}
+                onNodeSelect={handleNodeSelect}
               />
             </section>
 
@@ -712,6 +704,7 @@ function App() {
               </button>
             )}
 
+            {/* 右侧面板 - 节点工作区 */}
             <aside
               className={`panel-right ${rightCollapsed ? 'collapsed' : ''} ${isCanvasFullscreen ? 'hidden' : ''}`}
               style={{ flex: `0 0 ${actualRightWidth}vw` }}
@@ -724,20 +717,33 @@ function App() {
                 {rightCollapsed ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
               </button>
               <div className="panel-content">
-                <AssetPanel
-                  nodes={canvasNodes}
-                  onExport={(assets) => console.log('导出资产:', assets)}
-                  onUpdateNodeData={(nodeId, data) => {
-                    // 使用 workflowStore 的 updateNodeData
+                <NodeWorkspace
+                  selectedNode={selectedNode}
+                  onNodeUpdate={(nodeId, data) => {
                     const { updateNodeData } = useWorkflowStore.getState();
                     updateNodeData(nodeId, data);
                   }}
-                  projectId={currentProjectId}
+                  onGenerateVideo={(nodeId, promptIdx) => {
+                    const event = new CustomEvent('generateVideo', {
+                      detail: { sourceNodeId: nodeId, count: 0, promptId: promptIdx },
+                      bubbles: true
+                    });
+                    document.dispatchEvent(event);
+                  }}
                 />
               </div>
             </aside>
           </main>
 
+          {/* 资产抽屉 - 从右滑出的叠加层 */}
+          <AssetDrawer
+            isOpen={assetDrawerOpen}
+            onClose={() => setAssetDrawerOpen(false)}
+            onLocateNode={handleLocateNode}
+            onRestoreVersion={handleRestoreVersion}
+          />
+
+          {/* 模态框 */}
           {activeModal && (
             <Modal
               type={activeModal}
@@ -751,60 +757,6 @@ function App() {
               onClose={() => setShowSkillMarket(false)}
               onInstallSkill={(skill) => console.log('安装Skill:', skill)}
             />
-          )}
-
-          {showDeleteConfirm && (
-            <div className="delete-confirm-backdrop" onClick={closeDeleteConfirm}>
-              <div className="delete-confirm-modal" onClick={(e) => e.stopPropagation()}>
-                <div className="delete-confirm-icon">
-                  <AlertTriangle size={32} />
-                </div>
-                <h3>确认删除版本?</h3>
-                <p>
-                  您即将删除版本 <strong>{versionToDelete?.name}</strong>
-                  <br />
-                  此操作不可恢复，是否继续?
-                </p>
-                <div className="delete-confirm-actions">
-                  <button className="delete-confirm-btn cancel" onClick={closeDeleteConfirm}>
-                    取消
-                  </button>
-                  <button className="delete-confirm-btn confirm" onClick={confirmDeleteVersion}>
-                    <Trash2 size={14} />
-                    确认删除
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {showNewProjectConfirm && (
-            <div className="new-project-confirm-backdrop" onClick={() => setShowNewProjectConfirm(false)}>
-              <div className="new-project-confirm-modal" onClick={(e) => e.stopPropagation()}>
-                <div className="new-project-confirm-icon">
-                  <FilePlus size={32} />
-                </div>
-                <h3>新建项目</h3>
-                <p>
-                  当前项目有未保存的修改
-                  <br />
-                  如果不保存，修改将会丢失
-                </p>
-                <div className="new-project-confirm-actions">
-                  <button className="new-project-confirm-btn cancel" onClick={() => setShowNewProjectConfirm(false)}>
-                    取消
-                  </button>
-                  <button className="new-project-confirm-btn discard" onClick={createNewProject}>
-                    <X size={14} />
-                    不保存
-                  </button>
-                  <button className="new-project-confirm-btn save" onClick={saveAndCreateNewProject}>
-                    <Save size={14} />
-                    保存并新建
-                  </button>
-                </div>
-              </div>
-            </div>
           )}
         </div>
       )}
