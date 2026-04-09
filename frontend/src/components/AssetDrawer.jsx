@@ -1,66 +1,130 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronRight, Image, FileText, Video, Copy, Download, RotateCcw, MapPin, Check, Clock, AlertTriangle } from 'lucide-react';
+import { assetApi } from '../services/api';
 import './AssetDrawer.css';
-
-// 模拟资产数据 - 实际使用时替换为API数据
-const mockAssets = {
-  '编剧': {
-    nodeId: 'node_1',
-    nodeName: '编剧',
-    currentVersion: 'v3-r2',
-    currentContent: '第三幕结尾需要修改，增加开放式结局...',
-    history: [
-      { version: 'v3-r2', type: '修订版', time: '10分钟前', status: 'current', content: '第三幕结尾需要修改，增加开放式结局...' },
-      { version: 'v3-r1', type: '修订版', time: '30分钟前', status: 'history', content: '修改了第二幕的对白风格...' },
-      { version: 'v3', type: '运行版', time: '1小时前', status: 'history', content: '初始生成版本，包含完整三幕结构...' },
-      { version: 'v2', type: '运行版', time: '2小时前', status: 'history', content: '重新生成，调整了主角动机...' },
-      { version: 'v1', type: '运行版', time: '3小时前', status: 'history', content: '初稿版本...' },
-    ],
-    assetType: 'script'
-  },
-  '美术': {
-    nodeId: 'node_2',
-    nodeName: '概念美术',
-    currentVersion: 'v2',
-    currentContent: 'cyberpunk_style_v2.png',
-    history: [
-      { version: 'v2', type: '运行版', time: '1小时前', status: 'current', content: 'cyberpunk_style_v2.png', imageUrl: 'https://picsum.photos/seed/cyber/400/300' },
-      { version: 'v1', type: '运行版', time: '2小时前', status: 'history', content: 'cyberpunk_style_v1.png', imageUrl: 'https://picsum.photos/seed/cyber1/400/300' },
-    ],
-    assetType: 'image'
-  },
-  '分镜': {
-    nodeId: 'node_3',
-    nodeName: '分镜导演',
-    currentVersion: 'v1',
-    currentContent: 'storyboard_v1.pdf',
-    history: [
-      { version: 'v1', type: '运行版', time: '30分钟前', status: 'current', content: 'storyboard_v1.pdf' },
-    ],
-    assetType: 'document'
-  },
-  '视频': {
-    nodeId: 'node_4',
-    nodeName: '视频生成',
-    currentVersion: 'v1',
-    currentContent: 'final_output.mp4',
-    history: [
-      { version: 'v1', type: '运行版', time: '15分钟前', status: 'current', content: 'final_output.mp4', videoUrl: 'https://www.w3schools.com/html/mov_bbb.mp4' },
-    ],
-    assetType: 'video'
-  }
-};
 
 const AssetDrawer = ({
   isOpen,
   onClose,
+  projectId,
+  nodes = [],
   viewMode: initialViewMode = 'current', // 'current' | 'history'
   onLocateNode,
   onRestoreVersion
 }) => {
   const [viewMode, setViewMode] = useState(initialViewMode);
   const [selectedNode, setSelectedNode] = useState(null);
+  const [assets, setAssets] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  // 从API加载资产数据
+  useEffect(() => {
+    if (!isOpen || !projectId) {
+      setAssets([]);
+      return;
+    }
+
+    const loadAssets = async () => {
+      setLoading(true);
+      try {
+        const response = await assetApi.getProjectAssets(projectId, viewMode === 'current');
+        if (response.data && response.data.assets) {
+          // 转换API数据为组件格式
+          const transformedAssets = response.data.assets.map(asset => ({
+            key: asset.nodeId,
+            nodeId: asset.nodeId,
+            nodeName: asset.nodeName,
+            currentVersion: `V${asset.versionNo}`,
+            currentContent: asset.content || asset.resultText || '已生成',
+            history: (asset.versions || []).map(v => ({
+              version: `V${v.versionNo}`,
+              type: v.versionKind === 'RUN_OUTPUT' ? '运行版' : '修订版',
+              time: v.createdAt ? new Date(v.createdAt).toLocaleString('zh-CN') : '未知',
+              status: v.isCurrent ? 'current' : 'history',
+              content: v.resultText || v.content || '...',
+              imageUrl: v.thumbnailUrl
+            })),
+            assetType: asset.assetType || 'script'
+          }));
+          setAssets(transformedAssets);
+        } else {
+          setAssets([]);
+        }
+      } catch (error) {
+        console.error('Failed to load assets:', error);
+        setAssets([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadAssets();
+  }, [isOpen, projectId, viewMode]);
+
+  // 备用：从节点数据生成资产列表（当API返回为空时）
+  const generateAssetsFromNodes = () => {
+    if (!nodes || nodes.length === 0) {
+      return [];
+    }
+
+    // 过滤有结果的节点
+    return nodes
+      .filter(node => {
+        const hasResult = node.data?.result ||
+                          node.data?.characters?.length > 0 ||
+                          node.data?.scenes?.length > 0 ||
+                          node.data?.storyboards?.length > 0 ||
+                          node.data?.prompts?.length > 0 ||
+                          node.data?.videoPreview;
+        return hasResult;
+      })
+      .map(node => {
+        // 根据节点类型确定资产类型
+        let assetType = 'script';
+        if (node.type === 'visual') assetType = 'image';
+        else if (node.type === 'director') assetType = 'document';
+        else if (node.type === 'videoGen' || node.type === 'videoEditor') assetType = 'video';
+
+        // 获取版本历史
+        const versionHistory = node.data?.versionHistory || [];
+        const currentVersion = node.data?.currentVersion || 1;
+        const displayVersion = node.data?.displayVersion || currentVersion;
+
+        // 构建历史列表
+        const history = versionHistory.map((h, idx) => ({
+          version: `V${h.version}`,
+          type: '运行版',
+          time: h.timestamp ? new Date(h.timestamp).toLocaleString('zh-CN') : '未知时间',
+          status: h.version === displayVersion ? 'current' : 'history',
+          content: h.data?.result || h.data?.characters?.[0]?.description || '...',
+          imageUrl: h.data?.characters?.[0]?.thumbnail
+        }));
+
+        // 添加当前版本到历史
+        history.unshift({
+          version: `V${currentVersion}`,
+          type: currentVersion > 1 ? '修订版' : '运行版',
+          time: '当前版本',
+          status: 'current',
+          content: node.data?.result || node.data?.characters?.[0]?.description || '...',
+          imageUrl: node.data?.characters?.[0]?.thumbnail
+        });
+
+        return {
+          key: node.id,
+          nodeId: node.id,
+          nodeName: node.name,
+          currentVersion: `V${displayVersion}`,
+          currentContent: node.data?.result || '已生成',
+          history: history,
+          assetType: assetType
+        };
+      });
+  };
+
+  // 当API返回为空时，使用节点数据作为备用
+  const displayAssets = assets.length > 0 ? assets : generateAssetsFromNodes();
 
   const handleLocate = (nodeId) => {
     if (onLocateNode) {
@@ -76,7 +140,6 @@ const AssetDrawer = ({
 
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
-    // 实际项目中可以用Toast提示
   };
 
   const getAssetIcon = (assetType) => {
@@ -113,7 +176,7 @@ const AssetDrawer = ({
             <div className="drawer-header">
               <div className="drawer-title">
                 <h3>项目资产</h3>
-                <span className="asset-count">{Object.keys(mockAssets).length} 个节点</span>
+                <span className="asset-count">{displayAssets.length} 个节点</span>
               </div>
               <button className="drawer-close-btn" onClick={onClose}>
                 <X size={18} />
@@ -141,8 +204,8 @@ const AssetDrawer = ({
               {viewMode === 'current' ? (
                 // 当前生效资产视图
                 <div className="current-assets-list">
-                  {Object.entries(mockAssets).map(([key, asset]) => (
-                    <div key={key} className="asset-card current">
+                  {displayAssets.map((asset) => (
+                    <div key={asset.key} className="asset-card current">
                       <div className="asset-card-header">
                         <div className="asset-type-icon">
                           {getAssetIcon(asset.assetType)}
@@ -163,11 +226,11 @@ const AssetDrawer = ({
                       <div className="asset-card-content">
                         {asset.assetType === 'image' ? (
                           <div className="asset-preview image-preview">
-                            <img src={asset.history[0].imageUrl} alt={asset.nodeName} />
+                            <img src={asset.history[0]?.imageUrl || 'https://picsum.photos/seed/demo/400/300'} alt={asset.nodeName} />
                           </div>
                         ) : asset.assetType === 'video' ? (
                           <div className="asset-preview video-preview">
-                            <video src={asset.history[0].videoUrl} />
+                            <video src={asset.history[0]?.videoUrl || 'https://www.w3schools.com/html/mov_bbb.mp4'} />
                             <div className="video-duration">0:45</div>
                           </div>
                         ) : (
@@ -199,8 +262,8 @@ const AssetDrawer = ({
               ) : (
                 // 历史版本视图
                 <div className="history-assets-list">
-                  {Object.entries(mockAssets).map(([key, asset]) => (
-                    <div key={key} className="asset-group">
+                  {displayAssets.map((asset) => (
+                    <div key={asset.key} className="asset-group">
                       <div className="asset-group-header">
                         <div className="asset-type-icon">
                           {getAssetIcon(asset.assetType)}
@@ -240,7 +303,7 @@ const AssetDrawer = ({
                               {item.status !== 'current' && (
                                 <button
                                   className="restore-btn"
-                                  onClick={() => handleRestore(key, item)}
+                                  onClick={() => handleRestore(asset.key, item.version)}
                                   title="恢复为此版本"
                                 >
                                   <RotateCcw size={12} />

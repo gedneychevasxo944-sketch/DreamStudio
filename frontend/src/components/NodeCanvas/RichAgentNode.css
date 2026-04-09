@@ -30,6 +30,51 @@
   animation: nodePulse 2s ease-in-out infinite;
 }
 
+/* 锁定状态样式 */
+.rich-agent-node.locked {
+  border-color: rgba(234, 179, 8, 0.5);
+  box-shadow: 0 0 0 2px rgba(234, 179, 8, 0.2), 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.rich-agent-node.locked:hover {
+  box-shadow: 0 0 0 2px rgba(234, 179, 8, 0.3), 0 6px 30px rgba(0, 0, 0, 0.4);
+}
+
+/* 锁定指示器 */
+.lock-indicator {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(234, 179, 8, 0.9);
+  border-radius: 50%;
+  color: white;
+  z-index: 30;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Stale 状态样式 */
+.rich-agent-node.stale {
+  border-color: rgba(239, 68, 68, 0.5);
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2), 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.stale-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  margin: 4px 8px;
+  background: rgba(239, 68, 68, 0.15);
+  border-radius: 4px;
+  font-size: 10px;
+  color: rgba(239, 68, 68, 0.9);
+}
+
 @keyframes nodePulse {
   0%, 100% {
     box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);

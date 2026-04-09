@@ -49,6 +49,37 @@ public class Project {
     @Column(name = "current_version")
     private Integer currentVersion;
 
+    @Column(name = "phase", length = 32)
+    @Builder.Default
+    private String phase = "PLANNING";
+
+    @Column(name = "mode", length = 32)
+    private String mode;
+
+    @Column(name = "entry_type", length = 32)
+    private String entryType;
+
+    @Column(name = "raw_input", columnDefinition = "LONGTEXT")
+    private String rawInput;
+
+    @Column(name = "brief_json", columnDefinition = "LONGTEXT")
+    private String briefJson;
+
+    @Column(name = "plan_summary", columnDefinition = "LONGTEXT")
+    private String planSummary;
+
+    @Column(name = "dag_config", columnDefinition = "LONGTEXT")
+    private String dagConfig;
+
+    @Column(name = "current_execution_id", length = 64)
+    private String currentExecutionId;
+
+    @Column(name = "last_active_node_id", length = 64)
+    private String lastActiveNodeId;
+
+    @Column(name = "global_settings_json", columnDefinition = "LONGTEXT")
+    private String globalSettingsJson;
+
     @CreationTimestamp
     @Column(name = "created_time", updatable = false)
     private LocalDateTime createdTime;

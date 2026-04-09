@@ -195,6 +195,99 @@ export const useWorkflowStore = create((set, get) => ({
     return { nodes: Array.from(nodeMap.values()) };
   }),
 
+  // 获取下游节点（通过连接关系查找）
+  getDownstreamNodes: (nodeId) => {
+    const state = get();
+    const downstreamIds = new Set();
+    const queue = [nodeId];
+
+    while (queue.length > 0) {
+      const currentId = queue.shift();
+      state.connections.forEach(conn => {
+        if (conn.from === currentId && !downstreamIds.has(conn.to)) {
+          downstreamIds.add(conn.to);
+          queue.push(conn.to);
+        }
+      });
+    }
+
+    return state.nodes.filter(n => downstreamIds.has(n.id));
+  },
+
+  // 标记节点为stale（依赖失效）
+  markNodeAsStale: (nodeId, reason) => set((state) => ({
+    nodes: state.nodes.map(n =>
+      n.id === nodeId ? {
+        ...n,
+        data: { ...n.data, status: 'stale', staleReason: reason }
+      } : n
+    )
+  })),
+
+  // 标记下游所有节点为stale
+  markDownstreamAsStale: (nodeId, reason) => set((state) => {
+    // 先找出所有下游节点
+    const downstreamIds = new Set();
+    const queue = [nodeId];
+
+    while (queue.length > 0) {
+      const currentId = queue.shift();
+      state.connections.forEach(conn => {
+        if (conn.from === currentId && !downstreamIds.has(conn.to)) {
+          downstreamIds.add(conn.to);
+          queue.push(conn.to);
+        }
+      });
+    }
+
+    // 批量更新所有下游节点为stale
+    return {
+      nodes: state.nodes.map(n =>
+        downstreamIds.has(n.id) ? {
+          ...n,
+          data: { ...n.data, status: 'stale', staleReason: reason || `依赖节点 ${nodeId} 已修改` }
+        } : n
+      )
+    };
+  }),
+
+  // 清除节点的stale状态
+  clearNodeStale: (nodeId) => set((state) => ({
+    nodes: state.nodes.map(n =>
+      n.id === nodeId ? {
+        ...n,
+        data: { ...n.data, status: 'completed', staleReason: null }
+      } : n
+    )
+  })),
+
+  // 清除下游所有节点的stale状态
+  clearDownstreamStale: (nodeId) => set((state) => {
+    // 先找出所有下游节点
+    const downstreamIds = new Set();
+    const queue = [nodeId];
+
+    while (queue.length > 0) {
+      const currentId = queue.shift();
+      state.connections.forEach(conn => {
+        if (conn.from === currentId && !downstreamIds.has(conn.to)) {
+          downstreamIds.add(conn.to);
+          queue.push(conn.to);
+        }
+      });
+    }
+
+    // 批量清除所有下游节点的stale状态
+    return {
+      nodes: state.nodes.map(n =>
+        downstreamIds.has(n.id) ? {
+          ...n,
+          data: { ...n.data, status: 'completed', staleReason: null }
+        } : n
+      )
+    };
+  }),
+
   // 检查是否有未保存的节点/连接变更
   hasCanvasChanges: () => {
     const state = get();

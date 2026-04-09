@@ -762,6 +762,84 @@ export const teamApi = {
   },
 };
 
+/**
+ * 节点版本 API
+ */
+export const nodeVersionApi = {
+  // 获取节点版本列表
+  getVersions: (projectId, nodeId) => {
+    return request(`/v1/projects/${projectId}/nodes/${nodeId}/versions`);
+  },
+
+  // 获取当前版本
+  getCurrentVersion: (projectId, nodeId) => {
+    return request(`/v1/projects/${projectId}/nodes/${nodeId}/versions/current`);
+  },
+
+  // 激活版本
+  activateVersion: (projectId, nodeId, versionId) => {
+    return request(`/v1/projects/${projectId}/nodes/${nodeId}/versions/${versionId}/activate`, {
+      method: 'POST',
+    });
+  },
+
+  // 获取运行记录
+  getHistory: (projectId, nodeId) => {
+    return request(`/v1/projects/${projectId}/nodes/${nodeId}/history`);
+  },
+};
+
+/**
+ * 资产 API
+ */
+export const assetApi = {
+  // 获取节点资产
+  getNodeAssets: (projectId, nodeId, currentOnly = false) => {
+    return request(`/v1/projects/${projectId}/nodes/${nodeId}/assets?currentOnly=${currentOnly}`);
+  },
+
+  // 获取项目全部资产
+  getProjectAssets: (projectId, currentOnly = false) => {
+    return request(`/v1/projects/${projectId}/assets?currentOnly=${currentOnly}`);
+  },
+
+  // 激活资产
+  activateAsset: (projectId, assetId) => {
+    return request(`/v1/projects/${projectId}/assets/${assetId}/activate`, {
+      method: 'POST',
+    });
+  },
+};
+
+/**
+ * 提案 API
+ */
+export const proposalApi = {
+  // 获取提案列表
+  getProposals: (projectId, nodeId) => {
+    return request(`/v1/projects/${projectId}/nodes/${nodeId}/proposals`);
+  },
+
+  // 获取提案详情
+  getProposalDetail: (projectId, nodeId, proposalId) => {
+    return request(`/v1/projects/${projectId}/nodes/${nodeId}/proposals/${proposalId}`);
+  },
+
+  // 应用提案
+  applyProposal: (projectId, nodeId, proposalId) => {
+    return request(`/v1/projects/${projectId}/nodes/${nodeId}/proposals/${proposalId}/apply`, {
+      method: 'POST',
+    });
+  },
+
+  // 拒绝提案
+  rejectProposal: (projectId, nodeId, proposalId) => {
+    return request(`/v1/projects/${projectId}/nodes/${nodeId}/proposals/${proposalId}/reject`, {
+      method: 'POST',
+    });
+  },
+};
+
 export default {
   authApi,
   homePageApi,
@@ -770,4 +848,7 @@ export default {
   agentApi,
   workflowApi,
   teamApi,
+  nodeVersionApi,
+  assetApi,
+  proposalApi,
 };

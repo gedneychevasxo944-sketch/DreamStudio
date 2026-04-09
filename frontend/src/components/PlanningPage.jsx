@@ -277,15 +277,14 @@ const PlanningPage = ({
     if (onConfirmPlan) {
       onConfirmPlan(plan);
     }
-    if (onGoToExecution) {
-      onGoToExecution();
-    }
+    // 不再单独调用onGoToExecution，onConfirmPlan会切换到workspace
   };
 
   // 自己搭建
   const handleBuildOwn = () => {
-    if (onGoToExecution) {
-      onGoToExecution({ mode: 'blank' });
+    // 自己搭建时，传递blank模式，让App.jsx处理进入空白workspace
+    if (onConfirmPlan) {
+      onConfirmPlan({ mode: 'blank', id: 'blank' });
     }
   };
 

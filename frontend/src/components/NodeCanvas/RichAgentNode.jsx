@@ -34,7 +34,8 @@ import {
   AlertCircle,
   BookOpen,
   List,
-  Scissors
+  Scissors,
+  Lock
 } from 'lucide-react';
 import './RichAgentNode.css';
 import { VideoEditor } from '../VideoEditor';
@@ -418,6 +419,8 @@ const WriterNodeContent = ({ node, isRunning, onSelect, onUpdateContent, onExpan
           <span className="content-status">
             {isRunning ? (
               <><Loader2 className="spin" size={12} /> 生成中</>
+            ) : node.data?.status === 'stale' ? (
+              <><AlertCircle size={12} /> 依赖失效</>
             ) : hasResult ? (
               <><Check size={12} /> 已完成</>
             ) : (
@@ -426,6 +429,14 @@ const WriterNodeContent = ({ node, isRunning, onSelect, onUpdateContent, onExpan
           </span>
         </div>
       </div>
+
+      {/* stale 状态提示 */}
+      {node.data?.status === 'stale' && node.data?.staleReason && (
+        <div className="stale-indicator" title={node.data.staleReason}>
+          <AlertCircle size={12} />
+          <span>{node.data.staleReason}</span>
+        </div>
+      )}
 
       {/* 思考过程气泡 */}
       {node.data?.thinking && node.data.thinking.length > 0 && (
@@ -489,6 +500,8 @@ const VisualNodeContent = ({ node, isRunning, onSelect, onUpdateContent, onExpan
           <span className="content-status">
             {isRunning ? (
               <><Loader2 className="spin" size={12} /> 生成中</>
+            ) : node.data?.status === 'stale' ? (
+              <><AlertCircle size={12} /> 依赖失效</>
             ) : hasResult ? (
               <><Check size={12} /> 已完成</>
             ) : (
@@ -497,6 +510,14 @@ const VisualNodeContent = ({ node, isRunning, onSelect, onUpdateContent, onExpan
           </span>
         </div>
       </div>
+
+      {/* stale 状态提示 */}
+      {node.data?.status === 'stale' && node.data?.staleReason && (
+        <div className="stale-indicator" title={node.data.staleReason}>
+          <AlertCircle size={12} />
+          <span>{node.data.staleReason}</span>
+        </div>
+      )}
 
       {/* 思考过程气泡 */}
       {node.data?.thinking && node.data.thinking.length > 0 && (
@@ -558,6 +579,8 @@ const DirectorNodeContent = ({ node, isRunning, onSelect, onUpdateContent, onExp
           <span className="content-status">
             {isRunning ? (
               <><Loader2 className="spin" size={12} /> 生成中</>
+            ) : node.data?.status === 'stale' ? (
+              <><AlertCircle size={12} /> 依赖失效</>
             ) : hasResult ? (
               <><Check size={12} /> {storyboards.length}个分镜</>
             ) : (
@@ -566,6 +589,14 @@ const DirectorNodeContent = ({ node, isRunning, onSelect, onUpdateContent, onExp
           </span>
         </div>
       </div>
+
+      {/* stale 状态提示 */}
+      {node.data?.status === 'stale' && node.data?.staleReason && (
+        <div className="stale-indicator" title={node.data.staleReason}>
+          <AlertCircle size={12} />
+          <span>{node.data.staleReason}</span>
+        </div>
+      )}
 
       {/* 思考过程气泡 */}
       {node.data?.thinking && node.data.thinking.length > 0 && (
@@ -625,6 +656,8 @@ const ProducerNodeContent = ({ node, isRunning, onSelect, onUpdateContent, onExp
           <span className="content-status">
             {isRunning ? (
               <><Loader2 className="spin" size={12} /> 生成中</>
+            ) : node.data?.status === 'stale' ? (
+              <><AlertCircle size={12} /> 依赖失效</>
             ) : hasResult ? (
               <><Check size={12} /> 已完成</>
             ) : (
@@ -633,6 +666,14 @@ const ProducerNodeContent = ({ node, isRunning, onSelect, onUpdateContent, onExp
           </span>
         </div>
       </div>
+
+      {/* stale 状态提示 */}
+      {node.data?.status === 'stale' && node.data?.staleReason && (
+        <div className="stale-indicator" title={node.data.staleReason}>
+          <AlertCircle size={12} />
+          <span>{node.data.staleReason}</span>
+        </div>
+      )}
 
       {/* 思考过程气泡 - 仅展示最新一条，点击可展开 */}
       {node.data?.thinking && node.data.thinking.length > 0 && (
@@ -694,6 +735,8 @@ const TechnicalNodeContent = ({ node, isRunning, onSelect, onUpdateContent, onEx
           <span className="content-status">
             {isRunning ? (
               <><Loader2 className="spin" size={12} /> 生成中</>
+            ) : node.data?.status === 'stale' ? (
+              <><AlertCircle size={12} /> 依赖失效</>
             ) : hasResult ? (
               <><Check size={12} /> {prompts.length}组提示词</>
             ) : (
@@ -702,6 +745,14 @@ const TechnicalNodeContent = ({ node, isRunning, onSelect, onUpdateContent, onEx
           </span>
         </div>
       </div>
+
+      {/* stale 状态提示 */}
+      {node.data?.status === 'stale' && node.data?.staleReason && (
+        <div className="stale-indicator" title={node.data.staleReason}>
+          <AlertCircle size={12} />
+          <span>{node.data.staleReason}</span>
+        </div>
+      )}
 
       {/* 思考过程气泡 */}
       {node.data?.thinking && node.data.thinking.length > 0 && (
@@ -764,6 +815,8 @@ const VideoGenNodeContent = ({ node, isRunning, onSelect, onUpdateContent, onExp
           <span className="content-status">
             {isRunning ? (
               <><Loader2 className="spin" size={12} /> 生成中</>
+            ) : node.data?.status === 'stale' ? (
+              <><AlertCircle size={12} /> 依赖失效</>
             ) : hasResult ? (
               <><Check size={12} /> 已完成</>
             ) : (
@@ -772,6 +825,14 @@ const VideoGenNodeContent = ({ node, isRunning, onSelect, onUpdateContent, onExp
           </span>
         </div>
       </div>
+
+      {/* stale 状态提示 */}
+      {node.data?.status === 'stale' && node.data?.staleReason && (
+        <div className="stale-indicator" title={node.data.staleReason}>
+          <AlertCircle size={12} />
+          <span>{node.data.staleReason}</span>
+        </div>
+      )}
 
       {/* 思考过程气泡 */}
       {node.data?.thinking && node.data.thinking.length > 0 && (
@@ -840,6 +901,8 @@ const VideoEditorNodeContent = ({ node, isRunning, onSelect, onUpdateContent, on
           <span className="content-status">
             {isRunning ? (
               <><Loader2 className="spin" size={12} /> 处理中</>
+            ) : node.data?.status === 'stale' ? (
+              <><AlertCircle size={12} /> 依赖失效</>
             ) : hasResult ? (
               <><Check size={12} /> 已完成</>
             ) : (
@@ -848,6 +911,14 @@ const VideoEditorNodeContent = ({ node, isRunning, onSelect, onUpdateContent, on
           </span>
         </div>
       </div>
+
+      {/* stale 状态提示 */}
+      {node.data?.status === 'stale' && node.data?.staleReason && (
+        <div className="stale-indicator" title={node.data.staleReason}>
+          <AlertCircle size={12} />
+          <span>{node.data.staleReason}</span>
+        </div>
+      )}
 
       {/* 思考过程气泡 */}
       {node.data?.thinking && node.data.thinking.length > 0 && (
@@ -907,12 +978,22 @@ const GenericNodeContent = ({ node, isRunning, onSelect, onUpdateContent, onExpa
           <span className="content-status">
             {isRunning ? (
               <><Loader2 className="spin" size={12} /> 运行中</>
+            ) : node.data?.status === 'stale' ? (
+              <><AlertCircle size={12} /> 依赖失效</>
             ) : (
               '就绪'
             )}
           </span>
         </div>
       </div>
+
+      {/* stale 状态提示 */}
+      {node.data?.status === 'stale' && node.data?.staleReason && (
+        <div className="stale-indicator" title={node.data.staleReason}>
+          <AlertCircle size={12} />
+          <span>{node.data.staleReason}</span>
+        </div>
+      )}
 
       {/* 思考过程气泡 */}
       {node.data?.thinking && node.data.thinking.length > 0 && (
@@ -966,7 +1047,8 @@ const RichAgentNode = ({
   onGenerateVideoNodes,
   scale = 1,
   projectId,
-  projectVersion
+  projectVersion,
+  isDemoMode = false
 }) => {
   const nodeRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -1262,10 +1344,13 @@ const RichAgentNode = ({
   // 获取当前节点宽度
   const nodeWidth = getNodeWidth();
 
+  // 检查是否锁定
+  const isLocked = node.data?.isLocked || false;
+
   return (
     <motion.div
       ref={nodeRef}
-      className={`rich-agent-node ${isSelected ? 'selected' : ''} ${isDragging ? 'dragging' : ''} ${isResizing ? 'resizing' : ''} ${node.status || 'idle'} ${isRunning ? 'running' : ''}`}
+      className={`rich-agent-node ${isSelected ? 'selected' : ''} ${isDragging ? 'dragging' : ''} ${isResizing ? 'resizing' : ''} ${node.status || 'idle'} ${isRunning ? 'running' : ''} ${node.data?.status === 'stale' ? 'stale' : ''} ${isLocked ? 'locked' : ''}`}
       style={{
         left: node.x,
         top: node.y,
@@ -1277,45 +1362,60 @@ const RichAgentNode = ({
       animate={{ scale: 1, opacity: 1 }}
       onMouseDown={handleMouseDown}
     >
-      <div className="node-drag-handle">
-        <GripVertical size={12} />
-      </div>
+      {/* 锁定状态指示器 */}
+      {isLocked && (
+        <div className="lock-indicator" title="节点已锁定">
+          <Lock size={12} />
+        </div>
+      )}
 
-      <button className="node-delete-btn" onClick={(e) => { e.stopPropagation(); onDelete?.(); }}>
-        <X size={12} />
-      </button>
+      {!isDemoMode && !isLocked && (
+        <>
+          <div className="node-drag-handle">
+            <GripVertical size={12} />
+          </div>
 
-      <button className="node-edit-btn" onClick={(e) => { e.stopPropagation(); onEdit?.(); }}>
-        <Edit3 size={12} />
-      </button>
+          <button className="node-delete-btn" onClick={(e) => { e.stopPropagation(); onDelete?.(); }}>
+            <X size={12} />
+          </button>
 
-      {/* 调整大小手柄 */}
-      <div className="resize-handle" title="拖拽调整大小">
-        <svg width="12" height="12" viewBox="0 0 12 12">
-          <path
-            d="M8 8L12 12M5 11L11 5M2 10L10 2"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            fill="none"
-          />
-        </svg>
-      </div>
+          <button className="node-edit-btn" onClick={(e) => { e.stopPropagation(); onEdit?.(); }}>
+            <Edit3 size={12} />
+          </button>
 
-      {/* 端口固定在头部区域（中心在 26px 处） */}
-      <div className="port input-port" ref={inputPortRef} onMouseUp={handleInputPortMouseUp}>
-        <div className="port-dot" />
-      </div>
+          {/* 调整大小手柄 */}
+          <div className="resize-handle" title="拖拽调整大小">
+            <svg width="12" height="12" viewBox="0 0 12 12">
+              <path
+                d="M8 8L12 12M5 11L11 5M2 10L10 2"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                fill="none"
+              />
+            </svg>
+          </div>
+        </>
+      )}
 
-      <div
-        className="port output-port"
-        ref={outputPortRef}
-        onMouseDown={handleOutputPortMouseDown}
-        onMouseMove={handleOutputPortMouseMove}
-        onMouseUp={handleOutputPortMouseUp}
-      >
-        <div className="port-dot" />
-      </div>
+      {/* 端口固定在头部区域（中心在 26px 处）- Demo模式或锁定状态下禁用 */}
+      {!isDemoMode && !isLocked && (
+        <>
+          <div className="port input-port" ref={inputPortRef} onMouseUp={handleInputPortMouseUp}>
+            <div className="port-dot" />
+          </div>
+
+          <div
+            className="port output-port"
+            ref={outputPortRef}
+            onMouseDown={handleOutputPortMouseDown}
+            onMouseMove={handleOutputPortMouseMove}
+            onMouseUp={handleOutputPortMouseUp}
+          >
+            <div className="port-dot" />
+          </div>
+        </>
+      )}
 
       {/* 智能体选择菜单 */}
       <AnimatePresence>

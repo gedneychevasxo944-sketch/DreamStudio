@@ -1,9 +1,62 @@
-import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
+import React, { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { createPortal } from 'react-dom';
 import ReactMarkdown from 'react-markdown';
-import { Send, Bot, User, Copy, X, ExternalLink, Check, Sparkles, ChevronUp, ChevronDown, ZoomIn } from 'lucide-react';
+import { Send, Bot, User, Copy, X, ExternalLink, Check, Sparkles, ChevronUp, ChevronDown, ZoomIn, GitBranch, Plus, ArrowRight, Trash2 } from 'lucide-react';
 import { chatApi } from '../services/api';
 import './ChatConversation.css';
+
+
+// 提案卡片组件
+const ProposalCard = ({ proposal, onApply, onReject }) => {
+  const getActionIcon = (action) => {
+    switch (action) {
+      case 'add_node': return <Plus size={14} />;
+      case 'remove_node': return <Trash2 size={14} />;
+      case 'update_config': return <GitBranch size={14} />;
+      default: return <GitBranch size={14} />;
+    }
+  };
+
+  const getActionLabel = (action) => {
+    switch (action) {
+      case 'add_node': return '添加节点';
+      case 'remove_node': return '删除节点';
+      case 'update_config': return '修改配置';
+      default: return '未知操作';
+    }
+  };
+
+  return (
+    <div className="cc-proposal-card">
+      <div className="cc-proposal-header">
+        <GitBranch size={16} />
+        <span className="cc-proposal-title">{proposal.title}</span>
+      </div>
+      <div className="cc-proposal-description">{proposal.description}</div>
+      <div className="cc-proposal-changes">
+        {proposal.changes.map((change, idx) => (
+          <div key={idx} className="cc-proposal-change-item">
+            <div className="cc-proposal-change-icon">{getActionIcon(change.action)}</div>
+            <div className="cc-proposal-change-content">
+              <span className="cc-proposal-change-label">{getActionLabel(change.action)}</span>
+              <span className="cc-proposal-change-desc">{change.description}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="cc-proposal-actions">
+        <button className="cc-proposal-btn reject" onClick={() => onReject(proposal.id)}>
+          <X size={14} />
+          暂不采纳
+        </button>
+        <button className="cc-proposal-btn apply" onClick={() => onApply(proposal)}>
+          <Check size={14} />
+          确认应用
+        </button>
+      </div>
+    </div>
+  );
+};
 
 const Toast = ({ message, onClose }) => {
   useEffect(() => {
@@ -53,7 +106,7 @@ const VideoViewer = ({ url, onClose }) => {
   );
 };
 
-const AssistantMessage = ({ message, onOpenModal, onShowToast }) => {
+const AssistantMessage = ({ message, onOpenModal, onShowToast, proposal, onApplyProposal, onRejectProposal }) => {
   const [thinkingExpanded, setThinkingExpanded] = useState(false);
   const [imageViewerOpen, setImageViewerOpen] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -99,9 +152,10 @@ const AssistantMessage = ({ message, onOpenModal, onShowToast }) => {
     const hasText = content && content.length > 0;
     const hasImages = mixedImageUrls.length > 0 || legacyImageUrls.length > 0;
     const hasVideos = mixedVideoItems.length > 0;
+    const hasProposal = !!proposal;
 
     // 无内容
-    if (!hasText && !hasImages && !hasVideos) return null;
+    if (!hasText && !hasImages && !hasVideos && !hasProposal) return null;
 
     // 渲染图片的函数
     const renderImages = (urls) => (
@@ -135,19 +189,37 @@ const AssistantMessage = ({ message, onOpenModal, onShowToast }) => {
       return <div className="cc-result-text">{content}</div>;
     };
 
-    // 混合类型：有图片或视频
-    if (hasImages || hasVideos) {
+    // 渲染提案卡片
+    const renderProposal = () => {
+      if (!hasProposal) return null;
+      return (
+        <ProposalCard
+          proposal={proposal}
+          onApply={onApplyProposal}
+          onReject={onRejectProposal}
+        />
+      );
+    };
+
+    // 混合类型：有图片或视频或提案
+    if (hasImages || hasVideos || hasProposal) {
       return (
         <>
           {renderText()}
           {hasImages && renderImages(mixedImageUrls.length > 0 ? mixedImageUrls : legacyImageUrls)}
           {hasVideos && renderVideos(mixedVideoItems)}
+          {hasProposal && renderProposal()}
         </>
       );
     }
 
     // 纯文字类型
-    return renderText();
+    return (
+      <>
+        {renderText()}
+        {hasProposal && renderProposal()}
+      </>
+    );
   };
 
   return (
@@ -177,7 +249,7 @@ const AssistantMessage = ({ message, onOpenModal, onShowToast }) => {
             </div>
           )}
 
-          {(message.result || message.content) && (
+          {(message.result || message.content || proposal) && (
             <div className="cc-result-section">
               <div className="cc-result-content">
                 {renderResult()}
@@ -194,6 +266,7 @@ const AssistantMessage = ({ message, onOpenModal, onShowToast }) => {
               </div>
             </div>
           )}
+
         </div>
       </div>
 
@@ -371,6 +444,7 @@ const ChatConversation = forwardRef(({
   placeholder = '输入消息...',
   disabledPlaceholder = '生成完成后可对话',
   onWorkflowCreated,
+  onApplyProposal,
   inputMode = 'textarea',  // 'textarea' | 'input'
   disableAutoScroll = false
 }, ref) => {
@@ -378,6 +452,7 @@ const ChatConversation = forwardRef(({
   const [modalMessage, setModalMessage] = useState(null);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
+  const [proposals, setProposals] = useState({}); // messageId -> proposal
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
   const messagesRef = useRef(messages);
@@ -409,6 +484,39 @@ const ChatConversation = forwardRef(({
   const showToast = useCallback((message) => {
     setToast(message);
   }, []);
+
+  // 处理应用提案
+  const handleApplyProposal = useCallback((proposal) => {
+    // 调用父组件的 onApplyProposal 回调
+    if (onApplyProposal) {
+      onApplyProposal(proposal);
+    }
+    showToast('已应用提案更改');
+    // 从 proposals 状态中移除
+    setProposals(prev => {
+      const newProposals = { ...prev };
+      Object.keys(newProposals).forEach(msgId => {
+        if (newProposals[msgId]?.id === proposal.id) {
+          delete newProposals[msgId];
+        }
+      });
+      return newProposals;
+    });
+  }, [onApplyProposal, showToast]);
+
+  // 处理拒绝提案
+  const handleRejectProposal = useCallback((proposalId) => {
+    setProposals(prev => {
+      const newProposals = { ...prev };
+      Object.keys(newProposals).forEach(msgId => {
+        if (newProposals[msgId]?.id === proposalId) {
+          delete newProposals[msgId];
+        }
+      });
+      return newProposals;
+    });
+    showToast('已拒绝提案');
+  }, [showToast]);
 
   const sendChatMessage = useCallback((messageContent) => {
     if (!messageContent.trim() || loading) return;
@@ -449,6 +557,7 @@ const ChatConversation = forwardRef(({
     let resultType = 'text';
     let imageUrls = [];
     let videoItems = [];
+    let pendingProposal = null;
 
     // 使用 chatApi 发送消息
     sseConnectionRef.current = chatApi.sendMessageStream(
@@ -531,7 +640,7 @@ const ChatConversation = forwardRef(({
         },
       }
     );
-  }, [loading, onMessagesChange, projectId, projectVersion, agentId, onWorkflowCreated]);
+  }, [loading, onMessagesChange, projectId, projectVersion, agentId, onWorkflowCreated, onApplyProposal]);
 
   // 更新 sendMessageFnRef
   useEffect(() => {
@@ -579,6 +688,9 @@ const ChatConversation = forwardRef(({
                 message={msg}
                 onOpenModal={setModalMessage}
                 onShowToast={showToast}
+                proposal={proposals[msg.id]}
+                onApplyProposal={handleApplyProposal}
+                onRejectProposal={handleRejectProposal}
               />
             )
           ))

@@ -6,47 +6,6 @@ import AuthModal from './AuthModal/AuthModal';
 import { homePageApi, authApi, teamApi } from '../services/api';
 import './HomePage.css';
 
-// 模拟项目数据 - 2个未完成 + 1个已完成（带视频）
-const mockProjects = [
-  {
-    projectId: 'proj_001',
-    title: '星际迷途 - 科幻短片',
-    description: '一个关于未来太空探索的科幻故事',
-    status: 'processing',
-    progress: 68,
-    coverImage: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=400',
-    style: '科幻短片',
-    lastAccessedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2小时前
-    createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString() // 7天前
-  },
-  {
-    projectId: 'proj_002',
-    title: '江南旧梦 - 古风动画',
-    description: '江南水乡的唯美古风动画',
-    status: 'draft',
-    progress: 35,
-    coverImage: 'https://images.unsplash.com/photo-1537531383496-f4749b8032cf?w=400',
-    style: '古风动画',
-    lastAccessedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), // 1天前
-    createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString() // 3天前
-  },
-  {
-    projectId: 'proj_003',
-    title: '深海探秘 - 自然纪录片',
-    description: '探索深海神秘生物的纪录片',
-    status: 'completed',
-    progress: 100,
-    coverImage: 'https://images.unsplash.com/photo-1551244072-5d12893278ab?w=400',
-    style: '纪录片',
-    lastAccessedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), // 5天前
-    createdAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(), // 14天前
-    // 已完成项目的模拟视频
-    videoUrl: 'https://www.w3schools.com/html/mov_bbb.mp4',
-    videoThumbnail: 'https://images.unsplash.com/photo-1551244072-5d12893278ab?w=800',
-    duration: '3:45'
-  }
-];
-
 // 转换后端项目数据为前端格式
 const transformProjectData = (project) => ({
   id: project.id,
@@ -127,7 +86,8 @@ const VideoModal = ({ demo, onClose, onEnter, currentUser, onRequireLogin }) => 
       onRequireLogin();
       return;
     }
-    onEnter();
+    // 传递demoId让App.jsx知道这是Demo只读态
+    onEnter(demo.id);
   };
 
   return (
@@ -633,7 +593,7 @@ const HomePage = ({ onEnter }) => {
           <VideoModal
             demo={activeDemo}
             onClose={() => setActiveDemo(null)}
-            onEnter={() => onEnter('', false)}
+            onEnter={(demoId) => onEnter('', false, null, null, demoId)}
             currentUser={currentUser}
             onRequireLogin={() => setShowAuthModal(true)}
           />

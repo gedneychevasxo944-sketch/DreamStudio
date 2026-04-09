@@ -28,6 +28,7 @@ const CanvasToolbar = ({
   const [showRunMenu, setShowRunMenu] = useState(false);
 
   const runMenuOptions = [
+    { key: 'direct', label: '直接运行', description: '按默认方式运行' },
     { key: 'restart', label: '从头运行', description: '重新运行整个流程' },
     { key: 'continue', label: '继续运行', description: '从受影响节点继续', disabled: !hasStaleNodes },
     { key: 'fromCurrent', label: '从当前节点运行', description: '从选中节点重新开始' },
@@ -36,19 +37,17 @@ const CanvasToolbar = ({
   ];
 
   const handleRunClick = (e) => {
-    if (e.shiftKey || showRunMenu) {
-      // Shift+点击 或已打开菜单时，切换菜单
-      setShowRunMenu(!showRunMenu);
-    } else {
-      // 普通点击直接运行
-      if (onRun) onRun();
-    }
+    e.stopPropagation();
+    // 切换菜单显示
+    setShowRunMenu(!showRunMenu);
   };
 
   const handleMenuItemClick = (option) => {
     setShowRunMenu(false);
     if (option.action) {
       option.action();
+    } else if (option.key === 'direct') {
+      if (onRun) onRun();
     } else if (option.key === 'restart') {
       if (onRun) onRun('restart');
     } else if (option.key === 'continue') {
@@ -62,9 +61,16 @@ const CanvasToolbar = ({
 
   // 点击空白关闭菜单
   useEffect(() => {
-    const handleClickOutside = () => setShowRunMenu(false);
+    const handleClickOutside = (e) => {
+      // 忽略来自按钮或菜单内部的点击
+      if (e.target.closest('.run-btn-wrapper')) return;
+      setShowRunMenu(false);
+    };
     if (showRunMenu) {
-      document.addEventListener('click', handleClickOutside);
+      // 延迟添加监听器，避免立即触发
+      setTimeout(() => {
+        document.addEventListener('click', handleClickOutside);
+      }, 0);
       return () => document.removeEventListener('click', handleClickOutside);
     }
   }, [showRunMenu]);

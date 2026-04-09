@@ -43,4 +43,19 @@ public class WorkflowExecution {
 
     @Column(name = "dag_config", columnDefinition = "TEXT")
     private String dagConfig;
+
+    @Column(name = "trigger_source", length = 32)
+    private String triggerSource;
+
+    @Column(name = "run_strategy", length = 32)
+    private String runStrategy;
+
+    @Column(name = "start_node_id", length = 64)
+    private String startNodeId;
+
+    @Column(name = "affected_node_ids_json", columnDefinition = "LONGTEXT")
+    private String affectedNodeIdsJson;
+
+    @Column(name = "reason_text", length = 500)
+    private String reasonText;
 }

@@ -696,3 +696,120 @@
   background: var(--glass-border);
   border-radius: 2px;
 }
+
+/* 提案卡片 */
+.cc-proposal-card {
+  width: 100%;
+  margin-top: 8px;
+  padding: 14px;
+  background: rgba(99, 102, 241, 0.08);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  border-radius: 10px;
+  animation: ccMessageAppear 0.3s ease;
+}
+
+.cc-proposal-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  color: #6366f1;
+}
+
+.cc-proposal-title {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.cc-proposal-description {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+
+.cc-proposal-changes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 10px;
+  background: var(--bg-tertiary);
+  border-radius: 6px;
+}
+
+.cc-proposal-change-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.cc-proposal-change-icon {
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(99, 102, 241, 0.15);
+  border-radius: 6px;
+  color: #6366f1;
+  flex-shrink: 0;
+}
+
+.cc-proposal-change-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cc-proposal-change-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.cc-proposal-change-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.cc-proposal-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.cc-proposal-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+}
+
+.cc-proposal-btn.reject {
+  background: transparent;
+  border: 1px solid var(--glass-border);
+  color: var(--text-muted);
+}
+
+.cc-proposal-btn.reject:hover {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+}
+
+.cc-proposal-btn.apply {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  color: #fff;
+}
+
+.cc-proposal-btn.apply:hover {
+  transform: scale(1.02);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+}

@@ -61,6 +61,8 @@ const NodeCanvas = ({
   onNodeSelect,
   // 视频生成回调（供 NodeWorkspace 使用）
   onGenerateVideo,
+  // Demo只读态
+  isDemoMode = false,
 }) => {
   const canvasRef = useRef(null);
   const [scale, setScale] = useState(1);
@@ -718,7 +720,7 @@ const NodeCanvas = ({
         projectId, executionId, projectVersion, currentNodes, currentConnections,
         (event) => {
           if (event.type === 'init') {
-            localStorage.setItem(`execution_${projectId}`, event.executionId.toString());
+            localStorage.setItem(`execution_${projectId}`, (event.workflowExecutionId || event.executionId || '').toString());
             if (event.completedNodes?.length > 0) {
               batchUpdateNodes(event.completedNodes.map(c => ({
                 id: c.nodeId, status: 'completed',
@@ -887,19 +889,20 @@ const NodeCanvas = ({
         templates={templates}
         loadingAgents={loadingAgents}
         showLibrary={showLibrary}
-        onToggleLibrary={() => setShowLibrary(!showLibrary)}
-        onRun={simulateRun}
-        onSaveTemplate={() => setShowSaveTemplateDialog(true)}
-        onClearCanvas={handleClearCanvas}
+        onToggleLibrary={() => !isDemoMode && setShowLibrary(!showLibrary)}
+        onRun={!isDemoMode ? simulateRun : () => {}}
+        onSaveTemplate={() => !isDemoMode && setShowSaveTemplateDialog(true)}
+        onClearCanvas={!isDemoMode ? handleClearCanvas : () => {}}
         onToggleFullscreen={onToggleFullscreen}
-        onLoadTemplate={loadTemplate}
+        onLoadTemplate={!isDemoMode ? loadTemplate : () => {}}
         // 新增 props
         projectMode={projectMode}
-        onModeChange={onModeChange}
+        onModeChange={!isDemoMode ? onModeChange : () => {}}
         runButtonText={runButtonText}
         runExplanation={runExplanation}
         hasStaleNodes={hasStaleNodes}
         onViewImpact={onViewImpact}
+        isDemoMode={isDemoMode}
       />
 
       {/* 全屏模式悬浮工具栏 */}
@@ -908,18 +911,19 @@ const NodeCanvas = ({
           isRunning={isRunning}
           templates={templates}
           loadingAgents={loadingAgents}
-          onToggleLibrary={() => setShowLibrary(!showLibrary)}
-          onRun={simulateRun}
-          onSaveTemplate={() => setShowSaveTemplateDialog(true)}
-          onClearCanvas={handleClearCanvas}
+          onToggleLibrary={() => !isDemoMode && setShowLibrary(!showLibrary)}
+          onRun={!isDemoMode ? simulateRun : () => {}}
+          onSaveTemplate={() => !isDemoMode && setShowSaveTemplateDialog(true)}
+          onClearCanvas={!isDemoMode ? handleClearCanvas : () => {}}
           onToggleFullscreen={onToggleFullscreen}
-          onLoadTemplate={loadTemplate}
+          onLoadTemplate={!isDemoMode ? loadTemplate : () => {}}
+          isDemoMode={isDemoMode}
         />
       )}
 
-      {/* 左侧智能体库 */}
+      {/* 左侧智能体库 - Demo模式下不显示 */}
       <AnimatePresence>
-        {showLibrary && (
+        {showLibrary && !isDemoMode && (
           <AgentLibrary
             agents={agentTypes}
             onDragAgent={handleAddNode}
@@ -964,21 +968,22 @@ const NodeCanvas = ({
               projectVersion={projectVersion}
               isSelected={selectedNodeId === node.id}
               isRunning={node.status === 'running'}
+              isDemoMode={isDemoMode}
               onSelect={() => handleNodeSelect(node)}
-              onDelete={() => handleDeleteNode(node.id)}
-              onEdit={() => handleOpenAgentSettings(node)}
-              onUpdatePosition={handleUpdateNodePosition}
-              onUpdateData={handleUpdateNodeData}
-              onStartConnection={startConnection}
-              onCompleteConnection={completeConnection}
-              onAddConnectedNode={addConnectedNode}
-              isConnecting={isConnecting}
-              connectingFrom={connectingFrom}
+              onDelete={() => !isDemoMode && handleDeleteNode(node.id)}
+              onEdit={() => !isDemoMode && handleOpenAgentSettings(node)}
+              onUpdatePosition={!isDemoMode ? handleUpdateNodePosition : () => {}}
+              onUpdateData={!isDemoMode ? handleUpdateNodeData : () => {}}
+              onStartConnection={!isDemoMode ? startConnection : () => {}}
+              onCompleteConnection={!isDemoMode ? completeConnection : () => {}}
+              onAddConnectedNode={!isDemoMode ? addConnectedNode : () => {}}
+              isConnecting={isDemoMode ? false : isConnecting}
+              connectingFrom={isDemoMode ? null : connectingFrom}
               availableAgents={Object.values(agentTypes)}
-              onOpenSettings={handleOpenAgentSettings}
+              onOpenSettings={!isDemoMode ? handleOpenAgentSettings : () => {}}
               onBringToFront={() => setSelectedNodeId(node.id)}
               onDimensionChange={handleNodeDimensionChange}
-              onAddNode={addConnectedNode}
+              onAddNode={!isDemoMode ? addConnectedNode : () => {}}
               onPortPositionChange={handlePortPositionChange}
               onGenerateVideoNodes={handleGenerateVideoNodes}
               onGenerateVideo={onGenerateVideo}

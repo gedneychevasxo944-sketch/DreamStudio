@@ -16,7 +16,7 @@ export const useUIStore = create((set, get) => ({
 
   // 模态框状态
   activeModal: null,
-  selectedNode: null,
+  selectedNodeId: null,
 
   // 全屏状态
   isCanvasFullscreen: false,
@@ -51,11 +51,11 @@ export const useUIStore = create((set, get) => ({
   // Actions - 模态框
   setActiveModal: (modal) => set({ activeModal: modal }),
 
-  setSelectedNode: (node) => set({ selectedNode: node }),
+  setSelectedNodeId: (nodeId) => set({ selectedNodeId: nodeId }),
 
-  openModal: (modal, node = null) => set({ activeModal: modal, selectedNode: node }),
+  openModal: (modal, nodeId = null) => set({ activeModal: modal, selectedNodeId: nodeId }),
 
-  closeModal: () => set({ activeModal: null, selectedNode: null }),
+  closeModal: () => set({ activeModal: null, selectedNodeId: null }),
 
   // Actions - 全屏
   setIsCanvasFullscreen: (fullscreen) => set({ isCanvasFullscreen: fullscreen }),

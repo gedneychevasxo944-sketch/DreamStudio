@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileText, MessageCircle, Settings, History, GitBranch, Lock, Unlock, RotateCcw, AlertTriangle, Check, ChevronDown, Play, Palette, PenTool, Video, Code, Users, Layers, List, BookOpen, Zap, Sparkles, Image, X, Target, Loader2 } from 'lucide-react';
 import ChatConversation from './ChatConversation';
 import { formatTimestamp } from './ChatConversation';
+import { nodeVersionApi, proposalApi } from '../services/api';
 import './NodeWorkspace.css';
 
 // Tab 图标组件
@@ -99,10 +100,46 @@ const parseScript = (script) => {
 };
 
 // 结果 Tab
-const ResultTab = ({ node, onGenerateVideo }) => {
+const ResultTab = ({ node, projectId, onGenerateVideo, onRestoreVersion }) => {
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
   const [generatingPrompt, setGeneratingPrompt] = useState(null);
+  const [apiVersions, setApiVersions] = useState(null);
+  const [currentVersionResult, setCurrentVersionResult] = useState(null);
+
+  useEffect(() => {
+    if (!node || !projectId) {
+      setApiVersions(null);
+      setCurrentVersionResult(null);
+      return;
+    }
+
+    const loadVersionData = async () => {
+      try {
+        // 并行加载版本列表和当前版本
+        const [versionsRes, currentRes] = await Promise.all([
+          nodeVersionApi.getVersions(projectId, node.id),
+          nodeVersionApi.getCurrentVersion(projectId, node.id)
+        ]);
+
+        if (versionsRes.data && versionsRes.data.versions) {
+          setApiVersions(versionsRes.data.versions);
+        } else {
+          setApiVersions([]);
+        }
+
+        if (currentRes.data) {
+          setCurrentVersionResult(currentRes.data);
+        }
+      } catch (error) {
+        console.error('Failed to load version data:', error);
+        setApiVersions([]);
+        setCurrentVersionResult(null);
+      }
+    };
+
+    loadVersionData();
+  }, [node, projectId]);
 
   if (!node) {
     return (
@@ -123,19 +160,32 @@ const ResultTab = ({ node, onGenerateVideo }) => {
     setTimeout(() => setGeneratingPrompt(null), 3000);
   };
 
+  // 版本历史 - 仅使用API数据
+  const versionHistory = apiVersions
+    ? apiVersions.map(v => ({
+        id: v.id,
+        version: `v${v.versionNo}`,
+        type: v.versionKind === 'RUN_OUTPUT' ? '运行版' : '修订版',
+        time: v.createdAt,
+        isCurrent: v.isCurrent
+      }))
+    : [];
+
+  // 仅使用API返回的resultText
+  const resultText = currentVersionResult?.resultText || '';
+
   // 模拟数据
-  const currentVersion = node.data?.currentVersion || 1;
+  const currentVersion = currentVersionResult?.versionNo || node.data?.currentVersion || 1;
   const isRevised = node.data?.isRevised;
   const isLocked = node.data?.isLocked;
   const baseVersion = node.data?.baseVersion;
   const status = node.data?.status || 'completed';
 
-  const versionHistory = [
-    { version: 'v3-r2', type: '修订版', time: '10分钟前', isCurrent: true },
-    { version: 'v3-r1', type: '修订版', time: '30分钟前', isCurrent: false },
-    { version: 'v3', type: '运行版', time: '1小时前', isCurrent: false },
-    { version: 'v2', type: '运行版', time: '2小时前', isCurrent: false },
-  ];
+  // 处理恢复版本 - 传递 versionId (id)
+  const handleRestoreVersion = (versionId) => {
+    onRestoreVersion?.(node.id, versionId);
+    setShowVersionHistory(false);
+  };
 
   // 渲染节点特定的结果内容
   const renderNodeResult = () => {
@@ -153,7 +203,7 @@ const ResultTab = ({ node, onGenerateVideo }) => {
             </div>
             <textarea
               className="result-textarea readonly"
-              value={node.data.result || ''}
+              value={resultText}
               readOnly
               placeholder="等待生成结果..."
             />
@@ -161,7 +211,7 @@ const ResultTab = ({ node, onGenerateVideo }) => {
         );
 
       case 'content':
-        const { episodes, totalScenes } = parseScript(node.data.result);
+        const { episodes, totalScenes } = parseScript(resultText);
         return (
           <div className="result-section">
             <div className="section-header">
@@ -462,7 +512,25 @@ const ResultTab = ({ node, onGenerateVideo }) => {
               </div>
             )}
 
-            {!node.data.videoPrompt && !node.data.genParams && !node.data.videos?.length && (
+            {/* 单个视频预览 - videoPreview 是字符串URL */}
+            {node.data.videoPreview && !node.data.videos?.length && (
+              <div className="video-gen-section">
+                <div className="section-header">
+                  <Play size={14} />
+                  <span>视频预览</span>
+                </div>
+                <div className="video-preview-container">
+                  <video
+                    src={node.data.videoPreview}
+                    controls
+                    className="video-player"
+                    preload="metadata"
+                  />
+                </div>
+              </div>
+            )}
+
+            {!node.data.videoPrompt && !node.data.genParams && !node.data.videos?.length && !node.data.videoPreview && (
               <div className="result-empty"><p>暂无结果内容</p></div>
             )}
           </div>
@@ -556,7 +624,12 @@ const ResultTab = ({ node, onGenerateVideo }) => {
             exit={{ height: 0, opacity: 0 }}
           >
             {versionHistory.map((v, idx) => (
-              <div key={idx} className={`version-history-item ${v.isCurrent ? 'current' : ''}`}>
+              <div
+                key={idx}
+                className={`version-history-item ${v.isCurrent ? 'current' : ''}`}
+                onClick={() => !v.isCurrent && handleRestoreVersion(v.version)}
+                style={{ cursor: v.isCurrent ? 'default' : 'pointer' }}
+              >
                 <div className="version-history-left">
                   <span className="version-name">{v.version}</span>
                   <span className="version-type">{v.type}</span>
@@ -564,6 +637,7 @@ const ResultTab = ({ node, onGenerateVideo }) => {
                 <div className="version-history-right">
                   <span className="version-time">{v.time}</span>
                   {v.isCurrent && <span className="current-indicator"><Check size={12} /></span>}
+                  {!v.isCurrent && <span className="restore-hint">点击恢复</span>}
                 </div>
               </div>
             ))}
@@ -626,7 +700,40 @@ const ResultTab = ({ node, onGenerateVideo }) => {
 };
 
 // 对话 Tab
-const ChatTab = ({ node }) => {
+const ChatTab = ({ node, projectId, onApplyProposal, onRegenerateProposal, onRejectProposal, onApplySuccess }) => {
+  const [messages, setMessages] = useState([]);
+  const [inputValue, setInputValue] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const [diffModalOpen, setDiffModalOpen] = useState(false);
+  const [currentProposal, setCurrentProposal] = useState(null);
+
+  // 加载提案数据
+  useEffect(() => {
+    if (!node || !projectId) {
+      setCurrentProposal(null);
+      return;
+    }
+
+    const loadProposals = async () => {
+      try {
+        const response = await proposalApi.getProposals(projectId, node.id);
+        if (response.data && response.data.proposals && response.data.proposals.length > 0) {
+          setCurrentProposal(response.data.proposals[0]);
+        } else {
+          setCurrentProposal(null);
+        }
+      } catch (error) {
+        console.error('Failed to load proposals:', error);
+        setCurrentProposal(null);
+      }
+    };
+
+    loadProposals();
+  }, [node, projectId]);
+
+  const proposalStatus = currentProposal?.status || 'pending';
+  const hasProposal = !!currentProposal;
+
   if (!node) {
     return (
       <div className="workspace-tab-content empty">
@@ -638,71 +745,107 @@ const ChatTab = ({ node }) => {
     );
   }
 
-  // 模拟对话数据
-  const [messages, setMessages] = useState([
-    { role: 'user', content: '把结尾改成开放式' },
-    { role: 'assistant', content: '我理解你要修改编剧节点的结尾部分，改为开放式结局。' },
-  ]);
-
-  const [inputValue, setInputValue] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
-
-  // 模拟提案
-  const hasProposal = true;
-  const proposal = {
-    type: 'revision',
-    summary: '结尾从"悲剧收场"改为"开放式结局"',
-    diff: {
-      before: '...主角最终在孤独中离世，留下无尽的遗憾。',
-      after: '...主角站在分岔路口，望向远方的城市灯火，故事在此戛然而止。'
-    }
-  };
-
   const handleSend = () => {
     if (!inputValue.trim()) return;
-    setMessages([...messages, { role: 'user', content: inputValue }]);
+    const newMessages = [...messages, { role: 'user', content: inputValue }];
+    setMessages(newMessages);
     setInputValue('');
     setIsTyping(true);
 
-    // 模拟 AI 回复
+    // TODO: 调用后端API发送消息并获取AI回复
+    // 暂时保留本地模拟逻辑
     setTimeout(() => {
       setIsTyping(false);
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: '我理解你要修改结尾。让我生成一个提案...'
+        content: '消息已发送，请等待后端AI处理...'
       }]);
     }, 1500);
   };
 
+  const handleApplyProposal = () => {
+    if (proposalStatus !== 'pending') return;
+    onApplyProposal?.(node.id, currentProposal?.id);
+    onApplySuccess?.();
+  };
+
+  const handleReject = () => {
+    if (proposalStatus !== 'pending') return;
+    onRejectProposal?.(node.id, currentProposal?.id);
+  };
+
+  const handleViewFullDiff = () => {
+    if (currentProposal?.diffJson) {
+      setDiffModalOpen(true);
+    }
+  };
+
+  // 获取diff文本（兼容不同结构）
+  const getDiffBefore = () => {
+    if (!currentProposal?.diffJson) return '';
+    return currentProposal.diffJson.textDiff?.beforeText ||
+           currentProposal.diffJson.beforeText || '';
+  };
+
+  const getDiffAfter = () => {
+    if (!currentProposal?.diffJson) return '';
+    return currentProposal.diffJson.textDiff?.afterText ||
+           currentProposal.diffJson.afterText || '';
+  };
+
   return (
     <div className="workspace-tab-content chat-tab">
-      {/* 提案提示 */}
-      {hasProposal && (
-        <div className="proposal-banner">
-          <div className="proposal-summary">
-            <AlertTriangle size={14} />
-            <span>有待应用的提案：{proposal.summary}</span>
-          </div>
-          <div className="proposal-actions">
-            <button className="proposal-btn apply">应用提案</button>
-            <button className="proposal-btn view-diff">查看差异</button>
-            <button className="proposal-btn regenerate">重生成</button>
-          </div>
-        </div>
-      )}
-
       {/* 对话消息列表 */}
       <div className="chat-messages">
-        {messages.map((msg, idx) => (
-          <div key={idx} className={`chat-message ${msg.role}`}>
-            <div className="message-avatar">
-              {msg.role === 'user' ? '👤' : '🤖'}
+        {messages.map((msg, idx) => {
+          // 检查是否是最后一条助手消息且有待应用的提案
+          const isLastAssistantMsg = msg.role === 'assistant' && idx === messages.length - 1 && hasProposal;
+
+          return (
+            <div key={idx} className={`chat-message ${msg.role}`}>
+              <div className="message-avatar">
+                {msg.role === 'user' ? '👤' : '🤖'}
+              </div>
+              <div className="message-content">
+                {msg.content}
+                {/* 提案卡片内嵌在最后一条助手消息里 */}
+                {isLastAssistantMsg && currentProposal && (
+                  <div className="inline-proposal-card">
+                    <div className="inline-proposal-header">
+                      <GitBranch size={14} />
+                      <span className="inline-proposal-title">建议修改：{currentProposal.summary}</span>
+                    </div>
+                    {currentProposal.diffJson?.textDiff && (
+                      <div className="inline-proposal-diff">
+                        <div className="diff-row">
+                          <span className="diff-label">原版：</span>
+                          <span className="diff-text before">{getDiffBefore()}</span>
+                        </div>
+                        <div className="diff-row">
+                          <span className="diff-label">新版：</span>
+                          <span className="diff-text after">{getDiffAfter()}</span>
+                        </div>
+                      </div>
+                    )}
+                    <div className="inline-proposal-actions">
+                      <button className="inline-proposal-btn view-full" onClick={handleViewFullDiff}>查看完整diff</button>
+                      {proposalStatus === 'pending' ? (
+                        <>
+                          <button className="inline-proposal-btn reject" onClick={handleReject}>暂不采纳</button>
+                          <button className="inline-proposal-btn apply" onClick={handleApplyProposal}>确认应用</button>
+                        </>
+                      ) : (
+                        <div className={`proposal-status-badge ${proposalStatus}`}>
+                          {proposalStatus === 'confirmed' ? '✓ 已确认' : '✗ 已拒绝'}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="message-content">
-              {msg.content}
-            </div>
-          </div>
-        ))}
+          );
+        })}
         {isTyping && (
           <div className="chat-message assistant">
             <div className="message-avatar">🤖</div>
@@ -733,6 +876,45 @@ const ChatTab = ({ node }) => {
           发送
         </button>
       </div>
+
+      {/* Diff 弹窗 */}
+      <AnimatePresence>
+        {diffModalOpen && currentProposal?.diff && (
+          <motion.div
+            className="diff-modal-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setDiffModalOpen(false)}
+          >
+            <motion.div
+              className="diff-modal-content"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="diff-modal-header">
+                <span>完整 Diff</span>
+                <button className="diff-modal-close" onClick={() => setDiffModalOpen(false)}>
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="diff-modal-body">
+                <div className="diff-modal-section">
+                  <div className="diff-modal-label">原版</div>
+                  <div className="diff-modal-text before">{currentProposal.diff.before}</div>
+                </div>
+                <div className="diff-modal-arrow">↓</div>
+                <div className="diff-modal-section">
+                  <div className="diff-modal-label">新版</div>
+                  <div className="diff-modal-text after">{currentProposal.diff.after}</div>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
@@ -860,6 +1042,11 @@ const ConfigTab = ({ node, onNodeUpdate }) => {
   };
 
   const configFields = getConfigFields();
+  const isLocked = node.data?.isLocked || false;
+
+  const toggleLock = () => {
+    updateNodeData({ isLocked: !isLocked });
+  };
 
   return (
     <div className="workspace-tab-content config-tab">
@@ -868,19 +1055,52 @@ const ConfigTab = ({ node, onNodeUpdate }) => {
         <span className="config-node-type">{node.name}</span>
       </div>
 
+      {/* 锁定控制 */}
+      <div className="lock-control">
+        <div className="lock-status">
+          {isLocked ? (
+            <>
+              <Lock size={16} className="lock-icon locked" />
+              <span>节点已锁定</span>
+            </>
+          ) : (
+            <>
+              <Unlock size={16} className="lock-icon unlocked" />
+              <span>节点未锁定</span>
+            </>
+          )}
+        </div>
+        <button
+          className={`lock-toggle-btn ${isLocked ? 'locked' : ''}`}
+          onClick={toggleLock}
+        >
+          {isLocked ? (
+            <>
+              <Unlock size={14} />
+              <span>解锁节点</span>
+            </>
+          ) : (
+            <>
+              <Lock size={14} />
+              <span>锁定节点</span>
+            </>
+          )}
+        </button>
+      </div>
+
       <div className="config-fields">
         {configFields.map((field, idx) => (
-          <div key={idx} className="config-field">
+          <div key={idx} className={`config-field ${isLocked ? 'disabled' : ''}`}>
             <label className="config-label">{field.label}</label>
             {field.type === 'select' ? (
-              <select className="config-select" value={field.value}>
+              <select className="config-select" value={field.value} disabled={isLocked} readOnly>
                 {field.options?.map(opt => (
                   <option key={opt} value={opt}>{opt}</option>
                 ))}
               </select>
             ) : field.type === 'boolean' ? (
               <label className="config-toggle">
-                <input type="checkbox" checked={field.value} />
+                <input type="checkbox" checked={field.value} disabled={isLocked} readOnly />
                 <span className="toggle-slider"></span>
               </label>
             ) : field.type === 'number' ? (
@@ -889,12 +1109,16 @@ const ConfigTab = ({ node, onNodeUpdate }) => {
                 className="config-input"
                 value={field.value}
                 min={0}
+                disabled={isLocked}
+                readOnly
               />
             ) : (
               <input
                 type="text"
                 className="config-input"
                 value={field.value}
+                disabled={isLocked}
+                readOnly
               />
             )}
           </div>
@@ -905,15 +1129,53 @@ const ConfigTab = ({ node, onNodeUpdate }) => {
       {renderAutoGenConfig()}
 
       <div className="config-actions">
-        <button className="config-save-btn">保存配置</button>
-        <button className="config-reset-btn">重置</button>
+        <button className="config-save-btn" disabled={isLocked}>保存配置</button>
+        <button className="config-reset-btn" disabled={isLocked}>重置</button>
       </div>
     </div>
   );
 };
 
 // 运行记录 Tab
-const HistoryTab = ({ node }) => {
+const HistoryTab = ({ node, projectId }) => {
+  const [runRecords, setRunRecords] = useState([]);
+  const [expandedRecord, setExpandedRecord] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!node || !projectId) {
+      setRunRecords([]);
+      return;
+    }
+
+    const loadHistory = async () => {
+      setLoading(true);
+      try {
+        const response = await nodeVersionApi.getHistory(projectId, node.id);
+        if (response.data && response.data.versions) {
+          const records = response.data.versions.map(v => ({
+            id: v.id,
+            version: `v${v.versionNo}`,
+            time: v.createdAt,
+            duration: '-',
+            status: v.status === 'READY' ? 'success' : 'failed',
+            input: '-',
+            output: v.diffSummary || v.resultText?.substring(0, 50) || '-'
+          }));
+          setRunRecords(records);
+        }
+      } catch (error) {
+        console.error('Failed to load history:', error);
+        // 如果加载失败，使用空数组
+        setRunRecords([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadHistory();
+  }, [node, projectId]);
+
   if (!node) {
     return (
       <div className="workspace-tab-content empty">
@@ -924,15 +1186,6 @@ const HistoryTab = ({ node }) => {
       </div>
     );
   }
-
-  // 模拟运行记录
-  const runRecords = [
-    { id: 1, version: 'v3', time: '1小时前', duration: '45秒', status: 'success', input: '完整的剧本内容', output: '修订版剧本' },
-    { id: 2, version: 'v2', time: '2小时前', duration: '52秒', status: 'success', input: '初稿剧本', output: '二稿剧本' },
-    { id: 3, version: 'v1', time: '3小时前', duration: '38秒', status: 'success', input: '故事大纲', output: '完整剧本' },
-  ];
-
-  const [expandedRecord, setExpandedRecord] = useState(null);
 
   return (
     <div className="workspace-tab-content history-tab">
@@ -990,7 +1243,7 @@ const HistoryTab = ({ node }) => {
 };
 
 // 影响 Tab
-const ImpactTab = ({ node }) => {
+const ImpactTab = ({ node, downstreamNodes, upstreamNodes, onRerunFromNode, onViewFullImpact }) => {
   if (!node) {
     return (
       <div className="workspace-tab-content empty">
@@ -1002,18 +1255,17 @@ const ImpactTab = ({ node }) => {
     );
   }
 
-  // 模拟下游节点
-  const downstreamNodes = [
-    { id: 'node_3', name: '分镜导演', status: 'stale', reason: '依赖节点已修改' },
-    { id: 'node_4', name: '视频生成', status: 'stale', reason: '依赖节点已修改' },
-  ];
-
-  // 模拟上游节点
-  const upstreamNodes = [
-    { id: 'node_1', name: '资深制片人', status: 'completed' },
-  ];
-
   const isStale = node.data?.status === 'stale';
+
+  // 处理从当前节点重新运行
+  const handleRerunFromNode = () => {
+    onRerunFromNode?.(node.id);
+  };
+
+  // 处理查看完整影响范围
+  const handleViewFullImpact = () => {
+    onViewFullImpact?.(node.id);
+  };
 
   return (
     <div className="workspace-tab-content impact-tab">
@@ -1070,10 +1322,10 @@ const ImpactTab = ({ node }) => {
             <span className="section-title">建议操作</span>
           </div>
           <div className="suggested-actions">
-            <button className="action-btn primary">
+            <button className="action-btn primary" onClick={handleRerunFromNode}>
               从当前节点重新运行
             </button>
-            <button className="action-btn secondary">
+            <button className="action-btn secondary" onClick={handleViewFullImpact}>
               查看完整影响范围
             </button>
           </div>
@@ -1102,8 +1354,26 @@ const ImpactTab = ({ node }) => {
 };
 
 // 主组件
-const NodeWorkspace = ({ selectedNode, onNodeUpdate, onGenerateVideo }) => {
+const NodeWorkspace = ({
+  selectedNode,
+  projectId,
+  onNodeUpdate,
+  onGenerateVideo,
+  onApplyProposal,
+  onRegenerateProposal,
+  onRejectProposal,
+  onRestoreVersion,
+  onRerunFromNode,
+  onViewFullImpact,
+  downstreamNodes = [],
+  upstreamNodes = []
+}) => {
   const [activeTab, setActiveTab] = useState('result');
+
+  // 聊天提案应用成功 - 切换到结果Tab
+  const handleChatApplySuccess = useCallback(() => {
+    setActiveTab('result');
+  }, []);
 
   const tabs = [
     { id: 'result', label: '结果', icon: 'result' },
@@ -1115,11 +1385,29 @@ const NodeWorkspace = ({ selectedNode, onNodeUpdate, onGenerateVideo }) => {
 
   // Tab 内容组件映射
   const tabContentMap = {
-    result: <ResultTab node={selectedNode} onGenerateVideo={onGenerateVideo} />,
-    chat: <ChatTab node={selectedNode} />,
+    result: <ResultTab
+      node={selectedNode}
+      projectId={projectId}
+      onGenerateVideo={onGenerateVideo}
+      onRestoreVersion={onRestoreVersion}
+    />,
+    chat: <ChatTab
+      node={selectedNode}
+      projectId={projectId}
+      onApplyProposal={onApplyProposal}
+      onRegenerateProposal={onRegenerateProposal}
+      onRejectProposal={onRejectProposal}
+      onApplySuccess={handleChatApplySuccess}
+    />,
     config: <ConfigTab node={selectedNode} onNodeUpdate={onNodeUpdate} />,
-    history: <HistoryTab node={selectedNode} />,
-    impact: <ImpactTab node={selectedNode} />,
+    history: <HistoryTab node={selectedNode} projectId={projectId} />,
+    impact: <ImpactTab
+      node={selectedNode}
+      downstreamNodes={downstreamNodes}
+      upstreamNodes={upstreamNodes}
+      onRerunFromNode={onRerunFromNode}
+      onViewFullImpact={onViewFullImpact}
+    />,
   };
 
   // 无节点时的项目概览
@@ -1148,8 +1436,18 @@ const NodeWorkspace = ({ selectedNode, onNodeUpdate, onGenerateVideo }) => {
     </div>
   );
 
+  // 检查节点是否被锁定
+  const isNodeLocked = selectedNode?.data?.isLocked;
+
+  // 解锁节点
+  const handleUnlock = () => {
+    if (selectedNode && onNodeUpdate) {
+      onNodeUpdate(selectedNode.id, { isLocked: false });
+    }
+  };
+
   return (
-    <div className="node-workspace">
+    <div className={`node-workspace ${isNodeLocked ? 'locked' : ''}`}>
       {/* 节点信息区域 */}
       {selectedNode && (
         <div className="workspace-node-info">
@@ -1160,6 +1458,12 @@ const NodeWorkspace = ({ selectedNode, onNodeUpdate, onGenerateVideo }) => {
             <span className="node-info-name">{selectedNode.name}</span>
             <span className="node-info-type">{selectedNode.type}</span>
           </div>
+          {isNodeLocked && (
+            <div className="node-info-locked-badge">
+              <Lock size={12} />
+              <span>已锁定</span>
+            </div>
+          )}
         </div>
       )}
 
@@ -1180,7 +1484,24 @@ const NodeWorkspace = ({ selectedNode, onNodeUpdate, onGenerateVideo }) => {
       {/* Tab 内容 */}
       <div className="workspace-tab-panel">
         {selectedNode ? (
-          tabContentMap[activeTab]
+          <>
+            {tabContentMap[activeTab]}
+            {/* 锁定覆盖层 - 锁定时所有Tab都显示 */}
+            {isNodeLocked && (
+              <div className="locked-overlay">
+                <div className="locked-overlay-content">
+                  <div className="lock-icon-large">
+                    <Lock size={20} />
+                  </div>
+                  <p>节点已锁定</p>
+                  <button className="unlock-btn" onClick={handleUnlock}>
+                    <Unlock size={14} />
+                    <span>立即解锁</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         ) : (
           renderProjectOverview()
         )}

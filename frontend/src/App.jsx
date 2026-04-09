@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { GitCompare, ChevronLeft, ChevronRight, PanelLeft, PanelRight, Package, Save, Plus, FileText, Edit2, Check, X, History, Trash2, AlertTriangle, FilePlus, Home, Download, Settings, FolderOpen } from 'lucide-react';
 import Console from './components/Console';
 import ToastContainer from './components/Toast/Toast';
@@ -12,7 +12,7 @@ import SkillMarket from './components/SkillMarket/SkillMarket';
 import ProjectTopBar from './components/ProjectTopBar';
 import AssetDrawer from './components/AssetDrawer';
 import PlanningPage from './components/PlanningPage';
-import { homePageApi, workSpaceApi } from './services/api';
+import { homePageApi, workSpaceApi, nodeVersionApi, proposalApi } from './services/api';
 import { useProjectStore, useWorkflowStore, useUIStore, calculateTemplateNodePositions } from './stores';
 import './App.css';
 
@@ -78,7 +78,7 @@ function App() {
     isDraggingLeft,
     isDraggingRight,
     activeModal,
-    selectedNode,
+    selectedNodeId,
     isCanvasFullscreen,
     showSkillMarket,
     showNewProjectConfirm,
@@ -92,7 +92,7 @@ function App() {
     setIsDraggingLeft,
     setIsDraggingRight,
     setActiveModal,
-    setSelectedNode,
+    setSelectedNodeId,
     openModal,
     closeModal,
     setIsCanvasFullscreen,
@@ -104,16 +104,116 @@ function App() {
     getActualWidths,
   } = useUIStore();
 
+  // 从 canvasNodes 派生 selectedNode，确保与 store 同步
+  const selectedNode = useMemo(() => {
+    if (!selectedNodeId) return null;
+    return canvasNodes.find(n => n.id === selectedNodeId) || null;
+  }, [canvasNodes, selectedNodeId]);
+
+  // 计算下游节点（基于选中节点和连接关系）
+  const downstreamNodes = useMemo(() => {
+    if (!selectedNode) return [];
+    const downstreamIds = new Set();
+    const queue = [selectedNode.id];
+
+    while (queue.length > 0) {
+      const currentId = queue.shift();
+      canvasConnections.forEach(conn => {
+        if (conn.from === currentId && !downstreamIds.has(conn.to)) {
+          downstreamIds.add(conn.to);
+          queue.push(conn.to);
+        }
+      });
+    }
+
+    return canvasNodes.filter(n => downstreamIds.has(n.id)).map(n => ({
+      id: n.id,
+      name: n.name,
+      status: n.data?.status || 'completed',
+      reason: n.data?.staleReason || '依赖节点已修改'
+    }));
+  }, [selectedNode, canvasNodes, canvasConnections]);
+
+  // 计算上游节点（基于选中节点和连接关系）
+  const upstreamNodes = useMemo(() => {
+    if (!selectedNode) return [];
+    const upstreamIds = new Set();
+    const queue = [selectedNode.id];
+
+    while (queue.length > 0) {
+      const currentId = queue.shift();
+      canvasConnections.forEach(conn => {
+        if (conn.to === currentId && !upstreamIds.has(conn.from)) {
+          upstreamIds.add(conn.from);
+          queue.push(conn.from);
+        }
+      });
+    }
+
+    return canvasNodes.filter(n => upstreamIds.has(n.id)).map(n => ({
+      id: n.id,
+      name: n.name,
+      status: n.data?.status || 'completed'
+    }));
+  }, [selectedNode, canvasNodes, canvasConnections]);
+
   // 资产抽屉状态
   const [assetDrawerOpen, setAssetDrawerOpen] = useState(false);
+
+  // Demo只读态
+  const [isDemoMode, setIsDemoMode] = useState(false);
 
   // 项目模式状态（工厂/导演）
   const [projectMode, setProjectMode] = useState('factory');
 
-  // 运行按钮状态（模拟）
-  const [runButtonText, setRunButtonText] = useState('运行');
-  const [runExplanation, setRunExplanation] = useState('');
-  const [hasStaleNodes, setHasStaleNodes] = useState(false);
+  // 运行按钮状态 - 使用useMemo动态计算
+  const { runButtonText, runExplanation, hasStaleNodes } = useMemo(() => {
+    if (canvasNodes.length === 0) {
+      return { runButtonText: '运行', runExplanation: '', hasStaleNodes: false };
+    }
+
+    // 检测stale节点（模拟：假设有修改过的节点会导致下游stale）
+    const staleNodes = canvasNodes.filter(n => n.data?.status === 'stale');
+    const hasStale = staleNodes.length > 0;
+
+    // 如果有选中的节点
+    if (selectedNode) {
+      // 检测选中节点是否需要重生成（当前版本与基础版本不一致）
+      const currentVer = selectedNode.data?.currentVersion || 1;
+      const baseVer = selectedNode.data?.baseVersion;
+      if (baseVer && currentVer > baseVer) {
+        // 当前节点已被修订，需要重生成
+        const downstreamNodes = canvasNodes.filter(n => {
+          return canvasConnections.some(c => c.from === selectedNode.id && c.to === n.id);
+        });
+        const downstreamNames = downstreamNodes.map(n => n.name).join(' → ');
+        return {
+          runButtonText: '从当前节点重新运行',
+          runExplanation: `建议运行范围：${selectedNode.name} → ${downstreamNames || '无下游节点'}\n原因：${selectedNode.name}已从v${baseVer}修订为v${currentVer}`,
+          hasStaleNodes: hasStale
+        };
+      }
+    }
+
+    // 如果有stale节点，提示继续运行
+    if (hasStale) {
+      const staleNames = staleNodes.map(n => n.name).join('、');
+      return {
+        runButtonText: '继续运行受影响节点',
+        runExplanation: `建议运行范围：${staleNames}\n原因：依赖节点已修改，这些节点需要更新`,
+        hasStaleNodes: true
+      };
+    }
+
+    // 默认：初次运行
+    const firstNodeName = canvasNodes[0]?.name || '首节点';
+    const lastNodeName = canvasNodes[canvasNodes.length - 1]?.name || '末节点';
+    return {
+      runButtonText: '从头运行',
+      runExplanation: `建议运行范围：${firstNodeName} → ${lastNodeName}\n原因：首次运行整个流程`,
+      hasStaleNodes: false
+    };
+  }, [canvasNodes, canvasConnections, selectedNode]);
 
   // 项目名称编辑状态
   const [isEditingName, setIsEditingName] = useState(false);
@@ -277,10 +377,34 @@ function App() {
   ]);
 
   // 处理主页进入
-  const handleHomePageEnter = useCallback(async (userInput, shouldTriggerSystem = true, projectId = null, initialProjectName = null) => {
+  const handleHomePageEnter = useCallback(async (userInput, shouldTriggerSystem = true, projectId = null, initialProjectName = null, demoId = null) => {
     resetCanvas();
     setSavedProjectState(null);
     setHasUnsavedChanges(false);
+    setIsDemoMode(false); // 重置Demo模式
+
+    // Demo只读态进入
+    if (demoId) {
+      setIsDemoMode(true);
+      setProjectName('Demo演示');
+      // Demo模式下，使用模拟数据加载画布
+      // 实际项目中应该调用API获取Demo数据
+      const demoNodes = [
+        { id: 'producer', name: '资深制片人', type: 'producer', color: '#3b82f6', icon: 'Target', x: 100, y: 300, inputs: [{ id: 'input', label: '输入', type: 'any' }], outputs: [{ id: 'output', label: '输出', type: 'any' }], status: 'completed', data: { result: '项目立项完成，预算500万，周期6个月' } },
+        { id: 'content', name: '金牌编剧', type: 'content', color: '#06b6d4', icon: 'PenTool', x: 900, y: 300, inputs: [{ id: 'input', label: '输入', type: 'any' }], outputs: [{ id: 'output', label: '输出', type: 'any' }], status: 'completed', data: { result: '第一场 日 外 城市街道\n\n繁华的都市街头...' } },
+        { id: 'visual', name: '概念美术', type: 'visual', color: '#8b5cf6', icon: 'Palette', x: 1700, y: 300, inputs: [{ id: 'input', label: '输入', type: 'any' }], outputs: [{ id: 'output', label: '输出', type: 'any' }], status: 'completed', data: { result: '概念美术完成，8张关键场景图' } },
+        { id: 'videoGen', name: '视频生成', type: 'videoGen', color: '#6366f1', icon: 'Play', x: 2500, y: 300, inputs: [{ id: 'input', label: '输入', type: 'any' }], outputs: [{ id: 'output', label: '输出', type: 'any' }], status: 'completed', data: { result: 'demo_video.mp4' } },
+      ];
+      const demoConnections = [
+        { id: 'c1', from: 'producer', fromPort: 'output', to: 'content', toPort: 'input', type: 'data-flow' },
+        { id: 'c2', from: 'content', fromPort: 'output', to: 'visual', toPort: 'input', type: 'data-flow' },
+        { id: 'c3', from: 'visual', fromPort: 'output', to: 'videoGen', toPort: 'input', type: 'data-flow' },
+      ];
+      incrementCanvasKey();
+      loadWorkflow(demoNodes, demoConnections);
+      setCurrentView('workspace');
+      return;
+    }
 
     if (projectId) {
       setCurrentProjectId(projectId);
@@ -353,10 +477,132 @@ function App() {
     resetCanvas, setSavedProjectState, setHasUnsavedChanges, setCurrentProjectId,
     setProjectName, incrementCanvasKey, setCanvasNodes, setCanvasConnections,
     setCanvasViewport, loadVersions, setVersions, setCurrentVersion, setCurrentView,
-    setPlanningRawInput, setPlanningAttachments
+    setPlanningRawInput, setPlanningAttachments, setIsDemoMode, loadWorkflow
   ]);
 
-  // 新建项目
+  // 模拟方案数据到节点配置的转换
+const planToNodesAndConnections = (plan, userInput) => {
+  if (!plan || plan.mode === 'blank') {
+    return { nodes: [], connections: [] };
+  }
+
+  // 精品短剧链路
+  const producerNode = {
+    id: 'producer',
+    name: '资深制片人',
+    type: 'producer',
+    color: '#3b82f6',
+    icon: 'Target',
+    inputs: [{ id: 'input', label: '输入', type: 'any' }],
+    outputs: [{ id: 'output', label: '输出', type: 'any' }],
+    status: 'idle'
+  };
+
+  const writerNode = {
+    id: 'content',
+    name: '金牌编剧',
+    type: 'content',
+    color: '#06b6d4',
+    icon: 'PenTool',
+    inputs: [{ id: 'input', label: '输入', type: 'any' }],
+    outputs: [{ id: 'output', label: '输出', type: 'any' }],
+    status: 'idle'
+  };
+
+  const visualNode = {
+    id: 'visual',
+    name: '概念美术',
+    type: 'visual',
+    color: '#8b5cf6',
+    icon: 'Palette',
+    inputs: [{ id: 'input', label: '输入', type: 'any' }],
+    outputs: [{ id: 'output', label: '输出', type: 'any' }],
+    status: 'idle'
+  };
+
+  const directorNode = {
+    id: 'director',
+    name: '分镜导演',
+    type: 'director',
+    color: '#f59e0b',
+    icon: 'Video',
+    inputs: [{ id: 'input', label: '输入', type: 'any' }],
+    outputs: [{ id: 'output', label: '输出', type: 'any' }],
+    status: 'idle'
+  };
+
+  const technicalNode = {
+    id: 'technical',
+    name: '提示词工程师',
+    type: 'technical',
+    color: '#10b981',
+    icon: 'Code',
+    inputs: [{ id: 'input', label: '输入', type: 'any' }],
+    outputs: [{ id: 'output', label: '输出', type: 'any' }],
+    status: 'idle'
+  };
+
+  const videoGenNode = {
+    id: 'videoGen',
+    name: '视频生成',
+    type: 'videoGen',
+    color: '#6366f1',
+    icon: 'Play',
+    inputs: [{ id: 'input', label: '输入', type: 'any' }],
+    outputs: [{ id: 'output', label: '输出', type: 'any' }],
+    status: 'idle'
+  };
+
+  let nodes = [];
+  let connections = [];
+
+  // 根据plan.id决定节点组合
+  if (plan.id === 'plan_1' || plan.id === 'recommended') {
+    // 精品短剧 - 完整链路
+    nodes = [producerNode, writerNode, visualNode, directorNode, technicalNode, videoGenNode];
+    connections = [
+      { id: 'c1', from: 'producer', fromPort: 'output', to: 'content', toPort: 'input', type: 'data-flow' },
+      { id: 'c2', from: 'content', fromPort: 'output', to: 'visual', toPort: 'input', type: 'data-flow' },
+      { id: 'c3', from: 'visual', fromPort: 'output', to: 'director', toPort: 'input', type: 'data-flow' },
+      { id: 'c4', from: 'director', fromPort: 'output', to: 'technical', toPort: 'input', type: 'data-flow' },
+      { id: 'c5', from: 'technical', fromPort: 'output', to: 'videoGen', toPort: 'input', type: 'data-flow' },
+    ];
+  } else if (plan.id === 'plan_2' || plan.id === 'quick') {
+    // 粗糙短剧 - 快速链路
+    nodes = [writerNode, visualNode, videoGenNode];
+    connections = [
+      { id: 'c1', from: 'content', fromPort: 'output', to: 'visual', toPort: 'input', type: 'data-flow' },
+      { id: 'c2', from: 'visual', fromPort: 'output', to: 'videoGen', toPort: 'input', type: 'data-flow' },
+    ];
+  } else {
+    // 默认精品链路
+    nodes = [producerNode, writerNode, visualNode, directorNode, technicalNode, videoGenNode];
+    connections = [
+      { id: 'c1', from: 'producer', fromPort: 'output', to: 'content', toPort: 'input', type: 'data-flow' },
+      { id: 'c2', from: 'content', fromPort: 'output', to: 'visual', toPort: 'input', type: 'data-flow' },
+      { id: 'c3', from: 'visual', fromPort: 'output', to: 'director', toPort: 'input', type: 'data-flow' },
+      { id: 'c4', from: 'director', fromPort: 'output', to: 'technical', toPort: 'input', type: 'data-flow' },
+      { id: 'c5', from: 'technical', fromPort: 'output', to: 'videoGen', toPort: 'input', type: 'data-flow' },
+    ];
+  }
+
+  // 计算节点位置（横向排列）
+  const startX = 100;
+  const startY = 300;
+  const gap = 100;
+  const nodeWidth = 700;
+
+  let currentX = startX;
+  nodes = nodes.map(node => {
+    const x = currentX;
+    currentX += nodeWidth + gap;
+    return { ...node, x, y: startY };
+  });
+
+  return { nodes, connections };
+};
+
+// 新建项目
   const createNewProject = useCallback(async () => {
     resetCanvas();
     setShowNewProjectConfirm(false);
@@ -517,11 +763,65 @@ function App() {
 
   // 节点选择 - NodeWorkspace 模式下不需要弹窗
   const handleNodeSelect = useCallback((node) => {
-    setSelectedNode(node);
-  }, [setSelectedNode]);
+    setSelectedNodeId(node.id);
+  }, [setSelectedNodeId]);
 
   // 计算实际宽度
   const { actualLeftWidth, actualRightWidth, centerWidth } = getActualWidths();
+
+  // 计算运行按钮状态（根据节点状态动态切换文案和解释）
+  // 这需要是一个useMemo，因为依赖canvasNodes和selectedNode
+  const computeRunButtonState = useCallback(() => {
+    if (canvasNodes.length === 0) {
+      return { runButtonText: '运行', runExplanation: '', hasStaleNodes: false, suggestedRange: [] };
+    }
+
+    // 检测stale节点（模拟：假设有修改过的节点会导致下游stale）
+    const staleNodes = canvasNodes.filter(n => n.data?.status === 'stale');
+    const hasStale = staleNodes.length > 0;
+
+    // 如果有选中的节点
+    if (selectedNode) {
+      // 检测选中节点是否需要重生成（当前版本与基础版本不一致）
+      const currentVer = selectedNode.data?.currentVersion || 1;
+      const baseVer = selectedNode.data?.baseVersion;
+      if (baseVer && currentVer > baseVer) {
+        // 当前节点已被修订，需要重生成
+        const downstreamNodes = canvasNodes.filter(n => {
+          // 简单的下游检测：检查连接关系
+          return canvasConnections.some(c => c.from === selectedNode.id && c.to === n.id);
+        });
+        const downstreamNames = downstreamNodes.map(n => n.name).join(' → ');
+        return {
+          runButtonText: '从当前节点重新运行',
+          runExplanation: `建议运行范围：${selectedNode.name} → ${downstreamNames || '无下游节点'}\n原因：${selectedNode.name}已从v${baseVer}修订为v${currentVer}`,
+          hasStaleNodes: hasStale,
+          suggestedRange: downstreamNodes.map(n => n.id)
+        };
+      }
+    }
+
+    // 如果有stale节点，提示继续运行
+    if (hasStale) {
+      const staleNames = staleNodes.map(n => n.name).join('、');
+      return {
+        runButtonText: '继续运行受影响节点',
+        runExplanation: `建议运行范围：${staleNames}\n原因：依赖节点已修改，这些节点需要更新`,
+        hasStaleNodes: true,
+        suggestedRange: staleNodes.map(n => n.id)
+      };
+    }
+
+    // 默认：初次运行
+    const firstNodeName = canvasNodes[0]?.name || '首节点';
+    const lastNodeName = canvasNodes[canvasNodes.length - 1]?.name || '末节点';
+    return {
+      runButtonText: '从头运行',
+      runExplanation: `建议运行范围：${firstNodeName} → ${lastNodeName}\n原因：首次运行整个流程`,
+      hasStaleNodes: false,
+      suggestedRange: canvasNodes.map(n => n.id)
+    };
+  }, [canvasNodes, canvasConnections, selectedNode]);
 
   // 运行相关处理
   const handleRun = (runType = 'restart') => {
@@ -530,15 +830,66 @@ function App() {
     // TODO: 根据 runType 调用不同的运行逻辑
   };
 
+  // 从指定节点重新运行
+  const handleRerunFromNode = (nodeId) => {
+    console.log('Rerun from node:', nodeId);
+    const targetNode = canvasNodes.find(n => n.id === nodeId);
+    if (!targetNode) return;
+
+    // 触发运行 - 从当前节点开始
+    // 后续实现：调用运行API
+    alert(`将从节点 "${targetNode.name}" 开始重新运行`);
+
+    // 切换到画布并选中该节点
+    setSelectedNodeId(nodeId);
+  };
+
+  // 查看完整影响范围
+  const handleViewFullImpact = (nodeId) => {
+    console.log('View full impact for node:', nodeId);
+    const targetNode = canvasNodes.find(n => n.id === nodeId);
+    if (!targetNode) return;
+
+    // 获取下游节点
+    const downstreamIds = new Set();
+    const queue = [nodeId];
+
+    while (queue.length > 0) {
+      const currentId = queue.shift();
+      canvasConnections.forEach(conn => {
+        if (conn.from === currentId && !downstreamIds.has(conn.to)) {
+          downstreamIds.add(conn.to);
+          queue.push(conn.to);
+        }
+      });
+    }
+
+    const downstreamNodes = canvasNodes.filter(n => downstreamIds.has(n.id));
+
+    if (downstreamNodes.length === 0) {
+      alert(`节点 "${targetNode.name}" 无下游节点`);
+    } else {
+      alert(`节点 "${targetNode.name}" 会影响以下节点:\n${downstreamNodes.map(n => n.name).join('\n')}`);
+    }
+
+    // 可选：定位到第一个下游节点
+    if (downstreamNodes.length > 0) {
+      setSelectedNodeId(downstreamNodes[0].id);
+    }
+  };
+
+  // 查看影响范围（运行菜单中的选项）
   const handleViewImpact = () => {
-    console.log('Viewing impact...');
-    // TODO: 显示影响范围面板
+    if (selectedNode) {
+      handleViewFullImpact(selectedNode.id);
+    } else {
+      alert('请先选择一个节点');
+    }
   };
 
   // 模式切换处理
   const handleModeChange = (mode) => {
     setProjectMode(mode);
-    // 后续可以根据模式更新其他状态，如默认审批点等
   };
 
   // 资产抽屉处理
@@ -552,9 +903,84 @@ function App() {
     setAssetDrawerOpen(false);
   };
 
-  const handleRestoreVersion = (nodeKey, version) => {
-    console.log('Restore version:', nodeKey, version);
-    // 恢复版本逻辑
+  const handleRestoreVersion = async (nodeKey, versionId) => {
+    console.log('Restore version:', nodeKey, versionId);
+    if (!currentProjectId) {
+      console.warn('No projectId available for restore version');
+      return;
+    }
+
+    try {
+      // 调用后端API激活版本
+      await nodeVersionApi.activateVersion(currentProjectId, nodeKey, versionId);
+
+      // 找到对应的节点
+      const targetNode = canvasNodes.find(n => n.id === nodeKey);
+      if (!targetNode) return;
+
+      // 标记下游节点为stale
+      const { markDownstreamAsStale } = useWorkflowStore.getState();
+      markDownstreamAsStale(nodeKey, `节点 ${targetNode.name} 已恢复到版本 ${versionId}`);
+    } catch (error) {
+      console.error('Failed to restore version:', error);
+      alert('恢复版本失败: ' + error.message);
+    }
+  };
+
+  // 提案处理 - 应用提案
+  const handleApplyProposal = async (nodeId, proposalId) => {
+    if (!currentProjectId) {
+      console.warn('No projectId available for apply proposal');
+      return;
+    }
+
+    try {
+      // 调用后端API应用提案
+      await proposalApi.applyProposal(currentProjectId, nodeId, proposalId);
+
+      // 找到对应的节点
+      const targetNode = canvasNodes.find(n => n.id === nodeId);
+      if (!targetNode) return;
+
+      // 标记下游节点为stale
+      const { markDownstreamAsStale } = useWorkflowStore.getState();
+      markDownstreamAsStale(nodeId, `节点 ${targetNode.name} 已修改，需要更新下游节点`);
+
+      console.log('Proposal applied:', nodeId, proposalId);
+    } catch (error) {
+      console.error('Failed to apply proposal:', error);
+      alert('应用提案失败: ' + error.message);
+    }
+  };
+
+  // 提案处理 - 重新生成提案
+  const handleRegenerateProposal = (nodeId, proposal) => {
+    const { updateNodeData } = useWorkflowStore.getState();
+
+    // 更新节点的提案数据，重置状态为pending
+    updateNodeData(nodeId, {
+      proposal: proposal,
+      proposalStatus: 'pending'
+    });
+
+    console.log('Proposal regenerated:', nodeId, proposal);
+  };
+
+  // 提案处理 - 拒绝提案
+  const handleRejectProposal = async (nodeId, proposalId) => {
+    if (!currentProjectId) {
+      console.warn('No projectId available for reject proposal');
+      return;
+    }
+
+    try {
+      // 调用后端API拒绝提案
+      await proposalApi.rejectProposal(currentProjectId, nodeId, proposalId);
+      console.log('Proposal rejected:', nodeId, proposalId);
+    } catch (error) {
+      console.error('Failed to reject proposal:', error);
+      alert('拒绝提案失败: ' + error.message);
+    }
   };
 
   // 导出处理
@@ -575,10 +1001,27 @@ function App() {
           attachments={planningAttachments}
           onConfirmPlan={(plan) => {
             console.log('Plan confirmed:', plan);
+            // 根据方案创建真实DAG
+            const { nodes, connections } = planToNodesAndConnections(plan, planningRawInput);
+            if (nodes.length > 0) {
+              incrementCanvasKey();
+              loadWorkflow(nodes, connections);
+            }
+            // 设置项目模式
+            if (plan && plan.mode) {
+              setProjectMode(plan.mode === 'director' ? 'director' : 'factory');
+            }
             setCurrentView('workspace');
           }}
           onCancel={() => setCurrentView('home')}
-          onGoToExecution={() => setCurrentView('workspace')}
+          onGoToExecution={(options) => {
+            // 自己搭建 - 进入空白执行态
+            if (options && options.mode === 'blank') {
+              incrementCanvasKey();
+              resetCanvas();
+            }
+            setCurrentView('workspace');
+          }}
         />
       )}
       {currentView === 'workspace' && (
@@ -679,11 +1122,12 @@ function App() {
                 projectVersion={currentVersion?.version}
                 projectMode={projectMode}
                 onModeChange={handleModeChange}
-                runButtonText={runButtonText}
-                runExplanation={runExplanation}
+                runButtonText={isDemoMode ? 'Demo模式不可运行' : runButtonText}
+                runExplanation={isDemoMode ? 'Demo模式为只读展示' : runExplanation}
                 hasStaleNodes={hasStaleNodes}
                 onViewImpact={handleViewImpact}
                 onNodeSelect={handleNodeSelect}
+                isDemoMode={isDemoMode}
               />
             </section>
 
@@ -719,9 +1163,11 @@ function App() {
               <div className="panel-content">
                 <NodeWorkspace
                   selectedNode={selectedNode}
+                  projectId={currentProjectId}
                   onNodeUpdate={(nodeId, data) => {
                     const { updateNodeData } = useWorkflowStore.getState();
                     updateNodeData(nodeId, data);
+                    // selectedNode now derived from canvasNodes via useMemo, no manual sync needed
                   }}
                   onGenerateVideo={(nodeId, promptIdx) => {
                     const event = new CustomEvent('generateVideo', {
@@ -730,6 +1176,14 @@ function App() {
                     });
                     document.dispatchEvent(event);
                   }}
+                  onApplyProposal={handleApplyProposal}
+                  onRegenerateProposal={handleRegenerateProposal}
+                  onRejectProposal={handleRejectProposal}
+                  onRerunFromNode={handleRerunFromNode}
+                  onViewFullImpact={handleViewFullImpact}
+                  onRestoreVersion={handleRestoreVersion}
+                  downstreamNodes={downstreamNodes}
+                  upstreamNodes={upstreamNodes}
                 />
               </div>
             </aside>
@@ -739,6 +1193,8 @@ function App() {
           <AssetDrawer
             isOpen={assetDrawerOpen}
             onClose={() => setAssetDrawerOpen(false)}
+            projectId={currentProjectId}
+            nodes={canvasNodes}
             onLocateNode={handleLocateNode}
             onRestoreVersion={handleRestoreVersion}
           />

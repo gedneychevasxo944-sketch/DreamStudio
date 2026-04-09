@@ -6,9 +6,12 @@ import com.dream.studio.dto.ChatDTO;
 import com.dream.studio.dto.DAGDTO;
 import com.dream.studio.dto.NodeSimulationData;
 import com.dream.studio.dto.TeamDTO;
+import com.dream.studio.entity.NodeVersion;
+import com.dream.studio.repository.NodeVersionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.*;
@@ -21,7 +24,11 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class SimulationUpstreamClient implements UpstreamClient {
+
+    private final NodeVersionRepository nodeVersionRepository;
+    private final TransactionTemplate transactionTemplate;
 
     // 会话状态存储（模拟）
     private final Map<Long, ChatDTO.MessageResponse> chatSessions = new ConcurrentHashMap<>();
@@ -188,8 +195,8 @@ public class SimulationUpstreamClient implements UpstreamClient {
                         executionId, getCurrentTime())));
 
                 // 解析 DAG
-                List<DAGDTO.DAGNode> nodes = dag.getNodes();
-                if (nodes == null || nodes.isEmpty()) {
+                List<DAGDTO.DAGNode> dagNodes = dag.getNodes();
+                if (dagNodes == null || dagNodes.isEmpty()) {
                     emitter.send(SseEmitter.event().name("complete").data(String.format(
                             "{\"workflowExecutionId\":\"%s\",\"status\":\"SUCCESS\",\"eventTime\":\"%s\"}",
                             executionId, getCurrentTime())));
@@ -197,7 +204,7 @@ public class SimulationUpstreamClient implements UpstreamClient {
                     return;
                 }
 
-                Map<String, DAGDTO.DAGNode> nodeMap = nodes.stream()
+                Map<String, DAGDTO.DAGNode> nodeMap = dagNodes.stream()
                         .collect(Collectors.toMap(n -> n.getNodeId() != null ? n.getNodeId() : n.getId(), n -> n));
 
                 // 构建拓扑顺序
@@ -209,7 +216,7 @@ public class SimulationUpstreamClient implements UpstreamClient {
                 }
 
                 Map<String, Integer> inDegree = new HashMap<>();
-                for (DAGDTO.DAGNode node : nodes) {
+                for (DAGDTO.DAGNode node : dagNodes) {
                     inDegree.put(node.getNodeId() != null ? node.getNodeId() : node.getId(), 0);
                 }
                 for (ChatDTO.WorkflowEdge edge : edges) {
@@ -224,8 +231,12 @@ public class SimulationUpstreamClient implements UpstreamClient {
 
                 List<String> completedNodes = new ArrayList<>();
 
-                while (!readyNodes.isEmpty() || completedNodes.size() < nodes.size()) {
-                    if (readyNodes.isEmpty() && completedNodes.size() < nodes.size()) {
+                // 用于存储每个节点的执行结果，执行完成后保存到数据库
+                Map<String, NodeVersionResult> nodeResults = new HashMap<>();
+                int[] versionCounter = {0};
+
+                while (!readyNodes.isEmpty() || completedNodes.size() < dagNodes.size()) {
+                    if (readyNodes.isEmpty() && completedNodes.size() < dagNodes.size()) {
                         log.warn("DAG has cycle or unready nodes");
                         break;
                     }
@@ -247,9 +258,15 @@ public class SimulationUpstreamClient implements UpstreamClient {
                             executionId, nodeId, getCurrentTime())));
                     sleep(300);
 
+                    // 准备存储结果
+                    String resultText = "";
+                    String resultJson = null;
+                    String thinkingText = "[]";
+
                     // 发送 thinking 事件
                     if (simData != null) {
                         List<String> thoughts = simData.getThinkingSteps();
+                        thinkingText = toJsonArray(thoughts);
                         for (int i = 0; i < thoughts.size(); i++) {
                             emitter.send(SseEmitter.event().name("thinking").data(String.format(
                                     "{\"workflowExecutionId\":\"%s\",\"nodeId\":\"%s\",\"delta\":\"[%s] %s\",\"seq\":%d,\"eventTime\":\"%s\"}",
@@ -275,13 +292,15 @@ public class SimulationUpstreamClient implements UpstreamClient {
 
                         // 发送 data 结果
                         if (SimulationDataProvider.hasDataJson(componentType)) {
+                            resultJson = simData.getDataJson();
                             emitter.send(SseEmitter.event().name("data").data(String.format(
                                     "{\"workflowExecutionId\":\"%s\",\"nodeId\":\"%s\",\"data\":%s,\"eventTime\":\"%s\"}",
                                     executionId, nodeId, simData.getDataJson(), getCurrentTime())));
                         }
 
                         // 发送 result 事件
-                        String resultContent = simData.getTextResult().replace("\n", "\\n");
+                        resultText = simData.getTextResult();
+                        String resultContent = resultText.replace("\n", "\\n");
                         emitter.send(SseEmitter.event().name("result").data(String.format(
                                 "{\"workflowExecutionId\":\"%s\",\"nodeId\":\"%s\",\"contentType\":\"text\",\"delta\":\"[%s] %s\",\"seq\":%d,\"eventTime\":\"%s\"}",
                                 executionId, nodeId, nodeName, resultContent, thoughts.size() + 3, getCurrentTime())));
@@ -291,6 +310,16 @@ public class SimulationUpstreamClient implements UpstreamClient {
                     emitter.send(SseEmitter.event().name("node_status").data(String.format(
                             "{\"workflowExecutionId\":\"%s\",\"nodeId\":\"%s\",\"status\":\"completed\",\"eventTime\":\"%s\"}",
                             executionId, nodeId, getCurrentTime())));
+
+                    // 保存节点结果用于后续入库
+                    nodeResults.put(nodeId, new NodeVersionResult(
+                            dagNode.getAgentId(),
+                            nodeTypeCode,
+                            nodeTypeCode,
+                            resultText,
+                            resultJson,
+                            thinkingText
+                    ));
 
                     completedNodes.add(nodeId);
 
@@ -304,6 +333,44 @@ public class SimulationUpstreamClient implements UpstreamClient {
                     }
 
                     sleep(200);
+                }
+
+                // 工作流执行完成后，保存所有节点的版本到数据库
+                if (projectId != null) {
+                    for (Map.Entry<String, NodeVersionResult> entry : nodeResults.entrySet()) {
+                        String nodeId = entry.getKey();
+                        NodeVersionResult result = entry.getValue();
+                        versionCounter[0]++;
+
+                        try {
+                            NodeVersion version = NodeVersion.builder()
+                                    .projectId(projectId)
+                                    .nodeId(nodeId)
+                                    .agentId(result.agentId)
+                                    .agentCode(result.agentCode)
+                                    .nodeType(result.nodeType)
+                                    .versionNo(versionCounter[0])
+                                    .versionKind("RUN_OUTPUT")
+                                    .isCurrent(true)
+                                    .status("READY")
+                                    .resultText(result.resultText)
+                                    .resultJson(result.resultJson)
+                                    .thinkingText(result.thinkingText)
+                                    .sourceExecutionId(Long.parseLong(executionId.replace("wf-", "")))
+                                    .build();
+
+                            // 使用事务模板执行数据库操作
+                            transactionTemplate.executeWithoutResult(status -> {
+                                // 清除该节点之前的当前版本
+                                nodeVersionRepository.clearCurrentByProjectAndNode(projectId, nodeId);
+                                // 保存新版本
+                                nodeVersionRepository.save(version);
+                            });
+                            log.info("Saved NodeVersion for node: {}, versionNo: {}", nodeId, versionCounter[0]);
+                        } catch (Exception e) {
+                            log.error("Failed to save NodeVersion for node: {}", nodeId, e);
+                        }
+                    }
                 }
 
                 // 发送 complete
@@ -326,6 +393,25 @@ public class SimulationUpstreamClient implements UpstreamClient {
         }).start();
 
         return emitter;
+    }
+
+    // 内部类用于存储节点执行结果
+    private static class NodeVersionResult {
+        Long agentId;
+        String agentCode;
+        String nodeType;
+        String resultText;
+        String resultJson;
+        String thinkingText;
+
+        NodeVersionResult(Long agentId, String agentCode, String nodeType, String resultText, String resultJson, String thinkingText) {
+            this.agentId = agentId;
+            this.agentCode = agentCode;
+            this.nodeType = nodeType;
+            this.resultText = resultText;
+            this.resultJson = resultJson;
+            this.thinkingText = thinkingText;
+        }
     }
 
     // ========== 6.7 获取执行详情 ==========
