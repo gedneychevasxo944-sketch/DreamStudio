@@ -125,7 +125,7 @@ public class SimulationUpstreamClient implements UpstreamClient {
                         .agentCode(agentId.toString())
                         .nodeId(nodeId)
                         .messageRole("user")
-                        .content(message)
+                        .question(message)
                         .messageType("text")
                         .build();
                 agentChatRecordRepository.save(userRecord);
@@ -166,12 +166,25 @@ public class SimulationUpstreamClient implements UpstreamClient {
                 String resultContent = simData.getTextResult();
                 int seq = thoughts.size() + 1;
 
+                // 先构建提案（会保存到数据库并返回 proposalId）
+                String proposalJson = buildProposalJson(request.getProjectId(), componentType, resultContent, nodeId);
+                Long relatedProposalId = null;
+                if (proposalJson != null) {
+                    // 从返回的 JSON 中提取 proposalId
+                    // JSON 格式: {"id":123,"nodeId":"xxx",...}
+                    int idStart = proposalJson.indexOf("\"id\":") + 5;
+                    int idEnd = proposalJson.indexOf(",", idStart);
+                    if (idEnd > idStart) {
+                        relatedProposalId = Long.parseLong(proposalJson.substring(idStart, idEnd).trim());
+                    }
+                }
+
                 // 发送文字结果
                 emitter.send(SseEmitter.event().name("result").data(String.format(
                         "{\"messageId\":\"msg-%d\",\"contentType\":\"text\",\"delta\":\"%s\",\"seq\":%d,\"eventTime\":\"%s\"}",
                         sessionId, escapeJson(resultContent), seq, getCurrentTime())));
 
-                // 保存助手回复到数据库
+                // 保存助手回复到数据库（包含 relatedProposalId）
                 AgentChatRecord assistantRecord = AgentChatRecord.builder()
                         .projectId(request.getProjectId())
                         .agentId(agentId)
@@ -179,8 +192,9 @@ public class SimulationUpstreamClient implements UpstreamClient {
                         .agentCode(agentId.toString())
                         .nodeId(nodeId)
                         .messageRole("assistant")
-                        .content(resultContent)
+                        .result(resultContent)
                         .messageType("text")
+                        .relatedProposalId(relatedProposalId)
                         .build();
                 agentChatRecordRepository.save(assistantRecord);
                 seq++;
@@ -203,8 +217,7 @@ public class SimulationUpstreamClient implements UpstreamClient {
                     seq++;
                 }
 
-                // 发送提案数据
-                String proposalJson = buildProposalJson(request.getProjectId(), componentType, resultContent, agentId.toString());
+                // 发送提案数据（使用前面已保存的提案）
                 if (proposalJson != null) {
                     emitter.send(SseEmitter.event().name("data").data(String.format(
                             "{\"messageId\":\"msg-%d\",\"type\":\"proposal\",\"proposal\":%s,\"seq\":%d,\"eventTime\":\"%s\"}",
@@ -764,42 +777,41 @@ public class SimulationUpstreamClient implements UpstreamClient {
             return null;
         }
 
-        // 根据节点类型生成不同的提案（使用 ProposalDiff 的 configDiff 结构）
+        // 根据节点类型生成不同的提案
         String summary;
-        String changesJson;
+        String diffJson;
 
         switch (componentType) {
             case PRODUCER:
                 summary = "优化项目立项方案";
-                changesJson = "[{\"key\":\"budget\",\"beforeValue\":\"500万\",\"afterValue\":\"480万\"},{\"key\":\"duration\",\"beforeValue\":\"6个月\",\"afterValue\":\"5个月\"}]";
+                // producer 使用 textDiff 格式
+                diffJson = "{\"diffType\":\"TEXT_DIFF\",\"textDiff\":{\"beforeText\":\"项目预算：500万，周期：6个月\",\"afterText\":\"项目预算：480万，周期：5个月（效率提升10%）\"}}";
                 break;
             case CONTENT:
                 summary = "剧本优化建议";
-                changesJson = "[{\"key\":\"scene3.description\",\"beforeValue\":\"林立（男，28岁）匆匆走在上班路上\",\"afterValue\":\"林立（男，28岁，精神抖擞）快步走在上班路上，手里拿着冰美式\"}]";
+                // content 使用 textDiff 格式
+                diffJson = "{\"diffType\":\"TEXT_DIFF\",\"textDiff\":{\"beforeText\":\"第1集第3场：林立（男，28岁）匆匆走在上班路上\",\"afterText\":\"第1集第3场：林立（男，28岁，精神抖擞）快步走在上班路上，手里拿着冰美式\"}}";
                 break;
             case VISUAL:
                 summary = "视觉风格调整";
-                changesJson = "[{\"key\":\"style\",\"beforeValue\":\"都市现代感 + 暖色调\",\"afterValue\":\"赛博朋克 + 霓虹灯光\"}]";
+                diffJson = "{\"diffType\":\"CONFIG_DIFF\",\"configDiff\":{\"changes\":[{\"key\":\"style\",\"beforeValue\":\"都市现代感 + 暖色调\",\"afterValue\":\"赛博朋克 + 霓虹灯光\"}]}}";
                 break;
             case DIRECTOR:
                 summary = "分镜优化建议";
-                changesJson = "[{\"key\":\"shot1.type\",\"beforeValue\":\"广角镜头俯拍\",\"afterValue\":\"航拍镜头俯拍\"},{\"key\":\"shot1.duration\",\"beforeValue\":\"5秒\",\"afterValue\":\"8秒\"}]";
+                diffJson = "{\"diffType\":\"CONFIG_DIFF\",\"configDiff\":{\"changes\":[{\"key\":\"shot1.type\",\"beforeValue\":\"广角镜头俯拍\",\"afterValue\":\"航拍镜头俯拍\"},{\"key\":\"shot1.duration\",\"beforeValue\":\"5秒\",\"afterValue\":\"8秒\"}]}}";
                 break;
             case TECHNICAL:
                 summary = "提示词参数优化";
-                changesJson = "[{\"key\":\"model\",\"beforeValue\":\"CogVideoX-5B\",\"afterValue\":\"CogVideoX-3B\"}]";
+                diffJson = "{\"diffType\":\"CONFIG_DIFF\",\"configDiff\":{\"changes\":[{\"key\":\"model\",\"beforeValue\":\"CogVideoX-5B\",\"afterValue\":\"CogVideoX-3B\"}]}}";
                 break;
             case VIDEO_GEN:
                 summary = "视频生成参数调整";
-                changesJson = "[{\"key\":\"genParams.quality\",\"beforeValue\":\"720P\",\"afterValue\":\"1080P\"},{\"key\":\"genParams.duration\",\"beforeValue\":\"5-10秒\",\"afterValue\":\"10-15秒\"}]";
+                diffJson = "{\"diffType\":\"CONFIG_DIFF\",\"configDiff\":{\"changes\":[{\"key\":\"genParams.quality\",\"beforeValue\":\"720P\",\"afterValue\":\"1080P\"},{\"key\":\"genParams.duration\",\"beforeValue\":\"5-10秒\",\"afterValue\":\"10-15秒\"}]}}";
                 break;
             default:
                 // ASSISTANT 和其他类型不生成提案
                 return null;
         }
-
-        // 构建 diffJson 字符串（使用 ProposalDiff 的 configDiff 结构）
-        String diffJson = "{\"diffType\":\"CONFIG_DIFF\",\"configDiff\":{\"changes\":" + changesJson + "}}";
 
         // 保存提案到数据库
         NodeProposal proposal = NodeProposal.builder()

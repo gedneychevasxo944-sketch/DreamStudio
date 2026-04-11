@@ -357,7 +357,7 @@ export const homePageApi = {
  * @returns {Object} 包含 close 方法的对象
  */
 export function sendChatMessageStream(params, callbacks) {
-  const { projectId, projectVersion, agentId, agentName, message, generation } = params;
+  const { projectId, projectVersion, agentId, agentName, message, nodeId, generation } = params;
 
   const token = getToken();
   const userId = getUserId();
@@ -373,6 +373,7 @@ export function sendChatMessageStream(params, callbacks) {
     agentId,
     agentName: agentId,
     message: message.trim(),
+    nodeId,
   });
 
   let closed = false;

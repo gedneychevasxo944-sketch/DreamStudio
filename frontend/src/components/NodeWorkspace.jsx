@@ -196,12 +196,21 @@ const ResultTab = ({ node, projectId, onGenerateVideo, onRestoreVersion, version
         if (appliedProposalRes?.data) {
           setModifiedByProposal(true);
           setAppliedProposal(appliedProposalRes.data);
-          // 根据提案的 changes 修改 node.data
-          const changes = appliedProposalRes.data.diffJson?.configDiff?.changes || [];
-          console.log('[ResultTab] loaded appliedProposal:', appliedProposalRes.data);
-          console.log('[ResultTab] changes:', changes);
-          console.log('[ResultTab] currentNodeData:', currentNodeData);
-          setModifiedData(applyFieldChanges(currentNodeData, changes));
+
+          const diffJson = appliedProposalRes.data.diffJson;
+
+          // 处理 textDiff 格式（producer, content 节点）
+          if (diffJson?.textDiff?.afterText) {
+            // 直接用 afterText 作为 resultText
+            setModifiedData({ ...currentNodeData, resultText: diffJson.textDiff.afterText });
+          } else {
+            // 处理 configDiff 格式（其他节点）
+            const changes = diffJson?.configDiff?.changes || [];
+            console.log('[ResultTab] loaded appliedProposal:', appliedProposalRes.data);
+            console.log('[ResultTab] changes:', changes);
+            console.log('[ResultTab] currentNodeData:', currentNodeData);
+            setModifiedData(applyFieldChanges(currentNodeData, changes));
+          }
         } else {
           setModifiedByProposal(false);
           setAppliedProposal(null);
@@ -1060,13 +1069,17 @@ const ChatTab = ({ node, projectId, messages, setMessages, onApplyProposal, onRe
                               {msgProposalStatus.toUpperCase() === 'PENDING' ? (
                                 <>
                                   <button className="cc-proposal-btn reject" onClick={() => { onRejectProposal?.(msgProposal.nodeId, msgProposal.id); }} disabled={applyingProposalId !== null}>暂不采纳</button>
-                                  <button className="cc-proposal-btn apply" onClick={() => {
+                                  <button className="cc-proposal-btn apply" onClick={async () => {
                                     // 先更新本地状态为APPLYING，禁用按钮
                                     setApplyingProposalId(msgProposal.id);
-                                    onApplyProposal?.(msgProposal.nodeId, msgProposal.id);
-                                    onApplySuccess?.(msgProposal.id);
-                                    // 延迟重置状态
-                                    setTimeout(() => setApplyingProposalId(null), 3000);
+                                    try {
+                                      await onApplyProposal?.(msgProposal.nodeId, msgProposal.id);
+                                      onApplySuccess?.(msgProposal.id);
+                                    } catch (error) {
+                                      console.error('Failed to apply proposal:', error);
+                                    } finally {
+                                      setApplyingProposalId(null);
+                                    }
                                   }} disabled={applyingProposalId !== null}>{applyingProposalId === msgProposal.id ? '应用中...' : '确认应用'}</button>
                                 </>
                               ) : (
@@ -1626,10 +1639,23 @@ const NodeWorkspace = ({
       return;
     }
 
+    let cancelled = false;
+    const currentNodeId = selectedNode.id;
+
     const loadChatHistory = async () => {
       try {
-        const res = await chatApi.getNodeChatHistory(projectId, selectedNode.id);
+        console.log('[ChatHistory] Loading for node:', currentNodeId, 'project:', projectId);
+        const res = await chatApi.getNodeChatHistory(projectId, currentNodeId);
+        console.log('[ChatHistory] Response:', res);
+
+        // Check if this effect is still valid (node hasn't changed)
+        if (cancelled) {
+          console.log('[ChatHistory] Cancelled, ignoring response for node:', currentNodeId);
+          return;
+        }
+
         if (res.data && Array.isArray(res.data)) {
+          console.log('[ChatHistory] Found', res.data.length, 'records for node:', currentNodeId);
           // 转换历史消息格式
           const historyMessages = [];
           res.data.forEach(record => {
@@ -1645,19 +1671,30 @@ const NodeWorkspace = ({
               historyMessages.push({
                 role: 'assistant',
                 content: record.result,
-                result: record.result
+                result: record.result,
+                proposal: record.proposal || null
               });
             }
           });
           setChatMessages(historyMessages);
+        } else {
+          console.log('[ChatHistory] No data or empty array for node:', currentNodeId);
+          setChatMessages([]);
         }
       } catch (error) {
-        console.error('Failed to load chat history:', error);
-        setChatMessages([]);
+        console.error('[ChatHistory] Failed to load chat history:', error);
+        if (!cancelled) {
+          setChatMessages([]);
+        }
       }
     };
 
     loadChatHistory();
+
+    // Cleanup function to cancel in-flight requests
+    return () => {
+      cancelled = true;
+    };
   }, [selectedNode?.id, projectId]);
 
   // 聊天提案应用成功 - 切换到结果Tab，更新messages里的proposal状态

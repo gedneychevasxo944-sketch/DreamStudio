@@ -17,4 +17,6 @@ public interface NodeProposalRepository extends JpaRepository<NodeProposal, Long
     List<NodeProposal> findByProjectIdAndNodeIdAndStatus(Long projectId, String nodeId, String status);
 
     List<NodeProposal> findByProjectIdAndStatus(Long projectId, String status);
+
+    List<NodeProposal> findByIdIn(List<Long> ids);
 }

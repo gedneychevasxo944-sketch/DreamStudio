@@ -5,16 +5,20 @@ import com.dream.studio.dto.ApiResponse;
 import com.dream.studio.dto.ChatDTO;
 import com.dream.studio.dto.DAGDTO;
 import com.dream.studio.entity.AgentChatRecord;
+import com.dream.studio.entity.NodeProposal;
 import com.dream.studio.entity.User;
 import com.dream.studio.exception.ProjectNotFoundException;
 import com.dream.studio.exception.UserNotFoundException;
 import com.dream.studio.filter.JwtAuthenticationFilter.UserPrincipal;
 import com.dream.studio.repository.AgentChatRecordRepository;
+import com.dream.studio.repository.NodeProposalRepository;
 import com.dream.studio.repository.ProjectRepository;
 import com.dream.studio.repository.UserRepository;
 import com.dream.studio.service.ChatService;
 import com.dream.studio.service.ExecutionService;
 import com.dream.studio.service.UpstreamClient;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -25,7 +29,9 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -42,6 +48,8 @@ public class WorkSpaceController {
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
     private final AgentChatRecordRepository agentChatRecordRepository;
+    private final NodeProposalRepository nodeProposalRepository;
+    private final ObjectMapper objectMapper;
 
     /**
      * 从安全上下文获取当前登录用户
@@ -143,16 +151,56 @@ public class WorkSpaceController {
         List<AgentChatRecord> records = agentChatRecordRepository
                 .findByProjectIdAndNodeIdOrderByCreateTimeAsc(projectId, nodeId);
 
+        // 收集所有有提案的记录ID
+        List<Long> proposalIds = records.stream()
+                .map(AgentChatRecord::getRelatedProposalId)
+                .filter(id -> id != null && id > 0)
+                .collect(Collectors.toList());
+
+        // 批量查询提案
+        Map<Long, NodeProposal> proposalMap = proposalIds.isEmpty() ?
+                Map.of() :
+                nodeProposalRepository.findByIdIn(proposalIds).stream()
+                        .collect(Collectors.toMap(NodeProposal::getId, p -> p));
+
         List<ChatDTO.MessageResponse> messages = records.stream()
-                .map(record -> ChatDTO.MessageResponse.builder()
-                        .id(record.getId())
-                        .agentId(record.getAgentId())
-                        .agentName(record.getAgentName())
-                        .question(record.getQuestion())
-                        .result(record.getResult())
-                        .createTime(record.getCreateTime() != null ?
-                                record.getCreateTime().toString() : null)
-                        .build())
+                .map(record -> {
+                    var builder = ChatDTO.MessageResponse.builder()
+                            .id(record.getId())
+                            .agentId(record.getAgentId())
+                            .agentName(record.getAgentName())
+                            .question(record.getQuestion())
+                            .result(record.getResult())
+                            .createTime(record.getCreateTime() != null ?
+                                    record.getCreateTime().toString() : null);
+
+                    // 如果有关联的提案，添加到返回结果
+                    if (record.getRelatedProposalId() != null && record.getRelatedProposalId() > 0) {
+                        NodeProposal proposal = proposalMap.get(record.getRelatedProposalId());
+                        if (proposal != null) {
+                            // 构建提案对象
+                            Map<String, Object> proposalObj = new HashMap<>();
+                            proposalObj.put("id", proposal.getId());
+                            proposalObj.put("nodeId", proposal.getNodeId());
+                            proposalObj.put("title", proposal.getTitle());
+                            proposalObj.put("summary", proposal.getSummary());
+                            proposalObj.put("status", proposal.getStatus());
+                            // 解析 diffJson 字符串为对象
+                            if (proposal.getDiffJson() != null) {
+                                try {
+                                    Map<String, Object> diffJsonObj = objectMapper.readValue(proposal.getDiffJson(), Map.class);
+                                    proposalObj.put("diffJson", diffJsonObj);
+                                } catch (JsonProcessingException e) {
+                                    log.warn("Failed to parse diffJson for proposal: {}", proposal.getId(), e);
+                                    proposalObj.put("diffJson", proposal.getDiffJson());
+                                }
+                            }
+                            builder.proposal(proposalObj);
+                        }
+                    }
+
+                    return builder.build();
+                })
                 .collect(Collectors.toList());
 
         return ApiResponse.success(messages);

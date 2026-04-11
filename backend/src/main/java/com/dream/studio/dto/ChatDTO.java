@@ -6,6 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 
 import java.util.List;
+import java.util.Map;
 
 public class ChatDTO {
 
@@ -41,6 +42,8 @@ public class ChatDTO {
         private Boolean workflowCreated;
         private List<WorkflowNode> workflowNodes;
         private List<WorkflowEdge> workflowEdges;
+        // 关联的提案信息
+        private Map<String, Object> proposal;
     }
 
     @Data
