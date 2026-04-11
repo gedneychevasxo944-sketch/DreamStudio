@@ -1073,7 +1073,6 @@ const planToNodesAndConnections = (plan, userInput) => {
                 runButtonText={isDemoMode ? 'Demo模式不可运行' : runButtonText}
                 runExplanation={isDemoMode ? 'Demo模式为只读展示' : runExplanation}
                 hasStaleNodes={hasStaleNodes}
-                onViewImpact={handleViewImpact}
                 onNodeSelect={handleNodeSelect}
                 isDemoMode={isDemoMode}
               />

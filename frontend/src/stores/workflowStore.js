@@ -127,7 +127,12 @@ export const useWorkflowStore = create((set, get) => ({
   // 更新节点状态
   updateNodeStatus: (nodeId, status) => set((state) => ({
     nodes: state.nodes.map(n =>
-      n.id === nodeId ? { ...n, status } : n
+      n.id === nodeId ? {
+        ...n,
+        status,
+        // 运行完成后清除 stale 状态
+        data: status === 'completed' ? { ...n.data, status: undefined, staleReason: undefined } : n.data
+      } : n
     )
   })),
 

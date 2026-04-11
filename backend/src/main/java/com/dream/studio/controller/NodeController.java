@@ -92,8 +92,9 @@ public class NodeController {
         log.info("Getting current version for project: {}, node: {}", projectId, nodeId);
         validateProjectOwnership(projectId);
 
-        NodeVersionDTO.VersionDetail response = nodeVersionService.getCurrentVersion(projectId, nodeId);
-        return ApiResponse.success(response);
+        return nodeVersionService.getCurrentVersionOptional(projectId, nodeId)
+                .map(ApiResponse::success)
+                .orElse(ApiResponse.success(null));
     }
 
     /**

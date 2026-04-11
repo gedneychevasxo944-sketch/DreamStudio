@@ -56,7 +56,6 @@ const NodeCanvas = ({
   runButtonText = '运行',
   runExplanation = '',
   hasStaleNodes = false,
-  onViewImpact,
   // 节点选择回调
   onNodeSelect,
   // 视频生成回调（供 NodeWorkspace 使用）
@@ -582,7 +581,15 @@ const NodeCanvas = ({
             if (event.nodeId) {
               const status = event.status === 'completed' ? 'completed' : 'running';
               updateNodeStatus(event.nodeId, status);
-              if (status === 'running') scrollToNode(event.nodeId);
+              if (status === 'running') {
+                scrollToNode(event.nodeId);
+                // 自动跟随时同步右侧面板到运行节点
+                if (autoTrackEnabledRef.current) {
+                  const storeState = useWorkflowStore.getState();
+                  const runningNode = storeState.nodes.find(n => n.id === event.nodeId);
+                  if (runningNode) handleNodeSelect(runningNode);
+                }
+              }
             }
           } else if (event.type === 'thinking') {
             if (event.nodeId) {
@@ -611,7 +618,7 @@ const NodeCanvas = ({
       console.error('Failed to execute new video nodes:', error);
       setIsRunning(false);
     }
-  }, [projectId, projectVersion, setIsRunning, updateNodeStatus, updateNodeData, updateNodeResult, scrollToNode]);
+  }, [projectId, projectVersion, setIsRunning, updateNodeStatus, updateNodeData, updateNodeResult, scrollToNode, handleNodeSelect]);
 
   // 生成视频节点（处理技术节点的自动/手动视频生成请求）
   const handleGenerateVideoNodes = useCallback((sourceNodeId, count, promptId) => {
@@ -704,7 +711,9 @@ const NodeCanvas = ({
     let currentNodes = storeState.nodes;
     let currentConnections = storeState.connections;
 
-    if (!projectId || currentNodes.length === 0) return;
+    if (!projectId || currentNodes.length === 0) {
+      return;
+    }
     setIsRunning(true);
 
     // 开始运行时启用自动跟踪
@@ -738,40 +747,57 @@ const NodeCanvas = ({
       executionId = null;
       localStorage.removeItem(`execution_${projectId}`);
     } else if (mode === 'continue') {
-      // 继续运行：跳过已完成的节点
-      const completedNodeIds = new Set(currentNodes.filter(n => n.status === 'completed').map(n => n.id));
-      if (completedNodeIds.size > 0) {
-        // 找到未完成的起始节点（没有前置已完成节点的节点）
-        const hasCompletedUpstream = (nodeId) => {
-          const upstreamConns = currentConnections.filter(c => c.to === nodeId);
-          return upstreamConns.some(c => completedNodeIds.has(c.from));
-        };
-        // 获取需要运行的节点：从已完成节点的下游开始
+      // 继续运行：查找 stale 节点及其下游来运行
+      const staleNodes = currentNodes.filter(n => n.data?.status === 'stale');
+      if (staleNodes.length > 0) {
+        // 找到所有需要运行的节点：stale 节点及其下游
         const nodesToRun = new Set();
-        currentNodes.forEach(n => {
-          if (!completedNodeIds.has(n.id)) {
-            // 检查是否有已完成的上游
-            const upstreamConns = currentConnections.filter(c => c.to === n.id);
-            if (upstreamConns.length === 0 || upstreamConns.some(c => completedNodeIds.has(c.from))) {
-              nodesToRun.add(n.id);
-            }
-          }
-        });
-        if (nodesToRun.size > 0) {
-          // 获取需要运行的节点及其下游
-          const allNodesToRun = new Set();
-          const queue = [...nodesToRun];
-          while (queue.length > 0) {
-            const nodeId = queue.shift();
-            allNodesToRun.add(nodeId);
+        const queue = staleNodes.map(n => n.id);
+        while (queue.length > 0) {
+          const nodeId = queue.shift();
+          if (!nodesToRun.has(nodeId)) {
+            nodesToRun.add(nodeId);
             currentConnections.filter(c => c.from === nodeId).forEach(c => {
-              if (!completedNodeIds.has(c.to) && !allNodesToRun.has(c.to)) queue.push(c.to);
+              if (!nodesToRun.has(c.to)) queue.push(c.to);
             });
           }
-          currentNodes = currentNodes.filter(n => allNodesToRun.has(n.id));
-          currentConnections = currentConnections.filter(c => allNodesToRun.has(c.from) && allNodesToRun.has(c.to));
+        }
+        currentNodes = currentNodes.filter(n => nodesToRun.has(n.id));
+        currentConnections = currentConnections.filter(c => nodesToRun.has(c.from) && nodesToRun.has(c.to));
+        // 清除这些节点的 stale 状态
+        executionId = null;
+        localStorage.removeItem(`execution_${projectId}`);
+      } else {
+        // 没有 stale 节点，检查是否有已完成节点的下游未完成节点
+        const completedNodeIds = new Set(currentNodes.filter(n => n.status === 'completed').map(n => n.id));
+        if (completedNodeIds.size > 0) {
+          // 找到未完成的起始节点（没有前置已完成节点的节点）
+          const nodesToRun = new Set();
+          currentNodes.forEach(n => {
+            if (!completedNodeIds.has(n.id)) {
+              const upstreamConns = currentConnections.filter(c => c.to === n.id);
+              if (upstreamConns.length === 0 || upstreamConns.some(c => completedNodeIds.has(c.from))) {
+                nodesToRun.add(n.id);
+              }
+            }
+          });
+          if (nodesToRun.size > 0) {
+            const allNodesToRun = new Set();
+            const queue = [...nodesToRun];
+            while (queue.length > 0) {
+              const nodeId = queue.shift();
+              allNodesToRun.add(nodeId);
+              currentConnections.filter(c => c.from === nodeId).forEach(c => {
+                if (!completedNodeIds.has(c.to) && !allNodesToRun.has(c.to)) queue.push(c.to);
+              });
+            }
+            currentNodes = currentNodes.filter(n => allNodesToRun.has(n.id));
+            currentConnections = currentConnections.filter(c => allNodesToRun.has(c.from) && allNodesToRun.has(c.to));
+          } else {
+            setIsRunning(false);
+            return;
+          }
         } else {
-          // 没有需要运行的节点
           setIsRunning(false);
           return;
         }
@@ -803,7 +829,15 @@ const NodeCanvas = ({
             if (event.nodeId) {
               const status = event.status === 'completed' ? 'completed' : 'running';
               updateNodeStatus(event.nodeId, status);
-              if (status === 'running') scrollToNode(event.nodeId);
+              if (status === 'running') {
+                scrollToNode(event.nodeId);
+                // 自动跟随时同步右侧面板到运行节点
+                if (autoTrackEnabledRef.current) {
+                  const storeState = useWorkflowStore.getState();
+                  const runningNode = storeState.nodes.find(n => n.id === event.nodeId);
+                  if (runningNode) handleNodeSelect(runningNode);
+                }
+              }
             }
           } else if (event.type === 'thinking') {
             if (event.nodeId) {
@@ -829,12 +863,14 @@ const NodeCanvas = ({
             sseConnection.close();
           }
         },
-        (error) => { setIsRunning(false); }
+        (error) => {
+          setIsRunning(false);
+        }
       );
     } catch (error) {
       setIsRunning(false);
     }
-  }, [projectId, projectVersion, selectedNodeId, setIsRunning, batchUpdateNodes, updateNodeStatus, updateNodeData, updateNodeResult, scrollToNode]);
+  }, [projectId, projectVersion, selectedNodeId, setIsRunning, batchUpdateNodes, updateNodeStatus, updateNodeData, updateNodeResult, scrollToNode, handleNodeSelect]);
 
   // 更新 ref 以便在其他回调中使用 executeWorkflowWithBackend
   useEffect(() => {
@@ -844,14 +880,15 @@ const NodeCanvas = ({
   // 运行工作流
   // mode: 'direct' | 'restart' | 'continue' | 'fromCurrent' | 'currentOnly'
   const simulateRun = useCallback(async (mode = 'direct') => {
-    if (nodes.length === 0) return;
+    if (nodes.length === 0) {
+      return;
+    }
 
     // 如果有 projectId，调用后端执行
     if (projectId) {
       await executeWorkflowRef.current?.(mode);
       return;
     }
-
     setIsRunning(true);
 
     // 计算起始节点
@@ -997,7 +1034,6 @@ const NodeCanvas = ({
         runButtonText={runButtonText}
         runExplanation={runExplanation}
         hasStaleNodes={hasStaleNodes}
-        onViewImpact={onViewImpact}
         isDemoMode={isDemoMode}
       />
 

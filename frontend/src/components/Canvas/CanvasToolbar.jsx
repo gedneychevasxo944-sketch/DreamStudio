@@ -23,7 +23,6 @@ const CanvasToolbar = ({
   runButtonText = '运行',
   runExplanation = '',
   hasStaleNodes = false,
-  onViewImpact,
 }) => {
   const [showRunMenu, setShowRunMenu] = useState(false);
 
@@ -32,7 +31,6 @@ const CanvasToolbar = ({
     { key: 'continue', label: '继续运行', description: '从受影响节点继续', disabled: !hasStaleNodes },
     { key: 'fromCurrent', label: '从当前节点运行', description: '从选中节点重新开始' },
     { key: 'currentOnly', label: '仅运行当前节点', description: '只运行选中的节点' },
-    { key: 'viewImpact', label: '查看影响范围', description: '查看哪些节点会被影响', action: onViewImpact }
   ];
 
   const handleRunClick = (e) => {
@@ -43,6 +41,9 @@ const CanvasToolbar = ({
 
   const handleMenuItemClick = (option) => {
     setShowRunMenu(false);
+    if (option.disabled) {
+      return;
+    }
     if (option.action) {
       option.action();
     } else if (option.key === 'restart') {
