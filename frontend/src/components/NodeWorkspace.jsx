@@ -877,6 +877,7 @@ const ChatTab = ({ node, projectId, messages, setMessages, onApplyProposal, onRe
         agentId: String(agentId),
         agentName: node.agentCode || node.type || String(agentId),
         message: inputValue.trim(),
+        nodeId: node.id,
       },
       {
         onThinking: (data) => {
@@ -1617,6 +1618,47 @@ const NodeWorkspace = ({
   const [versionRefreshKey, setVersionRefreshKey] = useState(0);
   const [chatMessages, setChatMessages] = useState([]);
   const [applyingProposalId, setApplyingProposalId] = useState(null);
+
+  // 加载节点的历史对话
+  useEffect(() => {
+    if (!selectedNode || !projectId) {
+      setChatMessages([]);
+      return;
+    }
+
+    const loadChatHistory = async () => {
+      try {
+        const res = await chatApi.getNodeChatHistory(projectId, selectedNode.id);
+        if (res.data && Array.isArray(res.data)) {
+          // 转换历史消息格式
+          const historyMessages = [];
+          res.data.forEach(record => {
+            // 添加用户消息
+            if (record.question) {
+              historyMessages.push({
+                role: 'user',
+                content: record.question
+              });
+            }
+            // 添加助手回复
+            if (record.result) {
+              historyMessages.push({
+                role: 'assistant',
+                content: record.result,
+                result: record.result
+              });
+            }
+          });
+          setChatMessages(historyMessages);
+        }
+      } catch (error) {
+        console.error('Failed to load chat history:', error);
+        setChatMessages([]);
+      }
+    };
+
+    loadChatHistory();
+  }, [selectedNode?.id, projectId]);
 
   // 聊天提案应用成功 - 切换到结果Tab，更新messages里的proposal状态
   const handleChatApplySuccess = useCallback((proposalId) => {

@@ -517,6 +517,13 @@ export const chatApi = {
     if (agentId) url += `&agent_id=${agentId}`;
     return request(url);
   },
+
+  /**
+   * 获取节点的历史对话
+   */
+  getNodeChatHistory: (projectId, nodeId) => {
+    return request(`/v1/projects/${projectId}/nodes/${nodeId}/chat-history`);
+  },
 };
 
 export const workSpaceApi = {

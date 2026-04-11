@@ -14,5 +14,7 @@ public interface AgentChatRecordRepository extends JpaRepository<AgentChatRecord
 
     List<AgentChatRecord> findByProjectIdAndAgentIdOrderByCreateTimeAsc(Long projectId, String agentId);
 
+    List<AgentChatRecord> findByProjectIdAndNodeIdOrderByCreateTimeAsc(Long projectId, String nodeId);
+
     Optional<AgentChatRecord> findByMessageId(Long messageId);
 }

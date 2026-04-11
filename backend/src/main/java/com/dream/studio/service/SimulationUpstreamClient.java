@@ -6,8 +6,10 @@ import com.dream.studio.dto.ChatDTO;
 import com.dream.studio.dto.DAGDTO;
 import com.dream.studio.dto.NodeSimulationData;
 import com.dream.studio.dto.TeamDTO;
+import com.dream.studio.entity.AgentChatRecord;
 import com.dream.studio.entity.NodeProposal;
 import com.dream.studio.entity.NodeVersion;
+import com.dream.studio.repository.AgentChatRecordRepository;
 import com.dream.studio.repository.NodeProposalRepository;
 import com.dream.studio.repository.NodeVersionRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -29,13 +31,16 @@ public class SimulationUpstreamClient implements UpstreamClient {
 
     private final NodeVersionRepository nodeVersionRepository;
     private final NodeProposalRepository nodeProposalRepository;
+    private final AgentChatRecordRepository agentChatRecordRepository;
     private final TransactionTemplate transactionTemplate;
 
     public SimulationUpstreamClient(NodeVersionRepository nodeVersionRepository,
                                    NodeProposalRepository nodeProposalRepository,
+                                   AgentChatRecordRepository agentChatRecordRepository,
                                    TransactionTemplate transactionTemplate) {
         this.nodeVersionRepository = nodeVersionRepository;
         this.nodeProposalRepository = nodeProposalRepository;
+        this.agentChatRecordRepository = agentChatRecordRepository;
         this.transactionTemplate = transactionTemplate;
     }
 
@@ -110,6 +115,20 @@ public class SimulationUpstreamClient implements UpstreamClient {
 
                 // 模拟对话逻辑
                 String message = request.getMessage();
+                String nodeId = request.getNodeId() != null ? request.getNodeId() : agentId.toString();
+
+                // 保存用户消息到数据库
+                AgentChatRecord userRecord = AgentChatRecord.builder()
+                        .projectId(request.getProjectId())
+                        .agentId(agentId)
+                        .agentName(request.getAgentName())
+                        .agentCode(agentId.toString())
+                        .nodeId(nodeId)
+                        .messageRole("user")
+                        .content(message)
+                        .messageType("text")
+                        .build();
+                agentChatRecordRepository.save(userRecord);
 
                 // 根据 agentId 映射到对应的 ComponentType
                 ComponentType componentType = ComponentType.fromCode(agentId.toString());
@@ -151,6 +170,19 @@ public class SimulationUpstreamClient implements UpstreamClient {
                 emitter.send(SseEmitter.event().name("result").data(String.format(
                         "{\"messageId\":\"msg-%d\",\"contentType\":\"text\",\"delta\":\"%s\",\"seq\":%d,\"eventTime\":\"%s\"}",
                         sessionId, escapeJson(resultContent), seq, getCurrentTime())));
+
+                // 保存助手回复到数据库
+                AgentChatRecord assistantRecord = AgentChatRecord.builder()
+                        .projectId(request.getProjectId())
+                        .agentId(agentId)
+                        .agentName(request.getAgentName())
+                        .agentCode(agentId.toString())
+                        .nodeId(nodeId)
+                        .messageRole("assistant")
+                        .content(resultContent)
+                        .messageType("text")
+                        .build();
+                agentChatRecordRepository.save(assistantRecord);
                 seq++;
 
                 // 如果有图片，发送图片数据

@@ -20,6 +20,7 @@ public class ChatDTO {
         private String agentName;
         private String message;
         private String chatType;
+        private String nodeId;
     }
 
     @Data

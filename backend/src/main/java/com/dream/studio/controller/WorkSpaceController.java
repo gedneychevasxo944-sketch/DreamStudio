@@ -4,10 +4,12 @@ import com.dream.studio.dto.AgentDTO;
 import com.dream.studio.dto.ApiResponse;
 import com.dream.studio.dto.ChatDTO;
 import com.dream.studio.dto.DAGDTO;
+import com.dream.studio.entity.AgentChatRecord;
 import com.dream.studio.entity.User;
 import com.dream.studio.exception.ProjectNotFoundException;
 import com.dream.studio.exception.UserNotFoundException;
 import com.dream.studio.filter.JwtAuthenticationFilter.UserPrincipal;
+import com.dream.studio.repository.AgentChatRecordRepository;
 import com.dream.studio.repository.ProjectRepository;
 import com.dream.studio.repository.UserRepository;
 import com.dream.studio.service.ChatService;
@@ -39,6 +41,7 @@ public class WorkSpaceController {
     private final ChatService chatService;
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
+    private final AgentChatRecordRepository agentChatRecordRepository;
 
     /**
      * 从安全上下文获取当前登录用户
@@ -125,6 +128,34 @@ public class WorkSpaceController {
         log.info("Chat with agent: agentId={}, projectId={}", agentId, request.getProjectId());
         validateProjectOwnership(request.getProjectId());
         return upstreamClient.chatStream(agentId, request);
+    }
+
+    /**
+     * 获取节点的历史对话
+     */
+    @GetMapping("/projects/{projectId}/nodes/{nodeId}/chat-history")
+    @Operation(summary = "获取节点历史对话", description = "获取指定节点的历史对话记录")
+    public ApiResponse<List<ChatDTO.MessageResponse>> getNodeChatHistory(
+            @PathVariable Long projectId,
+            @PathVariable String nodeId) {
+        validateProjectOwnership(projectId);
+
+        List<AgentChatRecord> records = agentChatRecordRepository
+                .findByProjectIdAndNodeIdOrderByCreateTimeAsc(projectId, nodeId);
+
+        List<ChatDTO.MessageResponse> messages = records.stream()
+                .map(record -> ChatDTO.MessageResponse.builder()
+                        .id(record.getId())
+                        .agentId(record.getAgentId())
+                        .agentName(record.getAgentName())
+                        .question(record.getQuestion())
+                        .result(record.getResult())
+                        .createTime(record.getCreateTime() != null ?
+                                record.getCreateTime().toString() : null)
+                        .build())
+                .collect(Collectors.toList());
+
+        return ApiResponse.success(messages);
     }
 
     // ========== 6.6 工作流执行 ==========
