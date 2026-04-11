@@ -696,11 +696,13 @@ const NodeCanvas = ({
   }, [handleGenerateVideoNodes]);
 
   // 执行工作流（带后端API）
-  const executeWorkflowWithBackend = useCallback(async () => {
+  // 执行工作流（后端模式）
+  // mode: 'direct' | 'restart' | 'continue' | 'fromCurrent' | 'currentOnly'
+  const executeWorkflowWithBackend = useCallback(async (mode = 'direct') => {
     // 使用 useWorkflowStore.getState() 获取最新状态，避免闭包问题
     const storeState = useWorkflowStore.getState();
-    const currentNodes = storeState.nodes;
-    const currentConnections = storeState.connections;
+    let currentNodes = storeState.nodes;
+    let currentConnections = storeState.connections;
 
     if (!projectId || currentNodes.length === 0) return;
     setIsRunning(true);
@@ -710,10 +712,80 @@ const NodeCanvas = ({
     setAutoTrackEnabled(true);
 
     const nodeThinkingMap = new Map();
-    const savedExecutionId = localStorage.getItem(`execution_${projectId}`);
-    const executionId = savedExecutionId ? parseInt(savedExecutionId, 10) : null;
+    let savedExecutionId = localStorage.getItem(`execution_${projectId}`);
+    let executionId = savedExecutionId ? parseInt(savedExecutionId, 10) : null;
 
-    console.log('[DEBUG executeWorkflow] calling workSpaceApi.executeWorkflow...');
+    // 根据 mode 过滤 DAG
+    if (mode === 'fromCurrent' && selectedNodeId) {
+      // 从当前节点运行：获取从选中节点向后的所有节点和边
+      const downstreamNodes = new Set();
+      const queue = [selectedNodeId];
+      while (queue.length > 0) {
+        const nodeId = queue.shift();
+        downstreamNodes.add(nodeId);
+        currentConnections.filter(c => c.from === nodeId).forEach(c => {
+          if (!downstreamNodes.has(c.to)) queue.push(c.to);
+        });
+      }
+      currentNodes = currentNodes.filter(n => downstreamNodes.has(n.id));
+      currentConnections = currentConnections.filter(c => downstreamNodes.has(c.from) && downstreamNodes.has(c.to));
+      executionId = null;
+      localStorage.removeItem(`execution_${projectId}`);
+    } else if (mode === 'currentOnly' && selectedNodeId) {
+      // 仅运行当前节点：只发送选中节点，无边
+      currentNodes = currentNodes.filter(n => n.id === selectedNodeId);
+      currentConnections = [];
+      executionId = null;
+      localStorage.removeItem(`execution_${projectId}`);
+    } else if (mode === 'continue') {
+      // 继续运行：跳过已完成的节点
+      const completedNodeIds = new Set(currentNodes.filter(n => n.status === 'completed').map(n => n.id));
+      if (completedNodeIds.size > 0) {
+        // 找到未完成的起始节点（没有前置已完成节点的节点）
+        const hasCompletedUpstream = (nodeId) => {
+          const upstreamConns = currentConnections.filter(c => c.to === nodeId);
+          return upstreamConns.some(c => completedNodeIds.has(c.from));
+        };
+        // 获取需要运行的节点：从已完成节点的下游开始
+        const nodesToRun = new Set();
+        currentNodes.forEach(n => {
+          if (!completedNodeIds.has(n.id)) {
+            // 检查是否有已完成的上游
+            const upstreamConns = currentConnections.filter(c => c.to === n.id);
+            if (upstreamConns.length === 0 || upstreamConns.some(c => completedNodeIds.has(c.from))) {
+              nodesToRun.add(n.id);
+            }
+          }
+        });
+        if (nodesToRun.size > 0) {
+          // 获取需要运行的节点及其下游
+          const allNodesToRun = new Set();
+          const queue = [...nodesToRun];
+          while (queue.length > 0) {
+            const nodeId = queue.shift();
+            allNodesToRun.add(nodeId);
+            currentConnections.filter(c => c.from === nodeId).forEach(c => {
+              if (!completedNodeIds.has(c.to) && !allNodesToRun.has(c.to)) queue.push(c.to);
+            });
+          }
+          currentNodes = currentNodes.filter(n => allNodesToRun.has(n.id));
+          currentConnections = currentConnections.filter(c => allNodesToRun.has(c.from) && allNodesToRun.has(c.to));
+        } else {
+          // 没有需要运行的节点
+          setIsRunning(false);
+          return;
+        }
+      }
+    } else if (mode === 'restart') {
+      // 从头运行：清除保存的 executionId
+      executionId = null;
+      localStorage.removeItem(`execution_${projectId}`);
+    } else if (mode === 'direct') {
+      // 直接运行：如果有保存的 executionId 则继续，否则从头开始
+      if (!executionId) {
+        localStorage.removeItem(`execution_${projectId}`);
+      }
+    }
 
     try {
       const sseConnection = workSpaceApi.executeWorkflow(
@@ -750,6 +822,8 @@ const NodeCanvas = ({
             setIsRunning(false);
             localStorage.removeItem(`execution_${projectId}`);
             sseConnection.close();
+            // 派发工作流完成事件，让 NodeWorkspace 刷新版本列表
+            document.dispatchEvent(new CustomEvent('workflowComplete'));
           } else if (event.type === 'error') {
             setIsRunning(false);
             sseConnection.close();
@@ -760,7 +834,7 @@ const NodeCanvas = ({
     } catch (error) {
       setIsRunning(false);
     }
-  }, [projectId, projectVersion, setIsRunning, batchUpdateNodes, updateNodeStatus, updateNodeData, updateNodeResult, scrollToNode]);
+  }, [projectId, projectVersion, selectedNodeId, setIsRunning, batchUpdateNodes, updateNodeStatus, updateNodeData, updateNodeResult, scrollToNode]);
 
   // 更新 ref 以便在其他回调中使用 executeWorkflowWithBackend
   useEffect(() => {
@@ -768,13 +842,35 @@ const NodeCanvas = ({
   }, [executeWorkflowWithBackend]);
 
   // 运行工作流
-  const simulateRun = useCallback(async () => {
+  // mode: 'direct' | 'restart' | 'continue' | 'fromCurrent' | 'currentOnly'
+  const simulateRun = useCallback(async (mode = 'direct') => {
     if (nodes.length === 0) return;
-    if (projectId) { await executeWorkflowRef.current?.(); return; }
+
+    // 如果有 projectId，调用后端执行
+    if (projectId) {
+      await executeWorkflowRef.current?.(mode);
+      return;
+    }
 
     setIsRunning(true);
-    const startNodes = nodes.filter(node => !connections.some(conn => conn.to === node.id));
-    const nodesToRun = startNodes.length > 0 ? startNodes : [nodes[0]];
+
+    // 计算起始节点
+    let startNodes = [];
+    if (mode === 'fromCurrent' && selectedNodeId) {
+      // 从当前选中节点开始
+      startNodes = [nodes.find(n => n.id === selectedNodeId)].filter(Boolean);
+    } else if (mode === 'currentOnly' && selectedNodeId) {
+      // 仅运行当前节点
+      startNodes = [nodes.find(n => n.id === selectedNodeId)].filter(Boolean);
+    } else if (mode === 'continue') {
+      // 继续运行：跳过已完成的节点
+      startNodes = nodes.filter(node => node.status !== 'completed');
+    } else {
+      // 默认从头开始或直接运行
+      startNodes = nodes.filter(node => !connections.some(conn => conn.to === node.id));
+      if (startNodes.length === 0) startNodes = [nodes[0]];
+    }
+
     const visited = new Set();
 
     const runNode = async (nodeId) => {
@@ -801,7 +897,7 @@ const NodeCanvas = ({
 
     await Promise.all(nodesToRun.map(node => runNode(node.id)));
     setTimeout(() => { nodes.forEach(n => updateNodeStatus(n.id, 'idle')); setIsRunning(false); }, 2000);
-  }, [nodes, connections, projectId, setIsRunning, updateNode, updateNodeData, updateNodeStatus]);
+  }, [nodes, connections, projectId, selectedNodeId, setIsRunning, updateNode, updateNodeData, updateNodeStatus]);
 
   // 清空画布
   const handleClearCanvas = useCallback(() => {

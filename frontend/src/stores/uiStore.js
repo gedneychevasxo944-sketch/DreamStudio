@@ -6,7 +6,7 @@ export const useUIStore = create((set, get) => ({
 
   // 布局状态
   leftWidth: 20,
-  rightWidth: 18,
+  rightWidth: 28,
   leftCollapsed: false,
   rightCollapsed: false,
 

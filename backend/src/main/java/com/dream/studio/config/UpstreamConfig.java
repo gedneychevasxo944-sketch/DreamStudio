@@ -1,5 +1,6 @@
 package com.dream.studio.config;
 
+import com.dream.studio.repository.NodeProposalRepository;
 import com.dream.studio.repository.NodeVersionRepository;
 import com.dream.studio.service.RealUpstreamClient;
 import com.dream.studio.service.SimulationUpstreamClient;
@@ -22,6 +23,7 @@ public class UpstreamConfig {
     private String clientType;
 
     private final NodeVersionRepository nodeVersionRepository;
+    private final NodeProposalRepository nodeProposalRepository;
     private final TransactionTemplate transactionTemplate;
 
     @Bean
@@ -29,6 +31,6 @@ public class UpstreamConfig {
         if ("production".equals(clientType)) {
             return new RealUpstreamClient();
         }
-        return new SimulationUpstreamClient(nodeVersionRepository, transactionTemplate);
+        return new SimulationUpstreamClient(nodeVersionRepository, nodeProposalRepository, transactionTemplate);
     }
 }

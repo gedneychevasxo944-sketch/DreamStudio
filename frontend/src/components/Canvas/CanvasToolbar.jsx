@@ -28,7 +28,6 @@ const CanvasToolbar = ({
   const [showRunMenu, setShowRunMenu] = useState(false);
 
   const runMenuOptions = [
-    { key: 'direct', label: '直接运行', description: '按默认方式运行' },
     { key: 'restart', label: '从头运行', description: '重新运行整个流程' },
     { key: 'continue', label: '继续运行', description: '从受影响节点继续', disabled: !hasStaleNodes },
     { key: 'fromCurrent', label: '从当前节点运行', description: '从选中节点重新开始' },
@@ -46,8 +45,6 @@ const CanvasToolbar = ({
     setShowRunMenu(false);
     if (option.action) {
       option.action();
-    } else if (option.key === 'direct') {
-      if (onRun) onRun();
     } else if (option.key === 'restart') {
       if (onRun) onRun('restart');
     } else if (option.key === 'continue') {

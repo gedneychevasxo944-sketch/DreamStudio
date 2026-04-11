@@ -120,7 +120,7 @@ public class WorkSpaceController {
     @PostMapping(value = "/agents/{agentId}/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @Operation(summary = "智能体对话", description = "与指定智能体进行SSE流式对话")
     public SseEmitter chatStream(
-            @PathVariable Long agentId,
+            @PathVariable String agentId,
             @RequestBody ChatDTO.SendRequest request) {
         log.info("Chat with agent: agentId={}, projectId={}", agentId, request.getProjectId());
         validateProjectOwnership(request.getProjectId());

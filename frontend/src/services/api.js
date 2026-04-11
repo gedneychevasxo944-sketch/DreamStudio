@@ -357,7 +357,7 @@ export const homePageApi = {
  * @returns {Object} 包含 close 方法的对象
  */
 export function sendChatMessageStream(params, callbacks) {
-  const { projectId, projectVersion, agentId, agentName, message } = params;
+  const { projectId, projectVersion, agentId, agentName, message, generation } = params;
 
   const token = getToken();
   const userId = getUserId();
@@ -377,8 +377,10 @@ export function sendChatMessageStream(params, callbacks) {
 
   let closed = false;
   let reader = null;
+  let currentGeneration = generation;
 
-  // 使用新的 /v1/agents/{agentId}/chat/stream 端点
+  closed = false;
+
   fetch(`${API_BASE_URL}/v1/agents/${agentId}/chat/stream`, {
     method: 'POST',
     headers,
@@ -387,7 +389,6 @@ export function sendChatMessageStream(params, callbacks) {
     .then(response => {
       if (!response.ok) {
         closed = true;
-        // Try to parse error response from backend
         response.json().then(errData => {
           const errorMessage = errData.message || `HTTP error! status: ${response.status}`;
           handleAuthError(errorMessage);
@@ -403,19 +404,17 @@ export function sendChatMessageStream(params, callbacks) {
       reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
-      let eventType = 'message';  // 持久化eventType，跨chunk保持
+      let eventType = 'message';
 
       function read() {
         if (closed) return;
 
         reader.read().then(({ done, value }) => {
-          if (done || closed) {
-            return;
-          }
+          if (done || closed) return;
 
           buffer += decoder.decode(value, { stream: true });
           const lines = buffer.split('\n');
-          buffer = lines.pop();  // 剩余不完整的行留在buffer中
+          buffer = lines.pop();
 
           for (const line of lines) {
             const trimmed = line.trim();
@@ -428,8 +427,8 @@ export function sendChatMessageStream(params, callbacks) {
               if (!dataStr) continue;
               try {
                 const data = JSON.parse(dataStr);
-                // 将 eventType 添加到 data 对象中，前端可以通过 event.type 获取事件类型
-                const eventWithType = { ...data, type: eventType };
+                // 保留原始 type 字段，同时存储 eventType
+                const eventWithType = { ...data, eventType };
 
                 switch (eventType) {
                   case 'init':
@@ -454,7 +453,6 @@ export function sendChatMessageStream(params, callbacks) {
                     callbacks.onError?.(eventWithType);
                     break;
                   default:
-                    // 处理老格式数据
                     if (data.step) {
                       callbacks.onThinking?.(eventWithType);
                     } else if (data.resultType !== undefined || data.result !== undefined) {
@@ -488,12 +486,17 @@ export function sendChatMessageStream(params, callbacks) {
     });
 
   return {
-    close: () => {
+    close: (options = {}) => {
+      const { checkGeneration, gen } = options;
+      if (checkGeneration && gen !== currentGeneration) {
+        return;
+      }
       closed = true;
       if (reader) {
         reader.cancel();
       }
     },
+    generation: currentGeneration,
   };
 }
 
@@ -763,6 +766,21 @@ export const teamApi = {
 };
 
 /**
+ * 方案 API
+ */
+export const planApi = {
+  // 获取方案列表
+  getPlans: () => {
+    return request('/v1/plans');
+  },
+
+  // 获取方案详情
+  getPlan: (planId) => {
+    return request(`/v1/plans/${planId}`);
+  },
+};
+
+/**
  * 节点版本 API
  */
 export const nodeVersionApi = {
@@ -837,6 +855,11 @@ export const proposalApi = {
     return request(`/v1/projects/${projectId}/nodes/${nodeId}/proposals/${proposalId}/reject`, {
       method: 'POST',
     });
+  },
+
+  // 获取已应用的提案（用于前端临时展示）
+  getAppliedProposal: (projectId, nodeId) => {
+    return request(`/v1/projects/${projectId}/nodes/${nodeId}/applied-proposal`);
   },
 };
 

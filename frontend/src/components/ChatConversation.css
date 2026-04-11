@@ -59,6 +59,22 @@
   }
 }
 
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 /* 用户消息 - 右侧 */
 .cc-chat-message.user {
   justify-content: flex-end;
@@ -697,13 +713,13 @@
   border-radius: 2px;
 }
 
-/* 提案卡片 */
-.cc-proposal-card {
+/* 提案卡片 - 方案一：紧凑内联型 */
+.cc-proposal-section {
   width: 100%;
-  margin-top: 8px;
-  padding: 14px;
-  background: rgba(99, 102, 241, 0.08);
-  border: 1px solid rgba(99, 102, 241, 0.3);
+  margin-top: 10px;
+  padding: 12px 14px;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.06) 0%, rgba(139, 92, 246, 0.04) 100%);
+  border: 1px solid rgba(99, 102, 241, 0.2);
   border-radius: 10px;
   animation: ccMessageAppear 0.3s ease;
 }
@@ -711,97 +727,98 @@
 .cc-proposal-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 10px;
+  gap: 6px;
+  margin-bottom: 8px;
   color: #6366f1;
 }
 
-.cc-proposal-title {
-  font-weight: 600;
-  font-size: 14px;
-}
-
-.cc-proposal-description {
+.cc-proposal-label {
   font-size: 13px;
-  color: var(--text-secondary);
-  line-height: 1.5;
-  margin-bottom: 12px;
+  font-weight: 500;
+  color: #6366f1;
 }
 
-.cc-proposal-changes {
+.cc-proposal-summary {
+  font-size: 13px;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.cc-proposal-diff-mini {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-bottom: 14px;
-  padding: 10px;
+  gap: 4px;
+  padding: 10px 12px;
   background: var(--bg-tertiary);
-  border-radius: 6px;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  font-size: 12px;
 }
 
-.cc-proposal-change-item {
+.cc-proposal-diff-mini .diff-item {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
+  gap: 8px;
 }
 
-.cc-proposal-change-icon {
-  width: 26px;
-  height: 26px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(99, 102, 241, 0.15);
-  border-radius: 6px;
-  color: #6366f1;
-  flex-shrink: 0;
-}
-
-.cc-proposal-change-content {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.cc-proposal-change-label {
-  font-size: 12px;
+.cc-proposal-diff-mini .diff-label {
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--text-muted);
+  flex-shrink: 0;
+  min-width: 32px;
 }
 
-.cc-proposal-change-desc {
-  font-size: 11px;
-  color: var(--text-muted);
+.cc-proposal-diff-mini .diff-text {
+  color: var(--text-secondary);
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.cc-proposal-diff-mini .diff-arrow {
+  text-align: center;
+  color: #6366f1;
+  font-size: 14px;
+  padding: 2px 0;
 }
 
 .cc-proposal-actions {
   display: flex;
   gap: 8px;
-  justify-content: flex-end;
+  align-items: center;
 }
 
 .cc-proposal-btn {
   display: flex;
   align-items: center;
   gap: 5px;
-  padding: 7px 14px;
+  padding: 6px 12px;
   border-radius: 6px;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
   border: none;
 }
 
-.cc-proposal-btn.reject {
+.cc-proposal-btn.view-full {
   background: transparent;
   border: 1px solid var(--glass-border);
   color: var(--text-muted);
 }
 
+.cc-proposal-btn.view-full:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.cc-proposal-btn.reject {
+  background: transparent;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+}
+
 .cc-proposal-btn.reject:hover {
   background: rgba(239, 68, 68, 0.1);
-  border-color: rgba(239, 68, 68, 0.3);
-  color: #ef4444;
 }
 
 .cc-proposal-btn.apply {
@@ -812,4 +829,116 @@
 .cc-proposal-btn.apply:hover {
   transform: scale(1.02);
   box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+}
+
+.proposal-status-badge {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 4px;
+}
+
+.proposal-status-badge.confirmed {
+  background: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
+}
+
+.proposal-status-badge.rejected {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+/* 提案 diff 弹窗 */
+.cc-proposal-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1001;
+  animation: fadeIn 0.2s ease;
+}
+
+.cc-proposal-modal-content {
+  width: 90%;
+  max-width: 600px;
+  max-height: 80vh;
+  background: var(--bg-primary);
+  border-radius: 12px;
+  overflow: hidden;
+  animation: scaleIn 0.2s ease;
+}
+
+.cc-proposal-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--glass-border);
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.cc-proposal-modal-close {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.cc-proposal-modal-close:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.cc-proposal-modal-body {
+  padding: 18px;
+  overflow-y: auto;
+  max-height: calc(80vh - 60px);
+}
+
+.cc-proposal-modal-section {
+  margin-bottom: 12px;
+}
+
+.cc-proposal-modal-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.cc-proposal-modal-text {
+  padding: 12px;
+  background: var(--bg-tertiary);
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.cc-proposal-modal-text.before {
+  border-left: 3px solid rgba(239, 68, 68, 0.5);
+}
+
+.cc-proposal-modal-text.after {
+  border-left: 3px solid rgba(34, 197, 94, 0.5);
+}
+
+.cc-proposal-modal-arrow {
+  text-align: center;
+  color: #6366f1;
+  font-size: 18px;
+  padding: 6px 0;
 }

@@ -1,9 +1,10 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FileText, MessageCircle, Settings, History, GitBranch, Lock, Unlock, RotateCcw, AlertTriangle, Check, ChevronDown, Play, Palette, PenTool, Video, Code, Users, Layers, List, BookOpen, Zap, Sparkles, Image, X, Target, Loader2 } from 'lucide-react';
+import { FileText, MessageCircle, Settings, History, GitBranch, Lock, Unlock, RotateCcw, AlertTriangle, Check, ChevronDown, ChevronUp, Play, Palette, PenTool, Video, Code, Users, Layers, List, BookOpen, Zap, Sparkles, Image, X, Target, Loader2, Copy, ExternalLink } from 'lucide-react';
 import ChatConversation from './ChatConversation';
 import { formatTimestamp } from './ChatConversation';
-import { nodeVersionApi, proposalApi } from '../services/api';
+import './ChatConversation.css';
+import { nodeVersionApi, proposalApi, chatApi } from '../services/api';
 import './NodeWorkspace.css';
 
 // Tab 图标组件
@@ -22,6 +23,51 @@ const TabIcon = ({ type, size = 16 }) => {
     default:
       return <FileText size={size} />;
   }
+};
+
+// 把技术路径转成用户友好的标签
+const getFieldLabel = (fieldPath) => {
+  const labelMap = {
+    'genParams.quality': '画质',
+    'genParams.duration': '时长',
+    'genParams.model': '模型',
+    'genParams.ratio': '比例',
+    'budget': '预算',
+    'duration': '周期',
+    'style': '风格',
+    'model': '模型',
+    'scene3.description': '场景描述',
+    'shot1.type': '镜头类型',
+    'shot1.duration': '镜头时长',
+  };
+  return labelMap[fieldPath] || fieldPath;
+};
+
+// 根据 fieldPath 修改数据的辅助函数
+const applyFieldChanges = (data, changes) => {
+  if (!changes || !changes.length) return data || {};
+  if (!data) return {};
+
+  const result = JSON.parse(JSON.stringify(data)); // 深拷贝
+
+  changes.forEach(change => {
+    // 后端使用 key，前端期望 fieldPath，兼容两者
+    const fieldPath = change.fieldPath || change.key || '';
+    const after = change.after || change.afterValue;
+    if (!fieldPath) return;
+
+    const keys = fieldPath.split('.');
+    let current = result;
+    for (let i = 0; i < keys.length - 1; i++) {
+      if (current[keys[i]] === undefined) {
+        current[keys[i]] = {};
+      }
+      current = current[keys[i]];
+    }
+    current[keys[keys.length - 1]] = after;
+  });
+
+  return result;
 };
 
 // 剧本解析函数 - 支持集数-场景层级
@@ -100,27 +146,41 @@ const parseScript = (script) => {
 };
 
 // 结果 Tab
-const ResultTab = ({ node, projectId, onGenerateVideo, onRestoreVersion }) => {
+const ResultTab = ({ node, projectId, onGenerateVideo, onRestoreVersion, versionRefreshKey }) => {
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
   const [generatingPrompt, setGeneratingPrompt] = useState(null);
   const [apiVersions, setApiVersions] = useState(null);
   const [currentVersionResult, setCurrentVersionResult] = useState(null);
+  const [appliedProposal, setAppliedProposal] = useState(null);
+  const [modifiedByProposal, setModifiedByProposal] = useState(false);
+  const [modifiedData, setModifiedData] = useState(null);
+  const isFirstMountRef = useRef(true);
 
   useEffect(() => {
     if (!node || !projectId) {
       setApiVersions(null);
       setCurrentVersionResult(null);
+      setModifiedByProposal(false);
+      setAppliedProposal(null);
+      setModifiedData(null);
       return;
     }
 
+    const currentNodeId = node.id;
+    const currentNodeData = node.data ?? {};
+
     const loadVersionData = async () => {
       try {
-        // 并行加载版本列表和当前版本
-        const [versionsRes, currentRes] = await Promise.all([
-          nodeVersionApi.getVersions(projectId, node.id),
-          nodeVersionApi.getCurrentVersion(projectId, node.id)
+        // 并行加载版本列表、当前版本和已应用的提案
+        const [versionsRes, currentRes, appliedProposalRes] = await Promise.all([
+          nodeVersionApi.getVersions(projectId, currentNodeId),
+          nodeVersionApi.getCurrentVersion(projectId, currentNodeId),
+          proposalApi.getAppliedProposal(projectId, currentNodeId)
         ]);
+
+        // 检查 nodeId 是否变化
+        if (currentNodeId !== node?.id) return;
 
         if (versionsRes.data && versionsRes.data.versions) {
           setApiVersions(versionsRes.data.versions);
@@ -131,15 +191,53 @@ const ResultTab = ({ node, projectId, onGenerateVideo, onRestoreVersion }) => {
         if (currentRes.data) {
           setCurrentVersionResult(currentRes.data);
         }
+
+        // 如果有已应用的提案，设置 modifiedByProposal 为 true，并计算修改后的数据
+        if (appliedProposalRes?.data) {
+          setModifiedByProposal(true);
+          setAppliedProposal(appliedProposalRes.data);
+          // 根据提案的 changes 修改 node.data
+          const changes = appliedProposalRes.data.diffJson?.configDiff?.changes || [];
+          console.log('[ResultTab] loaded appliedProposal:', appliedProposalRes.data);
+          console.log('[ResultTab] changes:', changes);
+          console.log('[ResultTab] currentNodeData:', currentNodeData);
+          setModifiedData(applyFieldChanges(currentNodeData, changes));
+        } else {
+          setModifiedByProposal(false);
+          setAppliedProposal(null);
+          setModifiedData(null);
+        }
       } catch (error) {
         console.error('Failed to load version data:', error);
+        if (currentNodeId !== node?.id) return;
         setApiVersions([]);
         setCurrentVersionResult(null);
+        setModifiedByProposal(false);
+        setAppliedProposal(null);
+        setModifiedData(null);
       }
     };
 
     loadVersionData();
-  }, [node, projectId]);
+  }, [node, projectId, versionRefreshKey]);
+
+  // 监听 versionRefreshKey 变化，当版本刷新时显示"已修改"提示
+  // 仅在非首次挂载时（versionRefreshKey 从 0 变为 > 0）才设置 modifiedByProposal
+  useEffect(() => {
+    if (isFirstMountRef.current) {
+      isFirstMountRef.current = false;
+      return;
+    }
+    if (versionRefreshKey > 0) {
+      setModifiedByProposal(true);
+    }
+  }, [versionRefreshKey]);
+
+  // 当节点变化时，重置 firstMountRef，这样新节点的第一次加载不会触发"已修改"
+  useEffect(() => {
+    isFirstMountRef.current = true;
+    setModifiedByProposal(false);
+  }, [node?.id]);
 
   if (!node) {
     return (
@@ -151,6 +249,10 @@ const ResultTab = ({ node, projectId, onGenerateVideo, onRestoreVersion }) => {
       </div>
     );
   }
+
+  // 用于展示的数据，如果有已应用的提案则用修改后的数据
+  const safeNodeData = node?.data ?? {};
+  const displayData = (modifiedData ?? safeNodeData ?? {});
 
   // 处理生成视频
   const handleGenerateVideo = (promptIdx) => {
@@ -171,8 +273,11 @@ const ResultTab = ({ node, projectId, onGenerateVideo, onRestoreVersion }) => {
       }))
     : [];
 
-  // 仅使用API返回的resultText
-  const resultText = currentVersionResult?.resultText || '';
+  // 仅使用API返回的resultText，如果有已应用的提案则用afterText覆盖
+  const resultText = appliedProposal?.diffJson?.textDiff?.afterText
+    || appliedProposal?.diffJson?.afterText
+    || currentVersionResult?.resultText
+    || '';
 
   // 模拟数据
   const currentVersion = currentVersionResult?.versionNo || node.data?.currentVersion || 1;
@@ -234,7 +339,7 @@ const ResultTab = ({ node, projectId, onGenerateVideo, onRestoreVersion }) => {
       case 'visual':
         return (
           <div className="result-section">
-            {node.data.overallStyle && (
+            {displayData.overallStyle && (
               <div className="visual-result-section">
                 <div className="section-header">
                   <Palette size={14} />
@@ -242,17 +347,17 @@ const ResultTab = ({ node, projectId, onGenerateVideo, onRestoreVersion }) => {
                 </div>
                 <textarea
                   className="result-textarea readonly"
-                  value={node.data.overallStyle}
+                  value={displayData.overallStyle}
                   readOnly
                 />
               </div>
             )}
 
-            {node.data.characters?.length > 0 && (
+            {displayData.characters?.length > 0 && (
               <div className="visual-result-section">
                 <div className="section-header">
                   <Users size={14} />
-                  <span>角色 ({node.data.characters.length})</span>
+                  <span>角色 ({displayData.characters.length})</span>
                 </div>
                 <div className="character-table">
                   <div className="character-table-header">
@@ -260,7 +365,7 @@ const ResultTab = ({ node, projectId, onGenerateVideo, onRestoreVersion }) => {
                     <span>描述</span>
                     <span>缩略图</span>
                   </div>
-                  {node.data.characters.map((char, idx) => (
+                  {displayData.characters.map((char, idx) => (
                     <div key={idx} className="character-table-row">
                       <span className="char-name">{char.name}</span>
                       <span className="char-desc">{char.description}</span>
@@ -278,11 +383,11 @@ const ResultTab = ({ node, projectId, onGenerateVideo, onRestoreVersion }) => {
               </div>
             )}
 
-            {node.data.scenes?.length > 0 && (
+            {displayData.scenes?.length > 0 && (
               <div className="visual-result-section">
                 <div className="section-header">
                   <Image size={14} />
-                  <span>场景 ({node.data.scenes.length})</span>
+                  <span>场景 ({displayData.scenes.length})</span>
                 </div>
                 <div className="character-table">
                   <div className="character-table-header">
@@ -290,7 +395,7 @@ const ResultTab = ({ node, projectId, onGenerateVideo, onRestoreVersion }) => {
                     <span>描述</span>
                     <span>缩略图</span>
                   </div>
-                  {node.data.scenes.map((scene, idx) => (
+                  {displayData.scenes.map((scene, idx) => (
                     <div key={idx} className="character-table-row">
                       <span className="char-name">{scene.name}</span>
                       <span className="char-desc">{scene.description}</span>
@@ -308,11 +413,11 @@ const ResultTab = ({ node, projectId, onGenerateVideo, onRestoreVersion }) => {
               </div>
             )}
 
-            {node.data.props?.length > 0 && (
+            {displayData.props?.length > 0 && (
               <div className="visual-result-section">
                 <div className="section-header">
                   <Layers size={14} />
-                  <span>物品 ({node.data.props.length})</span>
+                  <span>物品 ({displayData.props.length})</span>
                 </div>
                 <div className="character-table">
                   <div className="character-table-header">
@@ -320,7 +425,7 @@ const ResultTab = ({ node, projectId, onGenerateVideo, onRestoreVersion }) => {
                     <span>描述</span>
                     <span>缩略图</span>
                   </div>
-                  {node.data.props.map((prop, idx) => (
+                  {displayData.props.map((prop, idx) => (
                     <div key={idx} className="character-table-row">
                       <span className="char-name">{prop.name}</span>
                       <span className="char-desc">{prop.description}</span>
@@ -338,7 +443,7 @@ const ResultTab = ({ node, projectId, onGenerateVideo, onRestoreVersion }) => {
               </div>
             )}
 
-            {!node.data.overallStyle && !node.data.characters?.length && !node.data.scenes?.length && !node.data.props?.length && (
+            {!displayData.overallStyle && !displayData.characters?.length && !displayData.scenes?.length && !displayData.props?.length && (
               <div className="result-empty"><p>暂无结果内容</p></div>
             )}
           </div>
@@ -351,7 +456,7 @@ const ResultTab = ({ node, projectId, onGenerateVideo, onRestoreVersion }) => {
               <Video size={14} />
               <span>分镜表格</span>
             </div>
-            {node.data.storyboards?.length > 0 ? (
+            {displayData.storyboards?.length > 0 ? (
               <div className="storyboard-table">
                 <div className="storyboard-table-header">
                   <span>镜号</span>
@@ -361,7 +466,7 @@ const ResultTab = ({ node, projectId, onGenerateVideo, onRestoreVersion }) => {
                   <span>时长</span>
                   <span>关键帧</span>
                 </div>
-                {node.data.storyboards.map((sb, idx) => (
+                {displayData.storyboards.map((sb, idx) => (
                   <div key={idx} className="storyboard-table-row">
                     <span className="shot-number">{sb.shotNumber}</span>
                     <span className="shot-angle">{sb.angle}</span>
@@ -392,7 +497,7 @@ const ResultTab = ({ node, projectId, onGenerateVideo, onRestoreVersion }) => {
               <Code size={14} />
               <span>视频提示词</span>
             </div>
-            {node.data.prompts?.length > 0 ? (
+            {displayData.prompts?.length > 0 ? (
               <div className="prompt-table">
                 <div className="prompt-table-header">
                   <span>镜号</span>
@@ -401,7 +506,7 @@ const ResultTab = ({ node, projectId, onGenerateVideo, onRestoreVersion }) => {
                   <span>关键帧</span>
                   <span>操作</span>
                 </div>
-                {node.data.prompts.map((p, idx) => (
+                {displayData.prompts.map((p, idx) => (
                   <div key={idx} className="prompt-table-row">
                     <span className="prompt-shot-number">{p.shotNumber}</span>
                     <span className="prompt-text">{p.prompt}</span>
@@ -441,7 +546,7 @@ const ResultTab = ({ node, projectId, onGenerateVideo, onRestoreVersion }) => {
       case 'videoGen':
         return (
           <div className="result-section">
-            {node.data.videoPrompt && (
+            {displayData.videoPrompt && (
               <div className="video-gen-section">
                 <div className="section-header">
                   <FileText size={14} />
@@ -449,13 +554,13 @@ const ResultTab = ({ node, projectId, onGenerateVideo, onRestoreVersion }) => {
                 </div>
                 <textarea
                   className="result-textarea readonly"
-                  value={node.data.videoPrompt}
+                  value={displayData.videoPrompt}
                   readOnly
                 />
               </div>
             )}
 
-            {node.data.genParams && (
+            {displayData.genParams && (
               <div className="video-gen-section">
                 <div className="section-header">
                   <Zap size={14} />
@@ -464,32 +569,32 @@ const ResultTab = ({ node, projectId, onGenerateVideo, onRestoreVersion }) => {
                 <div className="gen-params-table">
                   <div className="gen-params-row">
                     <span className="param-label">模型</span>
-                    <span className="param-value">{node.data.genParams.model}</span>
+                    <span className="param-value">{displayData.genParams.model}</span>
                   </div>
                   <div className="gen-params-row">
                     <span className="param-label">画质</span>
-                    <span className="param-value">{node.data.genParams.quality}</span>
+                    <span className="param-value">{displayData.genParams.quality}</span>
                   </div>
                   <div className="gen-params-row">
                     <span className="param-label">比例</span>
-                    <span className="param-value">{node.data.genParams.ratio}</span>
+                    <span className="param-value">{displayData.genParams.ratio}</span>
                   </div>
                   <div className="gen-params-row">
                     <span className="param-label">时长</span>
-                    <span className="param-value">{node.data.genParams.duration}</span>
+                    <span className="param-value">{displayData.genParams.duration}</span>
                   </div>
                 </div>
               </div>
             )}
 
-            {node.data.videos?.length > 0 && (
+            {displayData.videos?.length > 0 && (
               <div className="video-gen-section">
                 <div className="section-header">
                   <Play size={14} />
                   <span>视频预览</span>
                 </div>
                 <div className="video-preview-container">
-                  {node.data.videos.map((video, idx) => (
+                  {displayData.videos.map((video, idx) => (
                     <div key={idx} className="video-item">
                       <div className="video-info">
                         <span className="video-title">{video.title || `视频 ${idx + 1}`}</span>
@@ -513,7 +618,7 @@ const ResultTab = ({ node, projectId, onGenerateVideo, onRestoreVersion }) => {
             )}
 
             {/* 单个视频预览 - videoPreview 是字符串URL */}
-            {node.data.videoPreview && !node.data.videos?.length && (
+            {displayData.videoPreview && !displayData.videos?.length && (
               <div className="video-gen-section">
                 <div className="section-header">
                   <Play size={14} />
@@ -521,7 +626,7 @@ const ResultTab = ({ node, projectId, onGenerateVideo, onRestoreVersion }) => {
                 </div>
                 <div className="video-preview-container">
                   <video
-                    src={node.data.videoPreview}
+                    src={displayData.videoPreview}
                     controls
                     className="video-player"
                     preload="metadata"
@@ -530,7 +635,7 @@ const ResultTab = ({ node, projectId, onGenerateVideo, onRestoreVersion }) => {
               </div>
             )}
 
-            {!node.data.videoPrompt && !node.data.genParams && !node.data.videos?.length && !node.data.videoPreview && (
+            {!displayData.videoPrompt && !displayData.genParams && !displayData.videos?.length && !displayData.videoPreview && (
               <div className="result-empty"><p>暂无结果内容</p></div>
             )}
           </div>
@@ -541,11 +646,11 @@ const ResultTab = ({ node, projectId, onGenerateVideo, onRestoreVersion }) => {
           <div className="result-section">
             <div className="section-header">
               <Video size={14} />
-              <span>待剪辑视频 ({node.data.videos?.length || 0})</span>
+              <span>待剪辑视频 ({displayData.videos?.length || 0})</span>
             </div>
-            {node.data.videos?.length > 0 ? (
+            {displayData.videos?.length > 0 ? (
               <div className="video-list">
-                {node.data.videos.map((video, idx) => (
+                {displayData.videos.map((video, idx) => (
                   <div key={idx} className="video-list-item">
                     <span className="video-name">{video.name || `视频 ${idx + 1}`}</span>
                     <span className="video-duration">{video.duration}</span>
@@ -565,17 +670,17 @@ const ResultTab = ({ node, projectId, onGenerateVideo, onRestoreVersion }) => {
               <FileText size={14} />
               <span>结果内容</span>
             </div>
-            {node.data.result ? (
-              <textarea className="result-textarea readonly" value={node.data.result} readOnly />
-            ) : node.data.imageUrl ? (
+            {displayData.result ? (
+              <textarea className="result-textarea readonly" value={displayData.result} readOnly />
+            ) : displayData.imageUrl ? (
               <img
-                src={node.data.imageUrl}
+                src={displayData.imageUrl}
                 alt={node.name}
                 className="result-image-full"
-                onClick={() => setPreviewImage({ src: node.data.imageUrl, alt: node.name })}
+                onClick={() => setPreviewImage({ src: displayData.imageUrl, alt: node.name })}
               />
-            ) : node.data.videoUrl ? (
-              <video src={node.data.videoUrl} controls className="result-video-full" />
+            ) : displayData.videoUrl ? (
+              <video src={displayData.videoUrl} controls className="result-video-full" />
             ) : (
               <div className="result-empty"><p>暂无结果内容</p></div>
             )}
@@ -595,6 +700,24 @@ const ResultTab = ({ node, projectId, onGenerateVideo, onRestoreVersion }) => {
               <RotateCcw size={10} />
               修订版
             </span>
+          )}
+          {modifiedByProposal && (
+            <>
+              <span className="modified-badge">
+                <Sparkles size={10} />
+                已修改
+              </span>
+              <button
+                className="discard-modified-btn"
+                onClick={() => {
+                  setModifiedByProposal(false);
+                  setAppliedProposal(null);
+                  setModifiedData(null);
+                }}
+              >
+                放弃
+              </button>
+            </>
           )}
           {isLocked && (
             <span className="locked-badge">
@@ -700,39 +823,21 @@ const ResultTab = ({ node, projectId, onGenerateVideo, onRestoreVersion }) => {
 };
 
 // 对话 Tab
-const ChatTab = ({ node, projectId, onApplyProposal, onRegenerateProposal, onRejectProposal, onApplySuccess }) => {
-  const [messages, setMessages] = useState([]);
+const ChatTab = ({ node, projectId, messages, setMessages, onApplyProposal, onRegenerateProposal, onRejectProposal, onApplySuccess, applyingProposalId, setApplyingProposalId }) => {
   const [inputValue, setInputValue] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
   const [diffModalOpen, setDiffModalOpen] = useState(false);
-  const [currentProposal, setCurrentProposal] = useState(null);
+  const [modalProposal, setModalProposal] = useState(null);
+  const messagesEndRef = useRef(null);
 
-  // 加载提案数据
+  // 自动滚动到底部
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  // 监听 messages 变化，自动滚动
   useEffect(() => {
-    if (!node || !projectId) {
-      setCurrentProposal(null);
-      return;
-    }
-
-    const loadProposals = async () => {
-      try {
-        const response = await proposalApi.getProposals(projectId, node.id);
-        if (response.data && response.data.proposals && response.data.proposals.length > 0) {
-          setCurrentProposal(response.data.proposals[0]);
-        } else {
-          setCurrentProposal(null);
-        }
-      } catch (error) {
-        console.error('Failed to load proposals:', error);
-        setCurrentProposal(null);
-      }
-    };
-
-    loadProposals();
-  }, [node, projectId]);
-
-  const proposalStatus = currentProposal?.status || 'pending';
-  const hasProposal = !!currentProposal;
+    scrollToBottom();
+  }, [messages]);
 
   if (!node) {
     return (
@@ -747,121 +852,256 @@ const ChatTab = ({ node, projectId, onApplyProposal, onRegenerateProposal, onRej
 
   const handleSend = () => {
     if (!inputValue.trim()) return;
-    const newMessages = [...messages, { role: 'user', content: inputValue }];
+    const userMessage = { role: 'user', content: inputValue };
+    const assistantMessage = { role: 'assistant', content: '', thinking: '', result: '', proposal: null };
+    const newMessages = [...messages, userMessage, assistantMessage];
     setMessages(newMessages);
     setInputValue('');
-    setIsTyping(true);
 
-    // TODO: 调用后端API发送消息并获取AI回复
-    // 暂时保留本地模拟逻辑
-    setTimeout(() => {
-      setIsTyping(false);
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: '消息已发送，请等待后端AI处理...'
-      }]);
-    }, 1500);
-  };
-
-  const handleApplyProposal = () => {
-    if (proposalStatus !== 'pending') return;
-    onApplyProposal?.(node.id, currentProposal?.id);
-    onApplySuccess?.();
-  };
-
-  const handleReject = () => {
-    if (proposalStatus !== 'pending') return;
-    onRejectProposal?.(node.id, currentProposal?.id);
-  };
-
-  const handleViewFullDiff = () => {
-    if (currentProposal?.diffJson) {
-      setDiffModalOpen(true);
+    // 获取 agentId
+    const agentId = node.agentId || node.agentCode || node.type;
+    if (!agentId) {
+      setMessages(prev => prev.map((msg, idx) =>
+        idx === prev.length - 1
+          ? { ...msg, content: '[错误: 节点缺少 agentId]' }
+          : msg
+      ));
+      return;
     }
+
+    // 调用后端API发送消息并获取AI回复
+    chatApi.sendMessageStream(
+      {
+        projectId,
+        projectVersion: null,
+        agentId: String(agentId),
+        agentName: node.agentCode || node.type || String(agentId),
+        message: inputValue.trim(),
+      },
+      {
+        onThinking: (data) => {
+          setMessages(prev => prev.map((msg, idx) =>
+            idx === prev.length - 1 && msg.role === 'assistant'
+              ? { ...msg, thinking: (msg.thinking || '') + (data.delta || '') }
+              : msg
+          ));
+        },
+        onResult: (data) => {
+          setMessages(prev => prev.map((msg, idx) =>
+            idx === prev.length - 1 && msg.role === 'assistant'
+              ? { ...msg, content: data.delta || '', result: data.delta || '', resultType: data.contentType || 'text' }
+              : msg
+          ));
+        },
+        onData: (data) => {
+          // 解析提案数据
+          if (data.type === 'proposal' && data.proposal) {
+            setMessages(prev => prev.map((msg, idx) =>
+              idx === prev.length - 1 && msg.role === 'assistant'
+                ? { ...msg, proposal: data.proposal }
+                : msg
+            ));
+          }
+          // 解析图片数据
+          if (data.type === 'image' && data.items) {
+            setMessages(prev => prev.map((msg, idx) =>
+              idx === prev.length - 1 && msg.role === 'assistant'
+                ? { ...msg, imageUrls: [...(msg.imageUrls || []), ...data.items] }
+                : msg
+            ));
+          }
+          // 解析视频数据
+          if (data.type === 'video' && data.items) {
+            setMessages(prev => prev.map((msg, idx) =>
+              idx === prev.length - 1 && msg.role === 'assistant'
+                ? { ...msg, videoItems: [...(msg.videoItems || []), ...data.items] }
+                : msg
+            ));
+          }
+        },
+        onComplete: () => {
+          // nothing special needed
+        },
+        onError: (error) => {
+          setMessages(prev => prev.map((msg, idx) =>
+            idx === prev.length - 1 && msg.role === 'assistant'
+              ? { ...msg, content: '[错误: ' + (error.message || '未知错误') + ']' }
+              : msg
+          ));
+        },
+      }
+    );
   };
 
-  // 获取diff文本（兼容不同结构）
-  const getDiffBefore = () => {
-    if (!currentProposal?.diffJson) return '';
-    return currentProposal.diffJson.textDiff?.beforeText ||
-           currentProposal.diffJson.beforeText || '';
-  };
+  // 获取diff变更列表（兼容不同格式）
+  const getDiffChanges = (proposal) => {
+    console.log('[getDiffChanges] proposal:', proposal);
+    if (!proposal?.diffJson) return [];
 
-  const getDiffAfter = () => {
-    if (!currentProposal?.diffJson) return '';
-    return currentProposal.diffJson.textDiff?.afterText ||
-           currentProposal.diffJson.afterText || '';
+    // configDiff 格式（新的通用格式）
+    if (proposal.diffJson.configDiff?.changes && Array.isArray(proposal.diffJson.configDiff.changes)) {
+      return proposal.diffJson.configDiff.changes.map(change => ({
+        fieldPath: change.key || '',
+        before: change.beforeValue || '',
+        after: change.afterValue || ''
+      }));
+    }
+
+    // textDiff 格式（旧格式）
+    if (proposal.diffJson.textDiff) {
+      return [{
+        fieldPath: '',
+        before: proposal.diffJson.textDiff.beforeText || '',
+        after: proposal.diffJson.textDiff.afterText || ''
+      }];
+    }
+
+    return [];
   };
 
   return (
     <div className="workspace-tab-content chat-tab">
       {/* 对话消息列表 */}
-      <div className="chat-messages">
+      <div className="cc-messages">
         {messages.map((msg, idx) => {
-          // 检查是否是最后一条助手消息且有待应用的提案
-          const isLastAssistantMsg = msg.role === 'assistant' && idx === messages.length - 1 && hasProposal;
+          if (msg.role === 'user') {
+            return (
+              <div key={idx} className="cc-chat-message user">
+                <div className="cc-message-wrapper user">
+                  <div className="cc-message-header-row user">
+                    <div className="cc-message-avatar">
+                      <div className="user-avatar-icon">👤</div>
+                    </div>
+                    <span className="cc-message-sender">用户</span>
+                  </div>
+                  <div className="cc-message-body">
+                    <div className="cc-result-text">{msg.content}</div>
+                  </div>
+                </div>
+              </div>
+            );
+          }
+
+          // Assistant message
+          const hasResult = msg.result || msg.content;
+          const hasThinking = msg.thinking && msg.thinking.length > 0;
+          const isLastAssistant = idx === messages.length - 1;
+          const msgProposal = msg.proposal;
+          const msgProposalStatus = msgProposal?.status || 'pending';
 
           return (
-            <div key={idx} className={`chat-message ${msg.role}`}>
-              <div className="message-avatar">
-                {msg.role === 'user' ? '👤' : '🤖'}
-              </div>
-              <div className="message-content">
-                {msg.content}
-                {/* 提案卡片内嵌在最后一条助手消息里 */}
-                {isLastAssistantMsg && currentProposal && (
-                  <div className="inline-proposal-card">
-                    <div className="inline-proposal-header">
-                      <GitBranch size={14} />
-                      <span className="inline-proposal-title">建议修改：{currentProposal.summary}</span>
-                    </div>
-                    {currentProposal.diffJson?.textDiff && (
-                      <div className="inline-proposal-diff">
-                        <div className="diff-row">
-                          <span className="diff-label">原版：</span>
-                          <span className="diff-text before">{getDiffBefore()}</span>
-                        </div>
-                        <div className="diff-row">
-                          <span className="diff-label">新版：</span>
-                          <span className="diff-text after">{getDiffAfter()}</span>
-                        </div>
-                      </div>
-                    )}
-                    <div className="inline-proposal-actions">
-                      <button className="inline-proposal-btn view-full" onClick={handleViewFullDiff}>查看完整diff</button>
-                      {proposalStatus === 'pending' ? (
-                        <>
-                          <button className="inline-proposal-btn reject" onClick={handleReject}>暂不采纳</button>
-                          <button className="inline-proposal-btn apply" onClick={handleApplyProposal}>确认应用</button>
-                        </>
-                      ) : (
-                        <div className={`proposal-status-badge ${proposalStatus}`}>
-                          {proposalStatus === 'confirmed' ? '✓ 已确认' : '✗ 已拒绝'}
-                        </div>
-                      )}
-                    </div>
+            <div key={idx} className="cc-chat-message assistant">
+              <div className="cc-message-wrapper assistant">
+                <div className="cc-message-header-row assistant">
+                  <div className="cc-message-avatar">
+                    <div className="assistant-avatar-icon">🤖</div>
                   </div>
-                )}
+                  <span className="cc-message-sender">助理</span>
+                </div>
+                <div className="cc-message-body">
+                  {/* 思考过程 */}
+                  {hasThinking && (
+                    <div className="cc-thinking-section expanded">
+                      <button className="cc-thinking-toggle" disabled>
+                        <Sparkles size={12} />
+                        <span>思考过程</span>
+                        <ChevronUp size={14} />
+                      </button>
+                      <div className="cc-thinking-content">
+                        {msg.thinking}
+                      </div>
+                    </div>
+                  )}
+                  {/* 结果内容 */}
+                  {hasResult && (
+                    <div className="cc-result-section">
+                      <div className="cc-result-content">
+                        <div className="cc-result-text">{msg.result || msg.content}</div>
+                        {/* 提案卡片 - 在结果内容里 */}
+                        {msgProposal && (
+                          <div className="cc-proposal-section">
+                            <div className="cc-proposal-header">
+                              <GitBranch size={14} />
+                              <span className="cc-proposal-label">建议修改：</span>
+                              <span className="cc-proposal-summary">{msgProposal.summary}</span>
+                            </div>
+                            {msgProposal.diffJson && (() => {
+                                const changes = getDiffChanges(msgProposal);
+                                return (
+                                  <div className="cc-proposal-diff-mini">
+                                    {changes.length === 1 ? (
+                                      <>
+                                        <div className="diff-item">
+                                          <span className="diff-label">原版：</span>
+                                          <span className="diff-text">{changes[0].before}</span>
+                                        </div>
+                                        <div className="diff-arrow">→</div>
+                                        <div className="diff-item">
+                                          <span className="diff-label">新版：</span>
+                                          <span className="diff-text">{changes[0].after}</span>
+                                        </div>
+                                      </>
+                                    ) : (
+                                      changes.map((change, idx) => (
+                                        <div key={idx} className="diff-change-item">
+                                          <span className="diff-field">{getFieldLabel(change.fieldPath)}：</span>
+                                          <span className="diff-before">{change.before}</span>
+                                          <span className="diff-arrow">→</span>
+                                          <span className="diff-after">{change.after}</span>
+                                        </div>
+                                      ))
+                                    )}
+                                  </div>
+                                );
+                              })()}
+                            <div className="cc-proposal-actions">
+                              <button className="cc-proposal-btn view-full" onClick={() => { setModalProposal(msgProposal); setDiffModalOpen(true); }}>查看完整diff</button>
+                              {msgProposalStatus.toUpperCase() === 'PENDING' ? (
+                                <>
+                                  <button className="cc-proposal-btn reject" onClick={() => { onRejectProposal?.(msgProposal.nodeId, msgProposal.id); }} disabled={applyingProposalId !== null}>暂不采纳</button>
+                                  <button className="cc-proposal-btn apply" onClick={() => {
+                                    // 先更新本地状态为APPLYING，禁用按钮
+                                    setApplyingProposalId(msgProposal.id);
+                                    onApplyProposal?.(msgProposal.nodeId, msgProposal.id);
+                                    onApplySuccess?.(msgProposal.id);
+                                    // 延迟重置状态
+                                    setTimeout(() => setApplyingProposalId(null), 3000);
+                                  }} disabled={applyingProposalId !== null}>{applyingProposalId === msgProposal.id ? '应用中...' : '确认应用'}</button>
+                                </>
+                              ) : (
+                                <div className={`proposal-status-badge ${msgProposalStatus}`}>
+                                  {msgProposalStatus.toUpperCase() === 'APPLIED' ? '✓ 已确认' : msgProposalStatus.toUpperCase() === 'REJECTED' ? '✗ 已拒绝' : msgProposalStatus}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      <div className="cc-result-actions">
+                        <button className="cc-result-action-btn" onClick={() => { if (msgProposal?.diffJson) { setModalProposal(msgProposal); setDiffModalOpen(true); } }}>
+                          <ExternalLink size={12} />
+                          弹窗查看
+                        </button>
+                        <button className="cc-result-action-btn" onClick={() => navigator.clipboard.writeText(msg.result || msg.content)}>
+                          <Copy size={12} />
+                          复制
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           );
         })}
-        {isTyping && (
-          <div className="chat-message assistant">
-            <div className="message-avatar">🤖</div>
-            <div className="message-content typing">
-              <span className="typing-dot"></span>
-              <span className="typing-dot"></span>
-              <span className="typing-dot"></span>
-            </div>
-          </div>
-        )}
+        {/* 用于自动滚动到底部的锚点 */}
+        <div ref={messagesEndRef} />
       </div>
 
       {/* 对话输入框 */}
-      <div className="chat-input-area">
+      <div className="cc-input-area">
         <textarea
-          className="chat-input"
+          className="cc-input"
           placeholder="输入修改指令..."
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
@@ -872,44 +1112,49 @@ const ChatTab = ({ node, projectId, onApplyProposal, onRegenerateProposal, onRej
             }
           }}
         />
-        <button className="chat-send-btn" onClick={handleSend}>
+        <button className="cc-send-btn" onClick={handleSend}>
           发送
         </button>
       </div>
 
       {/* Diff 弹窗 */}
       <AnimatePresence>
-        {diffModalOpen && currentProposal?.diff && (
+        {diffModalOpen && modalProposal?.diffJson && (
           <motion.div
-            className="diff-modal-overlay"
+            className="cc-proposal-modal-overlay"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setDiffModalOpen(false)}
           >
             <motion.div
-              className="diff-modal-content"
+              className="cc-proposal-modal-content"
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="diff-modal-header">
+              <div className="cc-proposal-modal-header">
                 <span>完整 Diff</span>
-                <button className="diff-modal-close" onClick={() => setDiffModalOpen(false)}>
+                <button className="cc-proposal-modal-close" onClick={() => setDiffModalOpen(false)}>
                   <X size={18} />
                 </button>
               </div>
-              <div className="diff-modal-body">
-                <div className="diff-modal-section">
-                  <div className="diff-modal-label">原版</div>
-                  <div className="diff-modal-text before">{currentProposal.diff.before}</div>
-                </div>
-                <div className="diff-modal-arrow">↓</div>
-                <div className="diff-modal-section">
-                  <div className="diff-modal-label">新版</div>
-                  <div className="diff-modal-text after">{currentProposal.diff.after}</div>
-                </div>
+              <div className="cc-proposal-modal-body">
+                {getDiffChanges(modalProposal).map((change, idx) => (
+                  <div key={idx} className="cc-proposal-modal-change">
+                    <div className="cc-proposal-modal-field">{getFieldLabel(change.fieldPath)}</div>
+                    <div className="cc-proposal-modal-section">
+                      <div className="cc-proposal-modal-label">原版</div>
+                      <div className="cc-proposal-modal-text before">{change.before}</div>
+                    </div>
+                    <div className="cc-proposal-modal-arrow">↓</div>
+                    <div className="cc-proposal-modal-section">
+                      <div className="cc-proposal-modal-label">新版</div>
+                      <div className="cc-proposal-modal-text after">{change.after}</div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </motion.div>
           </motion.div>
@@ -1137,7 +1382,7 @@ const ConfigTab = ({ node, onNodeUpdate }) => {
 };
 
 // 运行记录 Tab
-const HistoryTab = ({ node, projectId }) => {
+const HistoryTab = ({ node, projectId, versionRefreshKey }) => {
   const [runRecords, setRunRecords] = useState([]);
   const [expandedRecord, setExpandedRecord] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -1174,7 +1419,7 @@ const HistoryTab = ({ node, projectId }) => {
     };
 
     loadHistory();
-  }, [node, projectId]);
+  }, [node, projectId, versionRefreshKey]);
 
   if (!node) {
     return (
@@ -1369,10 +1614,65 @@ const NodeWorkspace = ({
   upstreamNodes = []
 }) => {
   const [activeTab, setActiveTab] = useState('result');
+  const [versionRefreshKey, setVersionRefreshKey] = useState(0);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [applyingProposalId, setApplyingProposalId] = useState(null);
 
-  // 聊天提案应用成功 - 切换到结果Tab
-  const handleChatApplySuccess = useCallback(() => {
+  // 聊天提案应用成功 - 切换到结果Tab，更新messages里的proposal状态
+  const handleChatApplySuccess = useCallback((proposalId) => {
+    // 更新messages里对应proposal的状态为APPLIED
+    setChatMessages(prev => prev.map(msg => {
+      if (msg.proposal && msg.proposal.id === proposalId) {
+        return {
+          ...msg,
+          proposal: {
+            ...msg.proposal,
+            status: 'APPLIED'
+          }
+        };
+      }
+      return msg;
+    }));
     setActiveTab('result');
+  }, []);
+
+  // 处理重新运行 - 只调用 onRerunFromNode，不在这里递增 versionRefreshKey
+  const handleRerunAndRefresh = useCallback((nodeId) => {
+    onRerunFromNode?.(nodeId);
+  }, [onRerunFromNode]);
+
+  // 监听工作流完成事件，在完成后刷新版本列表
+  useEffect(() => {
+    const handleWorkflowComplete = () => {
+      setVersionRefreshKey(k => k + 1);
+    };
+    const handleProposalApplied = () => {
+      setVersionRefreshKey(k => k + 1);
+    };
+    const handleProposalRejected = (e) => {
+      const { proposalId } = e.detail;
+      // 更新messages里对应proposal的状态为REJECTED
+      setChatMessages(prev => prev.map(msg => {
+        if (msg.proposal && msg.proposal.id === proposalId) {
+          return {
+            ...msg,
+            proposal: {
+              ...msg.proposal,
+              status: 'REJECTED'
+            }
+          };
+        }
+        return msg;
+      }));
+    };
+    document.addEventListener('workflowComplete', handleWorkflowComplete);
+    document.addEventListener('proposalApplied', handleProposalApplied);
+    document.addEventListener('proposalRejected', handleProposalRejected);
+    return () => {
+      document.removeEventListener('workflowComplete', handleWorkflowComplete);
+      document.removeEventListener('proposalApplied', handleProposalApplied);
+      document.removeEventListener('proposalRejected', handleProposalRejected);
+    };
   }, []);
 
   const tabs = [
@@ -1390,22 +1690,27 @@ const NodeWorkspace = ({
       projectId={projectId}
       onGenerateVideo={onGenerateVideo}
       onRestoreVersion={onRestoreVersion}
+      versionRefreshKey={versionRefreshKey}
     />,
     chat: <ChatTab
       node={selectedNode}
       projectId={projectId}
+      messages={chatMessages}
+      setMessages={setChatMessages}
       onApplyProposal={onApplyProposal}
       onRegenerateProposal={onRegenerateProposal}
       onRejectProposal={onRejectProposal}
       onApplySuccess={handleChatApplySuccess}
+      applyingProposalId={applyingProposalId}
+      setApplyingProposalId={setApplyingProposalId}
     />,
     config: <ConfigTab node={selectedNode} onNodeUpdate={onNodeUpdate} />,
-    history: <HistoryTab node={selectedNode} projectId={projectId} />,
+    history: <HistoryTab node={selectedNode} projectId={projectId} versionRefreshKey={versionRefreshKey} />,
     impact: <ImpactTab
       node={selectedNode}
       downstreamNodes={downstreamNodes}
       upstreamNodes={upstreamNodes}
-      onRerunFromNode={onRerunFromNode}
+      onRerunFromNode={handleRerunAndRefresh}
       onViewFullImpact={onViewFullImpact}
     />,
   };

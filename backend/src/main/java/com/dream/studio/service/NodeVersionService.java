@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -59,6 +60,17 @@ public class NodeVersionService {
                 .orElseThrow(() -> new InvalidOperationException("No current version found for node: " + nodeId));
 
         return toVersionDetail(version);
+    }
+
+    /**
+     * 获取当前版本（返回 Optional）
+     */
+    @Transactional(readOnly = true)
+    public Optional<NodeVersionDTO.VersionDetail> getCurrentVersionOptional(Long projectId, String nodeId) {
+        log.info("Getting current version (optional) for project: {}, node: {}", projectId, nodeId);
+
+        return nodeVersionRepository.findByProjectIdAndNodeIdAndIsCurrent(projectId, nodeId, true)
+                .map(this::toVersionDetail);
     }
 
     /**

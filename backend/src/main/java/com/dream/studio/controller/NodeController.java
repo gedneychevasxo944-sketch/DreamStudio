@@ -92,13 +92,8 @@ public class NodeController {
         log.info("Getting current version for project: {}, node: {}", projectId, nodeId);
         validateProjectOwnership(projectId);
 
-        try {
-            NodeVersionDTO.VersionDetail response = nodeVersionService.getCurrentVersion(projectId, nodeId);
-            return ApiResponse.success(response);
-        } catch (Exception e) {
-            // 如果没有真实数据，返回模拟数据
-            return ApiResponse.success(mockDataService.getMockCurrentVersion(projectId, nodeId));
-        }
+        NodeVersionDTO.VersionDetail response = nodeVersionService.getCurrentVersion(projectId, nodeId);
+        return ApiResponse.success(response);
     }
 
     /**
@@ -263,5 +258,19 @@ public class NodeController {
 
         nodeProposalService.rejectProposal(projectId, nodeId, proposalId);
         return ApiResponse.success(null);
+    }
+
+    /**
+     * 获取节点已应用的提案
+     */
+    @GetMapping("/projects/{projectId}/nodes/{nodeId}/applied-proposal")
+    @Operation(summary = "获取已应用的提案", description = "获取节点已应用的提案，用于前端临时展示")
+    public ApiResponse<NodeProposalDTO.ProposalDetail> getAppliedProposal(
+            @PathVariable Long projectId,
+            @PathVariable String nodeId) {
+        validateProjectOwnership(projectId);
+
+        NodeProposalDTO.ProposalDetail detail = nodeProposalService.getAppliedProposal(projectId, nodeId);
+        return ApiResponse.success(detail);
     }
 }

@@ -5,59 +5,6 @@ import { Send, Bot, User, Copy, X, ExternalLink, Check, Sparkles, ChevronUp, Che
 import { chatApi } from '../services/api';
 import './ChatConversation.css';
 
-
-// 提案卡片组件
-const ProposalCard = ({ proposal, onApply, onReject }) => {
-  const getActionIcon = (action) => {
-    switch (action) {
-      case 'add_node': return <Plus size={14} />;
-      case 'remove_node': return <Trash2 size={14} />;
-      case 'update_config': return <GitBranch size={14} />;
-      default: return <GitBranch size={14} />;
-    }
-  };
-
-  const getActionLabel = (action) => {
-    switch (action) {
-      case 'add_node': return '添加节点';
-      case 'remove_node': return '删除节点';
-      case 'update_config': return '修改配置';
-      default: return '未知操作';
-    }
-  };
-
-  return (
-    <div className="cc-proposal-card">
-      <div className="cc-proposal-header">
-        <GitBranch size={16} />
-        <span className="cc-proposal-title">{proposal.title}</span>
-      </div>
-      <div className="cc-proposal-description">{proposal.description}</div>
-      <div className="cc-proposal-changes">
-        {proposal.changes.map((change, idx) => (
-          <div key={idx} className="cc-proposal-change-item">
-            <div className="cc-proposal-change-icon">{getActionIcon(change.action)}</div>
-            <div className="cc-proposal-change-content">
-              <span className="cc-proposal-change-label">{getActionLabel(change.action)}</span>
-              <span className="cc-proposal-change-desc">{change.description}</span>
-            </div>
-          </div>
-        ))}
-      </div>
-      <div className="cc-proposal-actions">
-        <button className="cc-proposal-btn reject" onClick={() => onReject(proposal.id)}>
-          <X size={14} />
-          暂不采纳
-        </button>
-        <button className="cc-proposal-btn apply" onClick={() => onApply(proposal)}>
-          <Check size={14} />
-          确认应用
-        </button>
-      </div>
-    </div>
-  );
-};
-
 const Toast = ({ message, onClose }) => {
   useEffect(() => {
     const timer = setTimeout(onClose, 2000);
@@ -106,17 +53,17 @@ const VideoViewer = ({ url, onClose }) => {
   );
 };
 
-const AssistantMessage = ({ message, onOpenModal, onShowToast, proposal, onApplyProposal, onRejectProposal }) => {
+const AssistantMessage = ({ message, onOpenModal, onShowToast, onApplyProposal, onRejectProposal }) => {
   const [thinkingExpanded, setThinkingExpanded] = useState(false);
   const [imageViewerOpen, setImageViewerOpen] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [videoViewerOpen, setVideoViewerOpen] = useState(false);
+  const [diffModalOpen, setDiffModalOpen] = useState(false);
   const prevThinkingLengthRef = useRef(0);
+  const proposal = message.proposal;
 
-  // 思考内容自动展开/收起逻辑
   useEffect(() => {
     const currentThinkingLength = message.thinking?.length || 0;
-
     if (currentThinkingLength > 0 && prevThinkingLengthRef.current === 0) {
       setThinkingExpanded(true);
     }
@@ -134,17 +81,39 @@ const AssistantMessage = ({ message, onOpenModal, onShowToast, proposal, onApply
     onShowToast('已复制到剪贴板');
   };
 
-  // 从 result 解析的图片 URL（旧逻辑，用于纯图片类型）
+  const handleViewFullDiff = () => {
+    if (proposal?.diffJson) {
+      setDiffModalOpen(true);
+    }
+  };
+
+  const handleApplyProposal = () => {
+    if (proposal?.status === 'pending') {
+      onApplyProposal?.(proposal.id);
+    }
+  };
+
+  const handleRejectProposal = () => {
+    if (proposal?.status === 'pending') {
+      onRejectProposal?.(proposal.id);
+    }
+  };
+
+  const getDiffBefore = () => {
+    if (!proposal?.diffJson) return '';
+    return proposal.diffJson.textDiff?.beforeText || proposal.diffJson.beforeText || '';
+  };
+
+  const getDiffAfter = () => {
+    if (!proposal?.diffJson) return '';
+    return proposal.diffJson.textDiff?.afterText || proposal.diffJson.afterText || '';
+  };
+
   const legacyImageUrls = message.resultType === 'image' && message.result
     ? message.result.split(',').map(u => u.trim())
     : [];
-
-  // 混合类型的图片 URL
   const mixedImageUrls = message.imageUrls || [];
-  // 混合类型的视频
   const mixedVideoItems = message.videoItems || [];
-
-  // ImageViewer 使用的图片 URL（优先使用混合类型）
   const imageUrls = mixedImageUrls.length > 0 ? mixedImageUrls : legacyImageUrls;
 
   const renderResult = () => {
@@ -152,12 +121,9 @@ const AssistantMessage = ({ message, onOpenModal, onShowToast, proposal, onApply
     const hasText = content && content.length > 0;
     const hasImages = mixedImageUrls.length > 0 || legacyImageUrls.length > 0;
     const hasVideos = mixedVideoItems.length > 0;
-    const hasProposal = !!proposal;
 
-    // 无内容
-    if (!hasText && !hasImages && !hasVideos && !hasProposal) return null;
+    if (!hasText && !hasImages && !hasVideos) return null;
 
-    // 渲染图片的函数
     const renderImages = (urls) => (
       <div className="cc-result-image">
         {urls.map((url, idx) => (
@@ -171,7 +137,6 @@ const AssistantMessage = ({ message, onOpenModal, onShowToast, proposal, onApply
       </div>
     );
 
-    // 渲染视频的函数
     const renderVideos = (items) => (
       <div className="cc-result-video">
         {items.map((item, idx) => (
@@ -180,7 +145,6 @@ const AssistantMessage = ({ message, onOpenModal, onShowToast, proposal, onApply
       </div>
     );
 
-    // 渲染文字
     const renderText = () => {
       if (!hasText) return null;
       if (message.resultType === 'markdown') {
@@ -189,37 +153,17 @@ const AssistantMessage = ({ message, onOpenModal, onShowToast, proposal, onApply
       return <div className="cc-result-text">{content}</div>;
     };
 
-    // 渲染提案卡片
-    const renderProposal = () => {
-      if (!hasProposal) return null;
-      return (
-        <ProposalCard
-          proposal={proposal}
-          onApply={onApplyProposal}
-          onReject={onRejectProposal}
-        />
-      );
-    };
-
-    // 混合类型：有图片或视频或提案
-    if (hasImages || hasVideos || hasProposal) {
+    if (hasImages || hasVideos) {
       return (
         <>
           {renderText()}
           {hasImages && renderImages(mixedImageUrls.length > 0 ? mixedImageUrls : legacyImageUrls)}
           {hasVideos && renderVideos(mixedVideoItems)}
-          {hasProposal && renderProposal()}
         </>
       );
     }
 
-    // 纯文字类型
-    return (
-      <>
-        {renderText()}
-        {hasProposal && renderProposal()}
-      </>
-    );
+    return renderText();
   };
 
   return (
@@ -249,10 +193,46 @@ const AssistantMessage = ({ message, onOpenModal, onShowToast, proposal, onApply
             </div>
           )}
 
-          {(message.result || message.content || proposal) && (
+          {(message.result || message.content) && (
             <div className="cc-result-section">
               <div className="cc-result-content">
                 {renderResult()}
+                {proposal && (
+                  <div className="cc-proposal-section">
+                    <div className="cc-proposal-header">
+                      <GitBranch size={14} />
+                      <span className="cc-proposal-label">建议修改：</span>
+                      <span className="cc-proposal-summary">{proposal.summary}</span>
+                    </div>
+                    {proposal.diffJson && (
+                      <div className="cc-proposal-diff-mini">
+                        <div className="diff-item">
+                          <span className="diff-label">原版：</span>
+                          <span className="diff-text">{getDiffBefore().substring(0, 50)}{getDiffBefore().length > 50 ? '...' : ''}</span>
+                        </div>
+                        <div className="diff-arrow">→</div>
+                        <div className="diff-item">
+                          <span className="diff-label">新版：</span>
+                          <span className="diff-text">{getDiffAfter().substring(0, 50)}{getDiffAfter().length > 50 ? '...' : ''}</span>
+                        </div>
+                      </div>
+                    )}
+                    <div className="cc-proposal-actions">
+                      <button className="cc-proposal-btn view-full" onClick={handleViewFullDiff}>查看完整diff</button>
+                      {proposal.status.toUpperCase() === 'PENDING' && (
+                        <>
+                          <button className="cc-proposal-btn reject" onClick={handleRejectProposal}>暂不采纳</button>
+                          <button className="cc-proposal-btn apply" onClick={handleApplyProposal}>确认应用</button>
+                        </>
+                      )}
+                      {proposal.status.toUpperCase() !== 'PENDING' && (
+                        <span className={`proposal-status-badge ${proposal.status}`}>
+                          {proposal.status.toUpperCase() === 'CONFIRMED' ? '✓ 已确认' : '✗ 已拒绝'}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="cc-result-actions">
                 <button className="cc-result-action-btn" onClick={() => onOpenModal(message)}>
@@ -266,7 +246,6 @@ const AssistantMessage = ({ message, onOpenModal, onShowToast, proposal, onApply
               </div>
             </div>
           )}
-
         </div>
       </div>
 
@@ -285,6 +264,30 @@ const AssistantMessage = ({ message, onOpenModal, onShowToast, proposal, onApply
           url={message.result}
           onClose={() => setVideoViewerOpen(false)}
         />
+      )}
+
+      {diffModalOpen && proposal?.diffJson && (
+        <div className="cc-proposal-modal-overlay" onClick={() => setDiffModalOpen(false)}>
+          <div className="cc-proposal-modal-content" onClick={e => e.stopPropagation()}>
+            <div className="cc-proposal-modal-header">
+              <span>完整 Diff</span>
+              <button className="cc-proposal-modal-close" onClick={() => setDiffModalOpen(false)}>
+                <X size={18} />
+              </button>
+            </div>
+            <div className="cc-proposal-modal-body">
+              <div className="cc-proposal-modal-section">
+                <div className="cc-proposal-modal-label">原版</div>
+                <div className="cc-proposal-modal-text before">{getDiffBefore()}</div>
+              </div>
+              <div className="cc-proposal-modal-arrow">↓</div>
+              <div className="cc-proposal-modal-section">
+                <div className="cc-proposal-modal-label">新版</div>
+                <div className="cc-proposal-modal-text after">{getDiffAfter()}</div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -320,14 +323,10 @@ const ResultModal = ({ message, onClose, onShowToast }) => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // 从 result 解析的图片 URL（旧逻辑）
   const legacyImageUrls = message.resultType === 'image' && message.result
     ? message.result.split(',').map(u => u.trim())
     : [];
-
-  // 混合类型的图片 URL
   const mixedImageUrls = message.imageUrls || [];
-  // 混合类型的视频
   const mixedVideoItems = message.videoItems || [];
 
   const renderResult = () => {
@@ -336,10 +335,8 @@ const ResultModal = ({ message, onClose, onShowToast }) => {
     const hasImages = mixedImageUrls.length > 0 || legacyImageUrls.length > 0;
     const hasVideos = mixedVideoItems.length > 0;
 
-    // 无内容
     if (!hasText && !hasImages && !hasVideos) return null;
 
-    // 渲染图片
     const renderImages = (urls) => (
       <div className="cc-result-image">
         {urls.map((url, idx) => (
@@ -348,7 +345,6 @@ const ResultModal = ({ message, onClose, onShowToast }) => {
       </div>
     );
 
-    // 渲染视频
     const renderVideos = (items) => (
       <div className="cc-result-video">
         {items.map((item, idx) => (
@@ -357,7 +353,6 @@ const ResultModal = ({ message, onClose, onShowToast }) => {
       </div>
     );
 
-    // 渲染文字
     const renderText = () => {
       if (!hasText) return null;
       if (message.resultType === 'markdown') {
@@ -366,7 +361,6 @@ const ResultModal = ({ message, onClose, onShowToast }) => {
       return <div className="cc-result-text">{content}</div>;
     };
 
-    // 混合类型
     if (hasImages || hasVideos) {
       return (
         <>
@@ -377,7 +371,6 @@ const ResultModal = ({ message, onClose, onShowToast }) => {
       );
     }
 
-    // 纯文字类型
     return renderText();
   };
 
@@ -444,32 +437,24 @@ const ChatConversation = forwardRef(({
   placeholder = '输入消息...',
   disabledPlaceholder = '生成完成后可对话',
   onWorkflowCreated,
+  onPlanReceived,
   onApplyProposal,
-  inputMode = 'textarea',  // 'textarea' | 'input'
+  onRejectProposal,
+  inputMode = 'textarea',
   disableAutoScroll = false
 }, ref) => {
   const [inputValue, setInputValue] = useState('');
   const [modalMessage, setModalMessage] = useState(null);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
-  const [proposals, setProposals] = useState({}); // messageId -> proposal
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
-  const messagesRef = useRef(messages);
-  const sendMessageFnRef = useRef(null);
   const sseConnectionRef = useRef(null);
-
-  // 保持 messagesRef 同步
-  useEffect(() => {
-    messagesRef.current = messages;
-  }, [messages]);
-
-  // 暴露 sendMessage 方法给父组件
-  useImperativeHandle(ref, () => ({
-    sendMessage: (content) => {
-      sendMessageFnRef.current?.(content);
-    }
-  }), []);
+  const sendMessageFnRef = useRef(null);
+  const [internalMessages, setInternalMessages] = useState([]);
+  const hasExternalMessages = typeof onMessagesChange === 'function';
+  const effectiveMessages = hasExternalMessages ? messages : internalMessages;
+  const updateMessages = hasExternalMessages ? onMessagesChange : setInternalMessages;
 
   // 自动滚动到最新消息
   useEffect(() => {
@@ -479,51 +464,19 @@ const ChatConversation = forwardRef(({
         container.scrollTop = container.scrollHeight;
       }
     }
-  }, [messages]);
+  }, [effectiveMessages]);
 
   const showToast = useCallback((message) => {
     setToast(message);
   }, []);
 
-  // 处理应用提案
-  const handleApplyProposal = useCallback((proposal) => {
-    // 调用父组件的 onApplyProposal 回调
-    if (onApplyProposal) {
-      onApplyProposal(proposal);
-    }
-    showToast('已应用提案更改');
-    // 从 proposals 状态中移除
-    setProposals(prev => {
-      const newProposals = { ...prev };
-      Object.keys(newProposals).forEach(msgId => {
-        if (newProposals[msgId]?.id === proposal.id) {
-          delete newProposals[msgId];
-        }
-      });
-      return newProposals;
-    });
-  }, [onApplyProposal, showToast]);
-
-  // 处理拒绝提案
-  const handleRejectProposal = useCallback((proposalId) => {
-    setProposals(prev => {
-      const newProposals = { ...prev };
-      Object.keys(newProposals).forEach(msgId => {
-        if (newProposals[msgId]?.id === proposalId) {
-          delete newProposals[msgId];
-        }
-      });
-      return newProposals;
-    });
-    showToast('已拒绝提案');
-  }, [showToast]);
-
   const sendChatMessage = useCallback((messageContent) => {
     if (!messageContent.trim() || loading) return;
 
-    // 关闭之前的 SSE 连接
+    const currentGeneration = effectGenerationRef.current;
+
     if (sseConnectionRef.current) {
-      sseConnectionRef.current.close();
+      sseConnectionRef.current.close({ checkGeneration: true, gen: currentGeneration });
     }
 
     const timestamp = formatTimestamp();
@@ -534,7 +487,7 @@ const ChatConversation = forwardRef(({
       timestamp,
     };
 
-    onMessagesChange([...messagesRef.current, userMsg]);
+    updateMessages([...effectiveMessages, userMsg]);
     setInputValue('');
     setLoading(true);
 
@@ -550,16 +503,14 @@ const ChatConversation = forwardRef(({
       videoItems: [],
       timestamp: formatTimestamp(),
     };
-    onMessagesChange(prev => [...prev, assistantMsg]);
+    updateMessages(prev =>[...prev, assistantMsg]);
 
     let thinkingText = '';
     let resultText = '';
     let resultType = 'text';
     let imageUrls = [];
     let videoItems = [];
-    let pendingProposal = null;
 
-    // 使用 chatApi 发送消息
     sseConnectionRef.current = chatApi.sendMessageStream(
       {
         projectId,
@@ -567,13 +518,13 @@ const ChatConversation = forwardRef(({
         agentId,
         agentName: agentId,
         message: messageContent.trim(),
+        generation: effectGenerationRef.current,
       },
       {
         onThinking: (data) => {
-          // 思考步骤 - 增量累加
           if (data.delta) {
             thinkingText += data.delta;
-            onMessagesChange(prev => prev.map(msg =>
+            updateMessages(prev =>prev.map(msg =>
               msg.id === assistantMsgId
                 ? { ...msg, thinking: thinkingText }
                 : msg
@@ -582,55 +533,63 @@ const ChatConversation = forwardRef(({
         },
 
         onResult: (data) => {
-          // 结果 - 增量累加
           if (data.delta) {
             resultText += data.delta;
           }
           if (data.contentType) {
             resultType = data.contentType;
           }
-          onMessagesChange(prev => prev.map(msg =>
+          updateMessages(prev =>prev.map(msg =>
             msg.id === assistantMsgId
               ? { ...msg, resultType, result: resultText }
               : msg
           ));
 
-          // 如果返回了工作流数据
           if (data.workflowCreated && data.workflowNodes && data.workflowEdges) {
             onWorkflowCreated?.(data.workflowNodes, data.workflowEdges);
           }
         },
 
         onData: (data) => {
-          // 处理图片/视频数据
           if (data.type === 'image' && data.items) {
             imageUrls = [...imageUrls, ...data.items];
-            onMessagesChange(prev => prev.map(msg =>
+            updateMessages(prev =>prev.map(msg =>
               msg.id === assistantMsgId
                 ? { ...msg, imageUrls }
                 : msg
             ));
           } else if (data.type === 'video' && data.items) {
             videoItems = [...videoItems, ...data.items];
-            onMessagesChange(prev => prev.map(msg =>
+            updateMessages(prev =>prev.map(msg =>
               msg.id === assistantMsgId
                 ? { ...msg, videoItems }
+                : msg
+            ));
+          } else if (data.type === 'proposal' && data.proposal) {
+            updateMessages(prev =>prev.map(msg =>
+              msg.id === assistantMsgId
+                ? { ...msg, proposal: data.proposal }
                 : msg
             ));
           }
         },
 
         onComplete: (data) => {
-          // 完成
           setLoading(false);
           sseConnectionRef.current = null;
+
+          // 如果有 plan 数据，触发 onPlanReceived
+          if (data.plan && onPlanReceived) {
+            onPlanReceived(data.plan);
+          } else if (data.workflowCreated && onWorkflowCreated) {
+            onWorkflowCreated(data.workflowNodes || data.nodes, data.workflowEdges || data.edges);
+          }
         },
 
         onError: (data) => {
-          // 错误
           console.error('[ChatConversation] SSE error:', data);
           const errorMsg = data?.message || '抱歉，发生了错误，请稍后重试。';
-          onMessagesChange(prev => prev.map(msg =>
+          updateMessages(prev => prev.map(msg =>
             msg.id === assistantMsgId
               ? { ...msg, result: errorMsg }
               : msg
@@ -640,19 +599,26 @@ const ChatConversation = forwardRef(({
         },
       }
     );
-  }, [loading, onMessagesChange, projectId, projectVersion, agentId, onWorkflowCreated, onApplyProposal]);
+  }, [loading, updateMessages, projectId, projectVersion, agentId, onWorkflowCreated, onPlanReceived]);
 
-  // 更新 sendMessageFnRef
-  useEffect(() => {
-    sendMessageFnRef.current = sendChatMessage;
-  }, [sendChatMessage]);
+  // 暴露 sendMessage 方法给父组件
+  useImperativeHandle(ref, () => ({
+    sendMessage: (content) => {
+      sendChatMessage(content);
+    }
+  }), [sendChatMessage]);
 
   // 组件卸载时关闭 SSE 连接
+  // 注意：在 StrictMode 下，cleanup 会在 remount 之前运行，所以这里关闭可能导致问题
+  // SSE 只应该被最终的真实卸载（unmount）关闭，而不是 StrictMode 的伪卸载
+  const effectGenerationRef = useRef(0);
+
   useEffect(() => {
+    effectGenerationRef.current += 1;
+    const currentGeneration = effectGenerationRef.current;
+
     return () => {
-      if (sseConnectionRef.current) {
-        sseConnectionRef.current.close();
-      }
+      // StrictMode 下 cleanup 先于 remount 运行，不关闭 SSE
     };
   }, []);
 
@@ -668,7 +634,7 @@ const ChatConversation = forwardRef(({
   };
 
   const isEditable = !loading;
-  const safeMessages = Array.isArray(messages) ? messages : [];
+  const safeMessages = Array.isArray(effectiveMessages) ? effectiveMessages : [];
 
   return (
     <div className="cc-container">
@@ -688,9 +654,8 @@ const ChatConversation = forwardRef(({
                 message={msg}
                 onOpenModal={setModalMessage}
                 onShowToast={showToast}
-                proposal={proposals[msg.id]}
-                onApplyProposal={handleApplyProposal}
-                onRejectProposal={handleRejectProposal}
+                onApplyProposal={onApplyProposal}
+                onRejectProposal={onRejectProposal}
               />
             )
           ))

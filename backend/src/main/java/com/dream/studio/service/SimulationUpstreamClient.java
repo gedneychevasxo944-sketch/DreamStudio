@@ -6,9 +6,10 @@ import com.dream.studio.dto.ChatDTO;
 import com.dream.studio.dto.DAGDTO;
 import com.dream.studio.dto.NodeSimulationData;
 import com.dream.studio.dto.TeamDTO;
+import com.dream.studio.entity.NodeProposal;
 import com.dream.studio.entity.NodeVersion;
+import com.dream.studio.repository.NodeProposalRepository;
 import com.dream.studio.repository.NodeVersionRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -24,11 +25,19 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class SimulationUpstreamClient implements UpstreamClient {
 
     private final NodeVersionRepository nodeVersionRepository;
+    private final NodeProposalRepository nodeProposalRepository;
     private final TransactionTemplate transactionTemplate;
+
+    public SimulationUpstreamClient(NodeVersionRepository nodeVersionRepository,
+                                   NodeProposalRepository nodeProposalRepository,
+                                   TransactionTemplate transactionTemplate) {
+        this.nodeVersionRepository = nodeVersionRepository;
+        this.nodeProposalRepository = nodeProposalRepository;
+        this.transactionTemplate = transactionTemplate;
+    }
 
     // 会话状态存储（模拟）
     private final Map<Long, ChatDTO.MessageResponse> chatSessions = new ConcurrentHashMap<>();
@@ -81,7 +90,7 @@ public class SimulationUpstreamClient implements UpstreamClient {
 
     // ========== 6.4 智能体对话 (SSE) ==========
     @Override
-    public SseEmitter chatStream(Long agentId, ChatDTO.SendRequest request) {
+    public SseEmitter chatStream(String agentId, ChatDTO.SendRequest request) {
         log.info("SimulationUpstreamClient: chatStream agentId={}", agentId);
         SseEmitter emitter = new SseEmitter(0L);
 
@@ -96,13 +105,19 @@ public class SimulationUpstreamClient implements UpstreamClient {
 
                 // 发送 init 事件
                 emitter.send(SseEmitter.event().name("init").data(String.format(
-                        "{\"agentId\":%s,\"sessionId\":%d,\"messageId\":\"msg-%d\",\"eventTime\":\"%s\"}",
+                        "{\"agentId\":\"%s\",\"sessionId\":%d,\"messageId\":\"msg-%d\",\"eventTime\":\"%s\"}",
                         agentId, sessionId, sessionId, getCurrentTime())));
 
                 // 模拟对话逻辑
                 String message = request.getMessage();
 
-                // 根据用户消息选择响应类型（统一使用 ASSISTANT 模拟数据）
+                // 根据 agentId 映射到对应的 ComponentType
+                ComponentType componentType = ComponentType.fromCode(agentId.toString());
+                if (componentType == null) {
+                    componentType = ComponentType.ASSISTANT;
+                }
+
+                // 根据用户消息选择响应类型（用于 ASSISTANT 类型）
                 String simDataKey;
                 String lowerMsg = message != null ? message.toLowerCase() : "";
                 if (lowerMsg.contains("图片") && lowerMsg.contains("视频")) {
@@ -118,7 +133,7 @@ public class SimulationUpstreamClient implements UpstreamClient {
                 }
 
                 NodeSimulationData simData = SimulationDataProvider.getSimulationDataByType(
-                        ComponentType.ASSISTANT, simDataKey);
+                        componentType, simDataKey);
 
                 List<String> thoughts = simData.getThinkingSteps();
                 for (int i = 0; i < thoughts.size(); i++) {
@@ -156,10 +171,31 @@ public class SimulationUpstreamClient implements UpstreamClient {
                     seq++;
                 }
 
-                // 发送 complete
+                // 发送提案数据
+                String proposalJson = buildProposalJson(request.getProjectId(), componentType, resultContent, agentId.toString());
+                if (proposalJson != null) {
+                    emitter.send(SseEmitter.event().name("data").data(String.format(
+                            "{\"messageId\":\"msg-%d\",\"type\":\"proposal\",\"proposal\":%s,\"seq\":%d,\"eventTime\":\"%s\"}",
+                            sessionId, proposalJson, seq, getCurrentTime())));
+                    seq++;
+                }
+
+                // 发送 complete，携带 plan 数据让前端自动创建工作流
+                // 检查是否需要返回工作流数据（首次对话时返回推荐方案）
+                String planData = "";
+                // 只有 ASSISTANT 智能体才返回 plan
+                log.info("Checking plan data - agentId: {}, sessionId: {}, chatSessions size: {}, componentType: {}",
+                        agentId, sessionId, chatSessions.size(), componentType);
+                if (componentType == ComponentType.ASSISTANT) {
+                    // 构建默认的精品短剧方案 plan
+                    String planJson = buildPlanJson(sessionId);
+                    planData = String.format(",\"workflowCreated\":true,\"plan\":%s", planJson);
+                    log.info("Plan data added: {}", planData);
+                }
+
                 emitter.send(SseEmitter.event().name("complete").data(String.format(
-                        "{\"messageId\":\"msg-%d\",\"finishReason\":\"stop\",\"eventTime\":\"%s\"}",
-                        sessionId, getCurrentTime())));
+                        "{\"messageId\":\"msg-%d\",\"finishReason\":\"stop\",\"eventTime\":\"%s\"%s}",
+                        sessionId, getCurrentTime(), planData)));
 
                 emitter.complete();
 
@@ -340,16 +376,19 @@ public class SimulationUpstreamClient implements UpstreamClient {
                     for (Map.Entry<String, NodeVersionResult> entry : nodeResults.entrySet()) {
                         String nodeId = entry.getKey();
                         NodeVersionResult result = entry.getValue();
-                        versionCounter[0]++;
 
                         try {
+                            // 查询该节点的最大版本号
+                            Integer maxVersionNo = nodeVersionRepository.findMaxVersionNo(projectId, nodeId).orElse(0);
+                            int newVersionNo = maxVersionNo + 1;
+
                             NodeVersion version = NodeVersion.builder()
                                     .projectId(projectId)
                                     .nodeId(nodeId)
                                     .agentId(result.agentId)
                                     .agentCode(result.agentCode)
                                     .nodeType(result.nodeType)
-                                    .versionNo(versionCounter[0])
+                                    .versionNo(newVersionNo)
                                     .versionKind("RUN_OUTPUT")
                                     .isCurrent(true)
                                     .status("READY")
@@ -366,7 +405,7 @@ public class SimulationUpstreamClient implements UpstreamClient {
                                 // 保存新版本
                                 nodeVersionRepository.save(version);
                             });
-                            log.info("Saved NodeVersion for node: {}, versionNo: {}", nodeId, versionCounter[0]);
+                            log.info("Saved NodeVersion for node: {}, versionNo: {}", nodeId, newVersionNo);
                         } catch (Exception e) {
                             log.error("Failed to save NodeVersion for node: {}", nodeId, e);
                         }
@@ -648,5 +687,109 @@ public class SimulationUpstreamClient implements UpstreamClient {
                 .createTime(getCurrentTime())
                 .updateTime(getCurrentTime())
                 .build();
+    }
+
+    /**
+     * 构建方案 JSON 数据
+     * 返回推荐的精品短剧方案
+     */
+    private String buildPlanJson(Long sessionId) {
+        // 精品短剧方案
+        String planNodes = "["
+                + "{\"id\":\"producer\",\"name\":\"资深制片人\",\"icon\":\"Target\",\"color\":\"#3b82f6\"},"
+                + "{\"id\":\"content\",\"name\":\"金牌编剧\",\"icon\":\"PenTool\",\"color\":\"#06b6d4\"},"
+                + "{\"id\":\"visual\",\"name\":\"概念美术\",\"icon\":\"Palette\",\"color\":\"#8b5cf6\"},"
+                + "{\"id\":\"director\",\"name\":\"分镜导演\",\"icon\":\"Video\",\"color\":\"#f59e0b\"},"
+                + "{\"id\":\"technical\",\"name\":\"提示词工程师\",\"icon\":\"Code\",\"color\":\"#10b981\"},"
+                + "{\"id\":\"videoGen\",\"name\":\"视频生成\",\"icon\":\"Play\",\"color\":\"#6366f1\"}"
+                + "]";
+
+        String planEdges = "["
+                + "{\"from\":\"producer\",\"to\":\"content\"},"
+                + "{\"from\":\"content\",\"to\":\"visual\"},"
+                + "{\"from\":\"visual\",\"to\":\"director\"},"
+                + "{\"from\":\"director\",\"to\":\"technical\"},"
+                + "{\"from\":\"technical\",\"to\":\"videoGen\"}"
+                + "]";
+
+        return "{"
+                + "\"id\":" + sessionId + ","
+                + "\"name\":\"推荐链路 - 精品短剧\","
+                + "\"description\":\"完整链路，覆盖编剧、美术、分镜、视频生成，适合追求品质的精品项目\","
+                + "\"mode\":\"director\","
+                + "\"estimatedTime\":\"约2小时\","
+                + "\"nodes\":" + planNodes + ","
+                + "\"edges\":" + planEdges
+                + "}";
+    }
+
+    /**
+     * 构建提案 JSON 数据
+     * 根据节点类型生成对应的提案内容，并保存到数据库
+     */
+    private String buildProposalJson(Long projectId, ComponentType componentType, String resultContent, String nodeId) {
+        if (projectId == null || componentType == null || resultContent == null) {
+            return null;
+        }
+
+        // 根据节点类型生成不同的提案（使用 ProposalDiff 的 configDiff 结构）
+        String summary;
+        String changesJson;
+
+        switch (componentType) {
+            case PRODUCER:
+                summary = "优化项目立项方案";
+                changesJson = "[{\"key\":\"budget\",\"beforeValue\":\"500万\",\"afterValue\":\"480万\"},{\"key\":\"duration\",\"beforeValue\":\"6个月\",\"afterValue\":\"5个月\"}]";
+                break;
+            case CONTENT:
+                summary = "剧本优化建议";
+                changesJson = "[{\"key\":\"scene3.description\",\"beforeValue\":\"林立（男，28岁）匆匆走在上班路上\",\"afterValue\":\"林立（男，28岁，精神抖擞）快步走在上班路上，手里拿着冰美式\"}]";
+                break;
+            case VISUAL:
+                summary = "视觉风格调整";
+                changesJson = "[{\"key\":\"style\",\"beforeValue\":\"都市现代感 + 暖色调\",\"afterValue\":\"赛博朋克 + 霓虹灯光\"}]";
+                break;
+            case DIRECTOR:
+                summary = "分镜优化建议";
+                changesJson = "[{\"key\":\"shot1.type\",\"beforeValue\":\"广角镜头俯拍\",\"afterValue\":\"航拍镜头俯拍\"},{\"key\":\"shot1.duration\",\"beforeValue\":\"5秒\",\"afterValue\":\"8秒\"}]";
+                break;
+            case TECHNICAL:
+                summary = "提示词参数优化";
+                changesJson = "[{\"key\":\"model\",\"beforeValue\":\"CogVideoX-5B\",\"afterValue\":\"CogVideoX-3B\"}]";
+                break;
+            case VIDEO_GEN:
+                summary = "视频生成参数调整";
+                changesJson = "[{\"key\":\"genParams.quality\",\"beforeValue\":\"720P\",\"afterValue\":\"1080P\"},{\"key\":\"genParams.duration\",\"beforeValue\":\"5-10秒\",\"afterValue\":\"10-15秒\"}]";
+                break;
+            default:
+                // ASSISTANT 和其他类型不生成提案
+                return null;
+        }
+
+        // 构建 diffJson 字符串（使用 ProposalDiff 的 configDiff 结构）
+        String diffJson = "{\"diffType\":\"CONFIG_DIFF\",\"configDiff\":{\"changes\":" + changesJson + "}}";
+
+        // 保存提案到数据库
+        NodeProposal proposal = NodeProposal.builder()
+                .projectId(projectId)
+                .nodeId(nodeId)
+                .title(summary)
+                .summary(summary)
+                .diffJson(diffJson)
+                .status("PENDING")
+                .build();
+        NodeProposal savedProposal = transactionTemplate.execute(status -> nodeProposalRepository.save(proposal));
+        Long proposalId = savedProposal.getId();
+
+        log.info("Saved proposal: id={}, nodeId={}, projectId={}", proposalId, nodeId, projectId);
+
+        return "{"
+                + "\"id\":" + proposalId + ","
+                + "\"nodeId\":\"" + nodeId + "\","
+                + "\"title\":\"" + escapeJson(summary) + "\","
+                + "\"summary\":\"" + escapeJson(summary) + "\","
+                + "\"status\":\"PENDING\","
+                + "\"diffJson\":" + diffJson
+                + "}";
     }
 }

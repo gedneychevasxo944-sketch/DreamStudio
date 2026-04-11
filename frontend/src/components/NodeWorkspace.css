@@ -210,6 +210,33 @@
   color: #a855f7;
 }
 
+.modified-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: rgba(34, 197, 94, 0.15);
+  border-radius: 4px;
+  font-size: 10px;
+  color: #22c55e;
+  animation: fadeIn 0.3s ease;
+}
+
+.discard-modified-btn {
+  padding: 4px 10px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 4px;
+  color: #ef4444;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.discard-modified-btn:hover {
+  background: rgba(239, 68, 68, 0.2);
+}
+
 .version-history-toggle {
   display: flex;
   align-items: center;
@@ -655,6 +682,53 @@
 .status-text {
   font-size: 12px;
   color: var(--text-secondary);
+}
+
+/* 提案修改提示 */
+.proposal-modified-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 16px 12px;
+  padding: 10px 14px;
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.1) 0%, rgba(34, 197, 94, 0.05) 100%);
+  border: 1px solid rgba(34, 197, 94, 0.25);
+  border-radius: 8px;
+  animation: slideUp 0.3s ease;
+}
+
+.notice-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #22c55e;
+  font-size: 13px;
+}
+
+.notice-dismiss-btn {
+  padding: 4px 12px;
+  background: rgba(34, 197, 94, 0.2);
+  border: none;
+  border-radius: 4px;
+  color: #22c55e;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.notice-dismiss-btn:hover {
+  background: rgba(34, 197, 94, 0.3);
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes pulse {

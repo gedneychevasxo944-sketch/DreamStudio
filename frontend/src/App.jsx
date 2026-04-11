@@ -480,126 +480,58 @@ function App() {
     setPlanningRawInput, setPlanningAttachments, setIsDemoMode, loadWorkflow
   ]);
 
-  // 模拟方案数据到节点配置的转换
+  // 方案数据到节点配置的转换
+// plan 现在从 API 获取，包含完整的 nodes 和 edges 配置
 const planToNodesAndConnections = (plan, userInput) => {
   if (!plan || plan.mode === 'blank') {
     return { nodes: [], connections: [] };
   }
 
-  // 精品短剧链路
-  const producerNode = {
-    id: 'producer',
-    name: '资深制片人',
-    type: 'producer',
-    color: '#3b82f6',
-    icon: 'Target',
-    inputs: [{ id: 'input', label: '输入', type: 'any' }],
-    outputs: [{ id: 'output', label: '输出', type: 'any' }],
-    status: 'idle'
-  };
+  // 如果 plan 包含完整的节点配置（从 API 获取），直接使用
+  if (plan.nodes && plan.edges) {
+    // 计算节点位置（横向排列）
+    const startX = 100;
+    const startY = 300;
+    const gap = 100;
+    const nodeWidth = 700;
 
-  const writerNode = {
-    id: 'content',
-    name: '金牌编剧',
-    type: 'content',
-    color: '#06b6d4',
-    icon: 'PenTool',
-    inputs: [{ id: 'input', label: '输入', type: 'any' }],
-    outputs: [{ id: 'output', label: '输出', type: 'any' }],
-    status: 'idle'
-  };
+    const nodeMap = new Map();
+    let currentX = startX;
 
-  const visualNode = {
-    id: 'visual',
-    name: '概念美术',
-    type: 'visual',
-    color: '#8b5cf6',
-    icon: 'Palette',
-    inputs: [{ id: 'input', label: '输入', type: 'any' }],
-    outputs: [{ id: 'output', label: '输出', type: 'any' }],
-    status: 'idle'
-  };
+    // 第一次遍历：设置位置
+    const positionedNodes = plan.nodes.map(node => {
+      const fullNode = {
+        id: node.id,
+        name: node.name,
+        type: node.id,  // 使用 node.id 作为 type
+        color: node.color,
+        icon: node.icon,
+        inputs: [{ id: 'input', label: '输入', type: 'any' }],
+        outputs: [{ id: 'output', label: '输出', type: 'any' }],
+        status: 'idle',
+        x: currentX,
+        y: startY
+      };
+      nodeMap.set(node.id, fullNode);
+      currentX += nodeWidth + gap;
+      return fullNode;
+    });
 
-  const directorNode = {
-    id: 'director',
-    name: '分镜导演',
-    type: 'director',
-    color: '#f59e0b',
-    icon: 'Video',
-    inputs: [{ id: 'input', label: '输入', type: 'any' }],
-    outputs: [{ id: 'output', label: '输出', type: 'any' }],
-    status: 'idle'
-  };
+    // 转换边格式
+    const connections = plan.edges.map((edge, idx) => ({
+      id: `c${idx + 1}`,
+      from: edge.from,
+      fromPort: 'output',
+      to: edge.to,
+      toPort: 'input',
+      type: 'data-flow'
+    }));
 
-  const technicalNode = {
-    id: 'technical',
-    name: '提示词工程师',
-    type: 'technical',
-    color: '#10b981',
-    icon: 'Code',
-    inputs: [{ id: 'input', label: '输入', type: 'any' }],
-    outputs: [{ id: 'output', label: '输出', type: 'any' }],
-    status: 'idle'
-  };
-
-  const videoGenNode = {
-    id: 'videoGen',
-    name: '视频生成',
-    type: 'videoGen',
-    color: '#6366f1',
-    icon: 'Play',
-    inputs: [{ id: 'input', label: '输入', type: 'any' }],
-    outputs: [{ id: 'output', label: '输出', type: 'any' }],
-    status: 'idle'
-  };
-
-  let nodes = [];
-  let connections = [];
-
-  // 根据plan.id决定节点组合
-  if (plan.id === 'plan_1' || plan.id === 'recommended') {
-    // 精品短剧 - 完整链路
-    nodes = [producerNode, writerNode, visualNode, directorNode, technicalNode, videoGenNode];
-    connections = [
-      { id: 'c1', from: 'producer', fromPort: 'output', to: 'content', toPort: 'input', type: 'data-flow' },
-      { id: 'c2', from: 'content', fromPort: 'output', to: 'visual', toPort: 'input', type: 'data-flow' },
-      { id: 'c3', from: 'visual', fromPort: 'output', to: 'director', toPort: 'input', type: 'data-flow' },
-      { id: 'c4', from: 'director', fromPort: 'output', to: 'technical', toPort: 'input', type: 'data-flow' },
-      { id: 'c5', from: 'technical', fromPort: 'output', to: 'videoGen', toPort: 'input', type: 'data-flow' },
-    ];
-  } else if (plan.id === 'plan_2' || plan.id === 'quick') {
-    // 粗糙短剧 - 快速链路
-    nodes = [writerNode, visualNode, videoGenNode];
-    connections = [
-      { id: 'c1', from: 'content', fromPort: 'output', to: 'visual', toPort: 'input', type: 'data-flow' },
-      { id: 'c2', from: 'visual', fromPort: 'output', to: 'videoGen', toPort: 'input', type: 'data-flow' },
-    ];
-  } else {
-    // 默认精品链路
-    nodes = [producerNode, writerNode, visualNode, directorNode, technicalNode, videoGenNode];
-    connections = [
-      { id: 'c1', from: 'producer', fromPort: 'output', to: 'content', toPort: 'input', type: 'data-flow' },
-      { id: 'c2', from: 'content', fromPort: 'output', to: 'visual', toPort: 'input', type: 'data-flow' },
-      { id: 'c3', from: 'visual', fromPort: 'output', to: 'director', toPort: 'input', type: 'data-flow' },
-      { id: 'c4', from: 'director', fromPort: 'output', to: 'technical', toPort: 'input', type: 'data-flow' },
-      { id: 'c5', from: 'technical', fromPort: 'output', to: 'videoGen', toPort: 'input', type: 'data-flow' },
-    ];
+    return { nodes: positionedNodes, connections };
   }
 
-  // 计算节点位置（横向排列）
-  const startX = 100;
-  const startY = 300;
-  const gap = 100;
-  const nodeWidth = 700;
-
-  let currentX = startX;
-  nodes = nodes.map(node => {
-    const x = currentX;
-    currentX += nodeWidth + gap;
-    return { ...node, x, y: startY };
-  });
-
-  return { nodes, connections };
+  // 兜底：如果 plan 没有完整配置（不应该发生，除非 API 失败）
+  return { nodes: [], connections: [] };
 };
 
 // 新建项目
@@ -946,6 +878,13 @@ const planToNodesAndConnections = (plan, userInput) => {
       const { markDownstreamAsStale } = useWorkflowStore.getState();
       markDownstreamAsStale(nodeId, `节点 ${targetNode.name} 已修改，需要更新下游节点`);
 
+      // 触发提案应用事件，让NodeWorkspace刷新版本
+      const event = new CustomEvent('proposalApplied', {
+        detail: { nodeId, proposalId },
+        bubbles: true
+      });
+      document.dispatchEvent(event);
+
       console.log('Proposal applied:', nodeId, proposalId);
     } catch (error) {
       console.error('Failed to apply proposal:', error);
@@ -976,6 +915,14 @@ const planToNodesAndConnections = (plan, userInput) => {
     try {
       // 调用后端API拒绝提案
       await proposalApi.rejectProposal(currentProjectId, nodeId, proposalId);
+
+      // 触发提案拒绝事件，让NodeWorkspace更新消息状态
+      const event = new CustomEvent('proposalRejected', {
+        detail: { nodeId, proposalId },
+        bubbles: true
+      });
+      document.dispatchEvent(event);
+
       console.log('Proposal rejected:', nodeId, proposalId);
     } catch (error) {
       console.error('Failed to reject proposal:', error);
@@ -997,6 +944,7 @@ const planToNodesAndConnections = (plan, userInput) => {
       {currentView === 'planning' && (
         <PlanningPage
           projectName={projectName}
+          projectId={currentProjectId}
           rawInput={planningRawInput}
           attachments={planningAttachments}
           onConfirmPlan={(plan) => {

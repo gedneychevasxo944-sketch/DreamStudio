@@ -64,7 +64,7 @@ public class RealUpstreamClient implements UpstreamClient {
 
     // ========== 6.4 智能体对话 (SSE) ==========
     @Override
-    public SseEmitter chatStream(Long agentId, ChatDTO.SendRequest request) {
+    public SseEmitter chatStream(String agentId, ChatDTO.SendRequest request) {
         log.info("RealUpstreamClient: chatStream agentId={}", agentId);
 
         String url = baseUrl + "/v1/agents/" + agentId + "/chat/stream";

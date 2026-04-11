@@ -38,7 +38,7 @@ public interface UpstreamClient {
      * 6.4 智能体对话 (SSE)
      * POST /v1/agents/{agentId}/chat/stream
      */
-    SseEmitter chatStream(Long agentId, ChatDTO.SendRequest request);
+    SseEmitter chatStream(String agentId, ChatDTO.SendRequest request);
 
     // ========== 工作流执行 (6.6, 6.7) ==========
 
