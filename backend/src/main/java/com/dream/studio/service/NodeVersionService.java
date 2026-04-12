@@ -100,15 +100,19 @@ public class NodeVersionService {
                 .orElseThrow(() -> new InvalidOperationException("Version not found: " + versionId));
 
         NodeVersionDTO.VersionDetail detail = toVersionDetail(version);
+        log.info("Version {} has upstreamNodeIds: {}", versionId, version.getUpstreamNodeIds());
 
         // 解析上游节点信息
         if (version.getUpstreamNodeIds() != null && !version.getUpstreamNodeIds().isEmpty()) {
             try {
                 List<NodeVersionDTO.UpstreamNode> upstreamNodes = parseUpstreamNodes(version.getUpstreamNodeIds(), projectId);
+                log.info("Upstream nodes for version {}: {}, upstreamNodeIds: {}", versionId, upstreamNodes.size(), upstreamNodes);
                 detail.setUpstreamNodes(upstreamNodes);
             } catch (JsonProcessingException e) {
                 log.warn("Failed to parse upstreamNodeIds: {}", version.getUpstreamNodeIds(), e);
             }
+        } else {
+            log.info("Version {} has no upstreamNodeIds", versionId);
         }
 
         return detail;
@@ -145,11 +149,20 @@ public class NodeVersionService {
                                 : (Long) versionIdObj;
                         upstreamVersion = nodeVersionRepository.findById(versionId).orElse(null);
                     }
+                    // 如果没有找到版本（versionId 为 null 或版本已被删除），查询该节点最新的版本
+                    if (upstreamVersion == null) {
+                        upstreamVersion = nodeVersionRepository
+                                .findTopByProjectIdAndNodeIdOrderByVersionNoDesc(projectId, upstreamNodeId)
+                                .orElse(null);
+                    }
+                    log.info("Upstream version for nodeId={}, versionIdObj={}, upstreamVersion.resultJson={}",
+                            upstreamNodeId, versionIdObj, upstreamVersion != null ? upstreamVersion.getResultJson() : "null");
 
                     return NodeVersionDTO.UpstreamNode.builder()
                             .nodeId(upstreamNodeId)
                             .nodeName(upstreamVersion != null ? getNodeDisplayName(upstreamVersion) : upstreamNodeId)
                             .output(upstreamVersion != null ? upstreamVersion.getResultText() : null)
+                            .resultJson(upstreamVersion != null ? upstreamVersion.getResultJson() : null)
                             .build();
                 })
                 .collect(Collectors.toList());
@@ -171,6 +184,7 @@ public class NodeVersionService {
                             .nodeId(upstreamNodeId)
                             .nodeName(latestVersion != null ? getNodeDisplayName(latestVersion) : upstreamNodeId)
                             .output(latestVersion != null ? latestVersion.getResultText() : null)
+                            .resultJson(latestVersion != null ? latestVersion.getResultJson() : null)
                             .build();
                 })
                 .collect(Collectors.toList());

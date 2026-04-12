@@ -78,7 +78,8 @@ public class NodeVersionDTO {
     public static class UpstreamNode {
         private String nodeId;      // 节点ID
         private String nodeName;    // 节点名称
-        private String output;      // 节点输出
+        private String output;      // 节点输出（resultText）
+        private String resultJson;  // 节点结构化输出（用于渲染）
     }
 
     /**

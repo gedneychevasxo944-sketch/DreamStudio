@@ -843,14 +843,39 @@ const NodeCanvas = ({
         }
       }
     } else if (mode === 'restart') {
-      // 从头运行：清除保存的 executionId
+      // 从头运行：清除保存的 executionId，同时设置 upstreamContext
       executionId = null;
       localStorage.removeItem(`execution_${projectId}`);
+      upstreamContext = {
+        nodes: storeState.nodes.map(node => ({
+          nodeId: node.id,
+          agentId: node.agentId,
+          agentCode: node.agentCode || node.type,
+          inputParam: node.data || {}
+        })),
+        edges: storeState.connections.map(conn => ({
+          fromNodeId: conn.from,
+          toNodeId: conn.to
+        }))
+      };
     } else if (mode === 'direct') {
       // 直接运行：如果有保存的 executionId 则继续，否则从头开始
       if (!executionId) {
         localStorage.removeItem(`execution_${projectId}`);
       }
+      // 设置 upstreamContext 用于记录版本关系
+      upstreamContext = {
+        nodes: storeState.nodes.map(node => ({
+          nodeId: node.id,
+          agentId: node.agentId,
+          agentCode: node.agentCode || node.type,
+          inputParam: node.data || {}
+        })),
+        edges: storeState.connections.map(conn => ({
+          fromNodeId: conn.from,
+          toNodeId: conn.to
+        }))
+      };
     }
 
     try {

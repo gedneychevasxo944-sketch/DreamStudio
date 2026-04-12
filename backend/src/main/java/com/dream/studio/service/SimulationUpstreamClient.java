@@ -267,7 +267,13 @@ public class SimulationUpstreamClient implements UpstreamClient {
     // ========== 6.6 工作流执行 (SSE) ==========
     @Override
     public SseEmitter executeWorkflow(DAGDTO dag, List<ChatDTO.WorkflowEdge> edges, Long projectId, ChatDTO.UpstreamContext upstreamContext) {
-        log.info("SimulationUpstreamClient: executeWorkflow projectId={}, hasUpstreamContext={}", projectId, upstreamContext != null);
+        log.info("SimulationUpstreamClient: executeWorkflow projectId={}, hasUpstreamContext={}, edgesCount={}", projectId, upstreamContext != null, upstreamContext != null ? upstreamContext.getEdges().size() : 0);
+        if (upstreamContext != null && upstreamContext.getEdges() != null) {
+            for (int i = 0; i < Math.min(3, upstreamContext.getEdges().size()); i++) {
+                var edge = upstreamContext.getEdges().get(i);
+                log.info("Edge {}: fromNodeId={}, from={}, toNodeId={}, to={}", i, edge.getFromNodeId(), edge.getFrom(), edge.getToNodeId(), edge.getTo());
+            }
+        }
         SseEmitter emitter = new SseEmitter(0L);
 
         new Thread(() -> {
@@ -301,6 +307,30 @@ public class SimulationUpstreamClient implements UpstreamClient {
                         upstreamNodeIdsMap.computeIfAbsent(to, k -> new ArrayList<>()).add(from);
                     }
                 }
+
+                // 在执行开始前，预先捕获所有上游节点的当前版本ID（用于版本关系记录）
+                // 这样可以避免在保存版本时上游节点已被更新导致的关系错误
+                Map<String, Long> upstreamVersionIdsMap = new HashMap<>();
+                if (upstreamContext != null && upstreamContext.getEdges() != null) {
+                    Set<String> allUpstreamNodeIds = new HashSet<>();
+                    for (ChatDTO.WorkflowEdge edge : upstreamContext.getEdges()) {
+                        String from = edge.getFromNodeId() != null ? edge.getFromNodeId() : edge.getFrom();
+                        allUpstreamNodeIds.add(from);
+                    }
+                    log.info("All upstream node IDs: {}", allUpstreamNodeIds);
+                    for (String upstreamNodeId : allUpstreamNodeIds) {
+                        var currentVersion = nodeVersionRepository
+                                .findByProjectIdAndNodeIdAndIsCurrent(projectId, upstreamNodeId, true)
+                                .orElse(null);
+                        if (currentVersion != null) {
+                            upstreamVersionIdsMap.put(upstreamNodeId, currentVersion.getId());
+                            log.info("Found version for upstream node {}: versionId={}", upstreamNodeId, currentVersion.getId());
+                        } else {
+                            log.info("No version found for upstream node {}", upstreamNodeId);
+                        }
+                    }
+                }
+                log.info("upstreamVersionIdsMap: {}", upstreamVersionIdsMap);
 
                 // 构建拓扑顺序（使用 edges 构建，用于控制执行顺序）
                 Map<String, List<String>> outgoingEdges = new HashMap<>();
@@ -459,11 +489,10 @@ public class SimulationUpstreamClient implements UpstreamClient {
                                         .map(upstreamNodeId -> {
                                             Map<String, Object> info = new HashMap<>();
                                             info.put("nodeId", upstreamNodeId);
-                                            // 查询该上游节点的当前版本ID
-                                            var currentVersion = nodeVersionRepository
-                                                    .findByProjectIdAndNodeIdAndIsCurrent(projectId, upstreamNodeId, true)
-                                                    .orElse(null);
-                                            info.put("versionId", currentVersion != null ? currentVersion.getId() : null);
+                                            // 使用执行前预先捕获的版本ID
+                                            // 如果没有找到版本ID（首次运行时可能如此），则存 null
+                                            Long versionId = upstreamVersionIdsMap.get(upstreamNodeId);
+                                            info.put("versionId", versionId);
                                             return info;
                                         })
                                         .collect(Collectors.toList());

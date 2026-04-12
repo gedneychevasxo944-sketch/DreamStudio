@@ -1669,9 +1669,9 @@
 }
 
 .run-detail-modal {
-  width: 90%;
-  max-width: 560px;
-  max-height: 80vh;
+  width: 95%;
+  max-width: 900px;
+  max-height: 85vh;
   background: var(--bg-secondary);
   border-radius: 12px;
   display: flex;
@@ -2705,4 +2705,92 @@
 .locked-overlay-content .unlock-btn:hover {
   background: rgba(234, 179, 8, 0.3);
   transform: scale(1.02);
+}
+
+/* 运行详情弹窗结果样式 */
+.run-detail-result {
+  width: 100%;
+}
+
+.run-detail-empty {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: 13px;
+}
+
+.run-detail-output {
+  width: 100%;
+  min-height: 120px;
+  max-height: 300px;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 12px;
+  line-height: 1.5;
+  resize: none;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: inherit;
+}
+
+.run-detail-json {
+  width: 100%;
+  max-height: 300px;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.run-detail-script {
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+}
+
+.run-detail-visual .visual-result-section {
+  margin-bottom: 12px;
+}
+
+.run-detail-visual .visual-result-section:last-child {
+  margin-bottom: 0;
+}
+
+.run-detail-visual .section-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.run-detail-visual .section-header svg {
+  color: var(--text-tertiary);
+}
+
+.run-detail-upstream-item .upstream-output {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  max-height: 60px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+  margin-top: 4px;
 }

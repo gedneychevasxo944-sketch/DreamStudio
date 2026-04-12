@@ -15,6 +15,8 @@ public interface NodeVersionRepository extends JpaRepository<NodeVersion, Long> 
 
     List<NodeVersion> findByProjectIdAndNodeIdOrderByVersionNoDesc(Long projectId, String nodeId);
 
+    Optional<NodeVersion> findTopByProjectIdAndNodeIdOrderByVersionNoDesc(Long projectId, String nodeId);
+
     Optional<NodeVersion> findByProjectIdAndNodeIdAndIsCurrent(Long projectId, String nodeId, Boolean isCurrent);
 
     Optional<NodeVersion> findByIdAndProjectId(Long id, Long projectId);
