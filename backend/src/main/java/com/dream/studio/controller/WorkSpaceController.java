@@ -219,8 +219,9 @@ public class WorkSpaceController {
 
         DAGDTO dag = request.getDag();
         List<ChatDTO.WorkflowEdge> edges = request.getEdges();
+        ChatDTO.UpstreamContext upstreamContext = request.getUpstreamContext();
 
-        return upstreamClient.executeWorkflow(dag, edges, projectId);
+        return upstreamClient.executeWorkflow(dag, edges, projectId, upstreamContext);
     }
 
     // ========== 6.7 获取执行详情 ==========
@@ -245,5 +246,10 @@ public class WorkSpaceController {
     public static class WorkflowExecuteRequest {
         private DAGDTO dag;
         private List<ChatDTO.WorkflowEdge> edges;
+        /**
+         * 上游上下文，用于构建版本关系
+         * 当仅运行单个节点时，主 dag 只包含该节点，但 upstreamContext 包含完整 DAG
+         */
+        private ChatDTO.UpstreamContext upstreamContext;
     }
 }

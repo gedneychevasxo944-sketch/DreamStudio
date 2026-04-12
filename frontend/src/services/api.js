@@ -536,7 +536,7 @@ export const workSpaceApi = {
     return request('/workflows');
   },
 
-  executeWorkflow: (projectId, executionId, projectVersion, nodes, connections, onMessage, onError) => {
+  executeWorkflow: (projectId, executionId, projectVersion, nodes, connections, onMessage, onError, upstreamContext) => {
     const dag = {
       nodes: nodes.map(node => ({
         nodeId: node.id,
@@ -555,7 +555,8 @@ export const workSpaceApi = {
       edges: connections.map(conn => ({
         fromNodeId: conn.from,
         toNodeId: conn.to
-      }))
+      })),
+      upstreamContext
     });
 
     return createSSEConnectionForExecution(
@@ -812,6 +813,11 @@ export const nodeVersionApi = {
   // 获取运行记录
   getHistory: (projectId, nodeId) => {
     return request(`/v1/projects/${projectId}/nodes/${nodeId}/history`);
+  },
+
+  // 获取版本详情（含上游节点）
+  getVersionDetailWithUpstream: (projectId, nodeId, versionId) => {
+    return request(`/v1/projects/${projectId}/nodes/${nodeId}/versions/${versionId}/detail-with-upstream`);
   },
 };
 

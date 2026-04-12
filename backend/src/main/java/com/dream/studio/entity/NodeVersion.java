@@ -89,6 +89,14 @@ public class NodeVersion {
     @Column(name = "diff_summary", columnDefinition = "LONGTEXT")
     private String diffSummary;
 
+    /**
+     * 上游节点及版本信息
+     * 格式: [{"nodeId": "B", "versionId": 123}, {"nodeId": "A", "versionId": 456}]
+     * 记录当前版本使用了哪些上游节点的哪些版本
+     */
+    @Column(name = "upstream_node_ids", columnDefinition = "TEXT")
+    private String upstreamNodeIds;
+
     @CreationTimestamp
     @Column(name = "created_time", updatable = false)
     private LocalDateTime createdTime;

@@ -135,6 +135,22 @@ public class NodeController {
                 .build());
     }
 
+    /**
+     * 获取版本详情（包含上游节点信息）
+     */
+    @GetMapping("/projects/{projectId}/nodes/{nodeId}/versions/{versionId}/detail-with-upstream")
+    @Operation(summary = "获取版本详情（含上游节点）", description = "获取指定版本的详细信息，包含上游节点及其输出")
+    public ApiResponse<NodeVersionDTO.VersionDetail> getVersionDetailWithUpstream(
+            @PathVariable Long projectId,
+            @PathVariable String nodeId,
+            @PathVariable Long versionId) {
+        log.info("Getting version detail with upstream for project: {}, node: {}, version: {}", projectId, nodeId, versionId);
+        validateProjectOwnership(projectId);
+
+        NodeVersionDTO.VersionDetail detail = nodeVersionService.getVersionDetailWithUpstream(projectId, nodeId, versionId);
+        return ApiResponse.success(detail);
+    }
+
     // ========== 资产接口 ==========
 
     /**

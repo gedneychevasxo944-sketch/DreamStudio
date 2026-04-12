@@ -63,7 +63,22 @@ public class NodeVersionDTO {
         private String thinkingText;
         private String revisionReason;
         private String diffSummary;
+        private String upstreamNodeIds;  // JSON array of upstream node IDs
         private String createdAt;
+        private List<UpstreamNode> upstreamNodes;  // 上游节点详情
+    }
+
+    /**
+     * 上游节点信息
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class UpstreamNode {
+        private String nodeId;      // 节点ID
+        private String nodeName;    // 节点名称
+        private String output;      // 节点输出
     }
 
     /**

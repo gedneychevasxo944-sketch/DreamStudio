@@ -76,7 +76,7 @@ public class RealUpstreamClient implements UpstreamClient {
 
     // ========== 6.6 工作流执行 (SSE) ==========
     @Override
-    public SseEmitter executeWorkflow(DAGDTO dag, List<ChatDTO.WorkflowEdge> edges, Long projectId) {
+    public SseEmitter executeWorkflow(DAGDTO dag, List<ChatDTO.WorkflowEdge> edges, Long projectId, ChatDTO.UpstreamContext upstreamContext) {
         log.info("RealUpstreamClient: executeWorkflow projectId={}", projectId);
 
         String url = baseUrl + "/v1/workflows/executions/stream";

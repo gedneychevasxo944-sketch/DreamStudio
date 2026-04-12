@@ -5,6 +5,7 @@ import ChatConversation from './ChatConversation';
 import { formatTimestamp } from './ChatConversation';
 import './ChatConversation.css';
 import { nodeVersionApi, proposalApi, chatApi } from '../services/api';
+import { useWorkflowStore } from '../stores';
 import './NodeWorkspace.css';
 
 // Tab 图标组件
@@ -157,6 +158,17 @@ const ResultTab = ({ node, projectId, onGenerateVideo, onRestoreVersion, version
   const [modifiedData, setModifiedData] = useState(null);
   const isFirstMountRef = useRef(true);
 
+  // ESC 键关闭版本历史下拉
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && showVersionHistory) {
+        setShowVersionHistory(false);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [showVersionHistory]);
+
   useEffect(() => {
     if (!node || !projectId) {
       setApiVersions(null);
@@ -183,6 +195,7 @@ const ResultTab = ({ node, projectId, onGenerateVideo, onRestoreVersion, version
         if (currentNodeId !== node?.id) return;
 
         if (versionsRes.data && versionsRes.data.versions) {
+          console.log('[ResultTab] versions from API:', versionsRes.data.versions);
           setApiVersions(versionsRes.data.versions);
         } else {
           setApiVersions([]);
@@ -275,8 +288,8 @@ const ResultTab = ({ node, projectId, onGenerateVideo, onRestoreVersion, version
   const versionHistory = apiVersions
     ? apiVersions.map(v => ({
         id: v.id,
+        versionNo: v.versionNo,
         version: `v${v.versionNo}`,
-        type: v.versionKind === 'RUN_OUTPUT' ? '运行版' : '修订版',
         time: v.createdAt,
         isCurrent: v.isCurrent
       }))
@@ -292,6 +305,7 @@ const ResultTab = ({ node, projectId, onGenerateVideo, onRestoreVersion, version
   const currentVersion = currentVersionResult?.versionNo || node.data?.currentVersion || 1;
   const isRevised = node.data?.isRevised;
   const isLocked = node.data?.isLocked;
+  const isPropagationLocked = node.data?.lockedByPropagation;
   const baseVersion = node.data?.baseVersion;
   const status = node.data?.status || 'completed';
 
@@ -731,51 +745,56 @@ const ResultTab = ({ node, projectId, onGenerateVideo, onRestoreVersion, version
           {isLocked && (
             <span className="locked-badge">
               <Lock size={10} />
-              已锁定
+              {isPropagationLocked ? '已被下游锁定' : '已锁定'}
             </span>
           )}
         </div>
 
-        <button
-          className="version-history-toggle"
-          onClick={() => setShowVersionHistory(!showVersionHistory)}
-        >
-          <History size={14} />
-          版本历史
-          <ChevronDown size={14} className={showVersionHistory ? 'open' : ''} />
-        </button>
-      </div>
-
-      {/* 版本历史下拉 */}
-      <AnimatePresence>
-        {showVersionHistory && (
-          <motion.div
-            className="version-history-dropdown"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
+        <div className="version-history-wrapper">
+          <button
+            className="version-history-toggle"
+            onClick={() => setShowVersionHistory(!showVersionHistory)}
           >
-            {versionHistory.map((v, idx) => (
-              <div
-                key={idx}
-                className={`version-history-item ${v.isCurrent ? 'current' : ''}`}
-                onClick={() => !v.isCurrent && handleRestoreVersion(v.version)}
-                style={{ cursor: v.isCurrent ? 'default' : 'pointer' }}
-              >
-                <div className="version-history-left">
-                  <span className="version-name">{v.version}</span>
-                  <span className="version-type">{v.type}</span>
-                </div>
-                <div className="version-history-right">
-                  <span className="version-time">{v.time}</span>
-                  {v.isCurrent && <span className="current-indicator"><Check size={12} /></span>}
-                  {!v.isCurrent && <span className="restore-hint">点击恢复</span>}
-                </div>
-              </div>
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
+            <History size={14} />
+            版本历史
+            <ChevronDown size={14} className={showVersionHistory ? 'open' : ''} />
+          </button>
+
+          {/* 遮罩层 */}
+          <AnimatePresence>
+            {showVersionHistory && (
+              <>
+                <motion.div
+                  className="version-history-backdrop"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setShowVersionHistory(false)}
+                />
+                <motion.div
+                  className="version-history-dropdown"
+                  initial={{ opacity: 0, scale: 0.95, y: -8 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: -8 }}
+                  transition={{ duration: 0.15, ease: 'easeOut' }}
+                >
+                  {versionHistory.map((v, idx) => (
+                    <div
+                      key={idx}
+                      className={`version-history-item ${v.isCurrent ? 'current' : ''}`}
+                      onClick={() => !v.isCurrent && handleRestoreVersion(v.id)}
+                    >
+                      <span className="version-name">{v.version}</span>
+                      <span className="version-time">{v.time}</span>
+                      {v.isCurrent && <Check size={14} className="current-indicator" />}
+                    </div>
+                  ))}
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
 
       {/* 结果来源链 */}
       {isRevised && baseVersion && (
@@ -1302,9 +1321,18 @@ const ConfigTab = ({ node, onNodeUpdate }) => {
 
   const configFields = getConfigFields();
   const isLocked = node.data?.isLocked || false;
+  const isPropagationLocked = node.data?.lockedByPropagation;
+  const propagationRoot = node.data?.propagationRoot;
 
   const toggleLock = () => {
-    updateNodeData({ isLocked: !isLocked });
+    const store = useWorkflowStore.getState();
+    if (isLocked) {
+      // 解锁：仅解锁当前节点和被传播锁定的上游
+      store.unlockNodeAndUpstream(node.id);
+    } else {
+      // 锁定：锁定当前节点和所有上游
+      store.lockNodeAndUpstream(node.id);
+    }
   };
 
   return (
@@ -1320,7 +1348,11 @@ const ConfigTab = ({ node, onNodeUpdate }) => {
           {isLocked ? (
             <>
               <Lock size={16} className="lock-icon locked" />
-              <span>节点已锁定</span>
+              <span>
+                {isPropagationLocked
+                  ? `已被下游节点锁定`
+                  : '节点已锁定'}
+              </span>
             </>
           ) : (
             <>
@@ -1329,22 +1361,29 @@ const ConfigTab = ({ node, onNodeUpdate }) => {
             </>
           )}
         </div>
-        <button
-          className={`lock-toggle-btn ${isLocked ? 'locked' : ''}`}
-          onClick={toggleLock}
-        >
-          {isLocked ? (
-            <>
-              <Unlock size={14} />
-              <span>解锁节点</span>
-            </>
-          ) : (
-            <>
-              <Lock size={14} />
-              <span>锁定节点</span>
-            </>
-          )}
-        </button>
+        {isPropagationLocked ? (
+          <div className="propagation-hint">
+            <AlertTriangle size={14} />
+            <span>需从下游解锁</span>
+          </div>
+        ) : (
+          <button
+            className={`lock-toggle-btn ${isLocked ? 'locked' : ''}`}
+            onClick={toggleLock}
+          >
+            {isLocked ? (
+              <>
+                <Unlock size={14} />
+                <span>解锁节点</span>
+              </>
+            ) : (
+              <>
+                <Lock size={14} />
+                <span>锁定节点</span>
+              </>
+            )}
+          </button>
+        )}
       </div>
 
       <div className="config-fields">
@@ -1398,8 +1437,10 @@ const ConfigTab = ({ node, onNodeUpdate }) => {
 // 运行记录 Tab
 const HistoryTab = ({ node, projectId, versionRefreshKey }) => {
   const [runRecords, setRunRecords] = useState([]);
-  const [expandedRecord, setExpandedRecord] = useState(null);
+  const [selectedRecord, setSelectedRecord] = useState(null);
+  const [recordDetail, setRecordDetail] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   useEffect(() => {
     if (!node || !projectId) {
@@ -1417,15 +1458,12 @@ const HistoryTab = ({ node, projectId, versionRefreshKey }) => {
             version: `v${v.versionNo}`,
             time: v.createdAt,
             duration: '-',
-            status: v.status === 'READY' ? 'success' : 'failed',
-            input: '-',
-            output: v.diffSummary || v.resultText?.substring(0, 50) || '-'
+            status: v.status === 'READY' ? 'success' : 'failed'
           }));
           setRunRecords(records);
         }
       } catch (error) {
         console.error('Failed to load history:', error);
-        // 如果加载失败，使用空数组
         setRunRecords([]);
       } finally {
         setLoading(false);
@@ -1434,6 +1472,30 @@ const HistoryTab = ({ node, projectId, versionRefreshKey }) => {
 
     loadHistory();
   }, [node, projectId, versionRefreshKey]);
+
+  // 点击记录查看详情
+  const handleRecordClick = async (record) => {
+    if (selectedRecord?.id === record.id) return;
+    setSelectedRecord(record);
+    setDetailLoading(true);
+    try {
+      const response = await nodeVersionApi.getVersionDetailWithUpstream(projectId, node.id, record.id);
+      if (response.data) {
+        setRecordDetail(response.data);
+      }
+    } catch (error) {
+      console.error('Failed to load record detail:', error);
+      setRecordDetail(null);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  // 关闭弹窗
+  const handleCloseModal = () => {
+    setSelectedRecord(null);
+    setRecordDetail(null);
+  };
 
   if (!node) {
     return (
@@ -1457,46 +1519,102 @@ const HistoryTab = ({ node, projectId, versionRefreshKey }) => {
         {runRecords.map((record) => (
           <div
             key={record.id}
-            className={`run-record-item ${expandedRecord === record.id ? 'expanded' : ''}`}
+            className={`run-record-item ${selectedRecord?.id === record.id ? 'selected' : ''}`}
+            onClick={() => handleRecordClick(record)}
           >
-            <div
-              className="run-record-header"
-              onClick={() => setExpandedRecord(expandedRecord === record.id ? null : record.id)}
-            >
-              <div className="record-left">
-                <span className={`record-status ${record.status}`}>
-                  {record.status === 'success' ? <Check size={12} /> : <AlertTriangle size={12} />}
-                </span>
-                <span className="record-version">{record.version}</span>
-              </div>
-              <div className="record-right">
-                <span className="record-time">{record.time}</span>
-                <span className="record-duration">{record.duration}</span>
-              </div>
+            <div className="record-left">
+              <span className={`record-status ${record.status}`}>
+                {record.status === 'success' ? <Check size={12} /> : <AlertTriangle size={12} />}
+              </span>
+              <span className="record-version">{record.version}</span>
             </div>
-
-            <AnimatePresence>
-              {expandedRecord === record.id && (
-                <motion.div
-                  className="run-record-detail"
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                >
-                  <div className="record-detail-section">
-                    <span className="detail-label">输入</span>
-                    <div className="detail-content">{record.input}</div>
-                  </div>
-                  <div className="record-detail-section">
-                    <span className="detail-label">输出</span>
-                    <div className="detail-content">{record.output}</div>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            <div className="record-right">
+              <span className="record-time">{record.time}</span>
+            </div>
           </div>
         ))}
       </div>
+
+      {/* 运行详情弹窗 */}
+      <AnimatePresence>
+        {selectedRecord && (
+          <motion.div
+            className="run-detail-modal-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={handleCloseModal}
+          >
+            <motion.div
+              className="run-detail-modal"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ duration: 0.15, ease: 'easeOut' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* 弹窗头部 */}
+              <div className="run-detail-header">
+                <span className="run-detail-title">运行详情</span>
+                <button className="run-detail-close" onClick={handleCloseModal}>
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* 版本信息 */}
+              <div className="run-detail-meta">
+                <span className="run-detail-version">{selectedRecord.version}</span>
+                <span className="run-detail-time">{selectedRecord.time}</span>
+                <span className={`run-detail-status ${selectedRecord.status}`}>
+                  {selectedRecord.status === 'success' ? '成功' : '失败'}
+                </span>
+              </div>
+
+              {/* 加载状态 */}
+              {detailLoading && (
+                <div className="run-detail-loading">
+                  <Loader2 size={20} className="spin" />
+                  <span>加载中...</span>
+                </div>
+              )}
+
+              {/* 内容区域 */}
+              {!detailLoading && recordDetail && (
+                <div className="run-detail-content">
+                  {/* 上游节点（数据来源） */}
+                  {recordDetail.upstreamNodes && recordDetail.upstreamNodes.length > 0 && (
+                    <div className="run-detail-section">
+                      <div className="run-detail-section-header">
+                        <span className="detail-label">上游节点（数据来源）</span>
+                      </div>
+                      <div className="run-detail-upstreams">
+                        {recordDetail.upstreamNodes.map((upstream, idx) => (
+                          <div key={idx} className="run-detail-upstream-item">
+                            <div className="upstream-name">{upstream.nodeName || upstream.nodeId}</div>
+                            <div className="upstream-output">{upstream.output || '无输出'}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 本节点输出 */}
+                  <div className="run-detail-section">
+                    <div className="run-detail-section-header">
+                      <span className="detail-label">输出</span>
+                    </div>
+                    <textarea
+                      className="run-detail-output"
+                      value={recordDetail.resultText || '无输出'}
+                      readOnly
+                    />
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
@@ -1822,12 +1940,13 @@ const NodeWorkspace = ({
 
   // 检查节点是否被锁定
   const isNodeLocked = selectedNode?.data?.isLocked;
+  const isNodePropagationLocked = selectedNode?.data?.lockedByPropagation;
 
-  // 解锁节点
+  // 解锁节点（会同时解锁被传播锁定的上游节点）
   const handleUnlock = () => {
-    if (selectedNode && onNodeUpdate) {
-      onNodeUpdate(selectedNode.id, { isLocked: false });
-    }
+    if (!selectedNode) return;
+    const store = useWorkflowStore.getState();
+    store.unlockNodeAndUpstream(selectedNode.id);
   };
 
   return (
@@ -1877,11 +1996,20 @@ const NodeWorkspace = ({
                   <div className="lock-icon-large">
                     <Lock size={20} />
                   </div>
-                  <p>节点已锁定</p>
-                  <button className="unlock-btn" onClick={handleUnlock}>
-                    <Unlock size={14} />
-                    <span>立即解锁</span>
-                  </button>
+                  {isNodePropagationLocked ? (
+                    <>
+                      <p>已被下游节点锁定</p>
+                      <p className="propagation-hint-text">请从下游节点解锁</p>
+                    </>
+                  ) : (
+                    <>
+                      <p>节点已锁定</p>
+                      <button className="unlock-btn" onClick={handleUnlock}>
+                        <Unlock size={14} />
+                        <span>立即解锁</span>
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             )}

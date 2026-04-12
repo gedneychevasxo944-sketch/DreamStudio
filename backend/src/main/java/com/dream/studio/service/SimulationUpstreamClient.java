@@ -12,6 +12,7 @@ import com.dream.studio.entity.NodeVersion;
 import com.dream.studio.repository.AgentChatRecordRepository;
 import com.dream.studio.repository.NodeProposalRepository;
 import com.dream.studio.repository.NodeVersionRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -33,15 +34,18 @@ public class SimulationUpstreamClient implements UpstreamClient {
     private final NodeProposalRepository nodeProposalRepository;
     private final AgentChatRecordRepository agentChatRecordRepository;
     private final TransactionTemplate transactionTemplate;
+    private final ObjectMapper objectMapper;
 
     public SimulationUpstreamClient(NodeVersionRepository nodeVersionRepository,
                                    NodeProposalRepository nodeProposalRepository,
                                    AgentChatRecordRepository agentChatRecordRepository,
-                                   TransactionTemplate transactionTemplate) {
+                                   TransactionTemplate transactionTemplate,
+                                   ObjectMapper objectMapper) {
         this.nodeVersionRepository = nodeVersionRepository;
         this.nodeProposalRepository = nodeProposalRepository;
         this.agentChatRecordRepository = agentChatRecordRepository;
         this.transactionTemplate = transactionTemplate;
+        this.objectMapper = objectMapper;
     }
 
     // 会话状态存储（模拟）
@@ -262,8 +266,8 @@ public class SimulationUpstreamClient implements UpstreamClient {
 
     // ========== 6.6 工作流执行 (SSE) ==========
     @Override
-    public SseEmitter executeWorkflow(DAGDTO dag, List<ChatDTO.WorkflowEdge> edges, Long projectId) {
-        log.info("SimulationUpstreamClient: executeWorkflow projectId={}", projectId);
+    public SseEmitter executeWorkflow(DAGDTO dag, List<ChatDTO.WorkflowEdge> edges, Long projectId, ChatDTO.UpstreamContext upstreamContext) {
+        log.info("SimulationUpstreamClient: executeWorkflow projectId={}, hasUpstreamContext={}", projectId, upstreamContext != null);
         SseEmitter emitter = new SseEmitter(0L);
 
         new Thread(() -> {
@@ -288,12 +292,24 @@ public class SimulationUpstreamClient implements UpstreamClient {
                 Map<String, DAGDTO.DAGNode> nodeMap = dagNodes.stream()
                         .collect(Collectors.toMap(n -> n.getNodeId() != null ? n.getNodeId() : n.getId(), n -> n));
 
-                // 构建拓扑顺序
+                // 从 upstreamContext 构建上游节点映射（用于保存版本时记录完整的上游关系）
+                Map<String, List<String>> upstreamNodeIdsMap = new HashMap<>();
+                if (upstreamContext != null && upstreamContext.getEdges() != null) {
+                    for (ChatDTO.WorkflowEdge edge : upstreamContext.getEdges()) {
+                        String from = edge.getFromNodeId() != null ? edge.getFromNodeId() : edge.getFrom();
+                        String to = edge.getToNodeId() != null ? edge.getToNodeId() : edge.getTo();
+                        upstreamNodeIdsMap.computeIfAbsent(to, k -> new ArrayList<>()).add(from);
+                    }
+                }
+
+                // 构建拓扑顺序（使用 edges 构建，用于控制执行顺序）
                 Map<String, List<String>> outgoingEdges = new HashMap<>();
+                Map<String, List<String>> incomingEdges = new HashMap<>();  // 上游节点映射
                 for (ChatDTO.WorkflowEdge edge : edges) {
                     String from = edge.getFromNodeId() != null ? edge.getFromNodeId() : edge.getFrom();
                     String to = edge.getToNodeId() != null ? edge.getToNodeId() : edge.getTo();
                     outgoingEdges.computeIfAbsent(from, k -> new ArrayList<>()).add(to);
+                    incomingEdges.computeIfAbsent(to, k -> new ArrayList<>()).add(from);
                 }
 
                 Map<String, Integer> inDegree = new HashMap<>();
@@ -393,13 +409,17 @@ public class SimulationUpstreamClient implements UpstreamClient {
                             executionId, nodeId, getCurrentTime())));
 
                     // 保存节点结果用于后续入库
+                    // 获取上游节点列表
+                    List<String> upstreamNodes = incomingEdges.getOrDefault(nodeId, Collections.emptyList());
                     nodeResults.put(nodeId, new NodeVersionResult(
                             dagNode.getAgentId(),
                             nodeTypeCode,
                             nodeTypeCode,
                             resultText,
                             resultJson,
-                            thinkingText
+                            thinkingText,
+                            dagNode.getInputParam(),  // 输入参数
+                            upstreamNodes  // 上游节点ID列表
                     ));
 
                     completedNodes.add(nodeId);
@@ -427,6 +447,29 @@ public class SimulationUpstreamClient implements UpstreamClient {
                             Integer maxVersionNo = nodeVersionRepository.findMaxVersionNo(projectId, nodeId).orElse(0);
                             int newVersionNo = maxVersionNo + 1;
 
+                            // 构建上游节点及版本信息
+                            // 优先使用执行时构建的 incomingEdges（完整运行时有值），否则用 upstreamNodeIdsMap（仅运行单个节点时）
+                            List<String> upstreamNodes = result.upstreamNodeIds;
+                            if ((upstreamNodes == null || upstreamNodes.isEmpty()) && upstreamNodeIdsMap.containsKey(nodeId)) {
+                                upstreamNodes = upstreamNodeIdsMap.get(nodeId);
+                            }
+                            String upstreamVersionsJson = null;
+                            if (upstreamNodes != null && !upstreamNodes.isEmpty()) {
+                                List<Map<String, Object>> upstreamInfo = upstreamNodes.stream()
+                                        .map(upstreamNodeId -> {
+                                            Map<String, Object> info = new HashMap<>();
+                                            info.put("nodeId", upstreamNodeId);
+                                            // 查询该上游节点的当前版本ID
+                                            var currentVersion = nodeVersionRepository
+                                                    .findByProjectIdAndNodeIdAndIsCurrent(projectId, upstreamNodeId, true)
+                                                    .orElse(null);
+                                            info.put("versionId", currentVersion != null ? currentVersion.getId() : null);
+                                            return info;
+                                        })
+                                        .collect(Collectors.toList());
+                                upstreamVersionsJson = objectMapper.writeValueAsString(upstreamInfo);
+                            }
+
                             NodeVersion version = NodeVersion.builder()
                                     .projectId(projectId)
                                     .nodeId(nodeId)
@@ -437,10 +480,12 @@ public class SimulationUpstreamClient implements UpstreamClient {
                                     .versionKind("RUN_OUTPUT")
                                     .isCurrent(true)
                                     .status("READY")
+                                    .inputSnapshotJson(result.inputParam != null ? objectMapper.writeValueAsString(result.inputParam) : null)
                                     .resultText(result.resultText)
                                     .resultJson(result.resultJson)
                                     .thinkingText(result.thinkingText)
                                     .sourceExecutionId(Long.parseLong(executionId.replace("wf-", "")))
+                                    .upstreamNodeIds(upstreamVersionsJson)
                                     .build();
 
                             // 使用事务模板执行数据库操作
@@ -450,7 +495,7 @@ public class SimulationUpstreamClient implements UpstreamClient {
                                 // 保存新版本
                                 nodeVersionRepository.save(version);
                             });
-                            log.info("Saved NodeVersion for node: {}, versionNo: {}", nodeId, newVersionNo);
+                            log.info("Saved NodeVersion for node: {}, versionNo: {}, upstreamNodes: {}", nodeId, newVersionNo, upstreamVersionsJson);
                         } catch (Exception e) {
                             log.error("Failed to save NodeVersion for node: {}", nodeId, e);
                         }
@@ -487,14 +532,18 @@ public class SimulationUpstreamClient implements UpstreamClient {
         String resultText;
         String resultJson;
         String thinkingText;
+        Object inputParam;  // 输入参数
+        List<String> upstreamNodeIds;  // 上游节点ID列表
 
-        NodeVersionResult(Long agentId, String agentCode, String nodeType, String resultText, String resultJson, String thinkingText) {
+        NodeVersionResult(Long agentId, String agentCode, String nodeType, String resultText, String resultJson, String thinkingText, Object inputParam, List<String> upstreamNodeIds) {
             this.agentId = agentId;
             this.agentCode = agentCode;
             this.nodeType = nodeType;
             this.resultText = resultText;
             this.resultJson = resultJson;
             this.thinkingText = thinkingText;
+            this.inputParam = inputParam;
+            this.upstreamNodeIds = upstreamNodeIds;
         }
     }
 

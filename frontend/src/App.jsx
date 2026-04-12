@@ -846,6 +846,9 @@ const planToNodesAndConnections = (plan, userInput) => {
       // 调用后端API激活版本
       await nodeVersionApi.activateVersion(currentProjectId, nodeKey, versionId);
 
+      // 触发 workflowComplete 事件，刷新版本列表
+      document.dispatchEvent(new Event('workflowComplete'));
+
       // 找到对应的节点
       const targetNode = canvasNodes.find(n => n.id === nodeKey);
       if (!targetNode) return;

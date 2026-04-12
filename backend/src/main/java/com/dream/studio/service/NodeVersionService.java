@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -85,6 +86,111 @@ public class NodeVersionService {
                 .orElseThrow(() -> new InvalidOperationException("Version not found: " + versionId));
 
         return toVersionDetail(version);
+    }
+
+    /**
+     * 获取版本详情（包含上游节点信息）
+     */
+    @Transactional(readOnly = true)
+    public NodeVersionDTO.VersionDetail getVersionDetailWithUpstream(Long projectId, String nodeId, Long versionId) {
+        log.info("Getting version detail with upstream for project: {}, node: {}, version: {}", projectId, nodeId, versionId);
+
+        NodeVersion version = nodeVersionRepository.findByIdAndProjectId(versionId, projectId)
+                .filter(v -> v.getNodeId().equals(nodeId))
+                .orElseThrow(() -> new InvalidOperationException("Version not found: " + versionId));
+
+        NodeVersionDTO.VersionDetail detail = toVersionDetail(version);
+
+        // 解析上游节点信息
+        if (version.getUpstreamNodeIds() != null && !version.getUpstreamNodeIds().isEmpty()) {
+            try {
+                List<NodeVersionDTO.UpstreamNode> upstreamNodes = parseUpstreamNodes(version.getUpstreamNodeIds(), projectId);
+                detail.setUpstreamNodes(upstreamNodes);
+            } catch (JsonProcessingException e) {
+                log.warn("Failed to parse upstreamNodeIds: {}", version.getUpstreamNodeIds(), e);
+            }
+        }
+
+        return detail;
+    }
+
+    /**
+     * 解析上游节点信息
+     * 支持新旧两种格式：
+     * - 新格式: [{"nodeId": "B", "versionId": 123}]
+     * - 旧格式: ["B", "A"]
+     */
+    private List<NodeVersionDTO.UpstreamNode> parseUpstreamNodes(String upstreamNodeIdsJson, Long projectId) throws JsonProcessingException {
+        List<Object> parsed = objectMapper.readValue(upstreamNodeIdsJson, List.class);
+
+        // 判断是新格式还是旧格式
+        if (parsed.isEmpty() || !(parsed.get(0) instanceof Map)) {
+            // 旧格式: 直接是节点ID列表，转为新格式后查询
+            return parseLegacyFormat(parsed, projectId);
+        }
+
+        // 新格式: [{"nodeId": "B", "versionId": 123}]
+        return parsed.stream()
+                .map(item -> {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> map = (Map<String, Object>) item;
+                    String upstreamNodeId = (String) map.get("nodeId");
+                    Object versionIdObj = map.get("versionId");
+
+                    NodeVersion upstreamVersion = null;
+                    if (versionIdObj != null) {
+                        // 直接用 versionId 查询对应版本
+                        Long versionId = versionIdObj instanceof Integer
+                                ? ((Integer) versionIdObj).longValue()
+                                : (Long) versionIdObj;
+                        upstreamVersion = nodeVersionRepository.findById(versionId).orElse(null);
+                    }
+
+                    return NodeVersionDTO.UpstreamNode.builder()
+                            .nodeId(upstreamNodeId)
+                            .nodeName(upstreamVersion != null ? getNodeDisplayName(upstreamVersion) : upstreamNodeId)
+                            .output(upstreamVersion != null ? upstreamVersion.getResultText() : null)
+                            .build();
+                })
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 解析旧格式的 upstreamNodeIds（仅包含节点ID列表）
+     * 用于兼容旧数据
+     */
+    private List<NodeVersionDTO.UpstreamNode> parseLegacyFormat(List<Object> upstreamNodeIds, Long projectId) {
+        return upstreamNodeIds.stream()
+                .map(item -> {
+                    String upstreamNodeId = (String) item;
+                    // 获取该上游节点的当前版本
+                    var latestVersion = nodeVersionRepository
+                            .findByProjectIdAndNodeIdAndIsCurrent(projectId, upstreamNodeId, true)
+                            .orElse(null);
+                    return NodeVersionDTO.UpstreamNode.builder()
+                            .nodeId(upstreamNodeId)
+                            .nodeName(latestVersion != null ? getNodeDisplayName(latestVersion) : upstreamNodeId)
+                            .output(latestVersion != null ? latestVersion.getResultText() : null)
+                            .build();
+                })
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 获取节点的显示名称
+     */
+    private String getNodeDisplayName(NodeVersion version) {
+        if (version == null) return "未知节点";
+        // 优先使用 agentCode，其次使用 nodeType
+        String code = version.getAgentCode();
+        if (code != null && !code.isEmpty()) {
+            return code;
+        }
+        String type = version.getNodeType();
+        if (type != null && !type.isEmpty()) {
+            return type;
+        }
+        return version.getNodeId();
     }
 
     /**
@@ -187,6 +293,7 @@ public class NodeVersionService {
                 .thinkingText(version.getThinkingText())
                 .revisionReason(version.getRevisionReason())
                 .diffSummary(version.getDiffSummary())
+                .upstreamNodeIds(version.getUpstreamNodeIds())
                 .createdAt(version.getCreatedTime() != null ? version.getCreatedTime().format(DATE_FORMATTER) : null)
                 .build();
     }

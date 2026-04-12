@@ -54,3 +54,7 @@ upstream:
   client: simulation  # simulation | production
   ai:
     base-url: http://localhost:8081
+
+# 测试账号配置（方便开发测试）
+auth:
+  test-account: test

@@ -612,7 +612,8 @@ const NodeCanvas = ({
             sseConnection.close();
           }
         },
-        (error) => { console.error('SSE error:', error); setIsRunning(false); }
+        (error) => { console.error('SSE error:', error); setIsRunning(false); },
+        null
       );
     } catch (error) {
       console.error('Failed to execute new video nodes:', error);
@@ -723,10 +724,24 @@ const NodeCanvas = ({
     const nodeThinkingMap = new Map();
     let savedExecutionId = localStorage.getItem(`execution_${projectId}`);
     let executionId = savedExecutionId ? parseInt(savedExecutionId, 10) : null;
+    // upstreamContext 用于传递完整 DAG 信息，用于构建版本关系
+    let upstreamContext = null;
 
     // 根据 mode 过滤 DAG
     if (mode === 'fromCurrent' && selectedNodeId) {
-      // 从当前节点运行：获取从选中节点向后的所有节点和边
+      // 从当前节点运行：获取从选中节点向后的所有节点和边，传递完整上下文用于构建版本关系
+      upstreamContext = {
+        nodes: storeState.nodes.map(node => ({
+          nodeId: node.id,
+          agentId: node.agentId,
+          agentCode: node.agentCode || node.type,
+          inputParam: node.data || {}
+        })),
+        edges: storeState.connections.map(conn => ({
+          fromNodeId: conn.from,
+          toNodeId: conn.to
+        }))
+      };
       const downstreamNodes = new Set();
       const queue = [selectedNodeId];
       while (queue.length > 0) {
@@ -741,12 +756,37 @@ const NodeCanvas = ({
       executionId = null;
       localStorage.removeItem(`execution_${projectId}`);
     } else if (mode === 'currentOnly' && selectedNodeId) {
-      // 仅运行当前节点：只发送选中节点，无边
+      // 仅运行当前节点：只发送选中节点，无边，但传递完整上下文用于构建版本关系
+      upstreamContext = {
+        nodes: storeState.nodes.map(node => ({
+          nodeId: node.id,
+          agentId: node.agentId,
+          agentCode: node.agentCode || node.type,
+          inputParam: node.data || {}
+        })),
+        edges: storeState.connections.map(conn => ({
+          fromNodeId: conn.from,
+          toNodeId: conn.to
+        }))
+      };
       currentNodes = currentNodes.filter(n => n.id === selectedNodeId);
       currentConnections = [];
       executionId = null;
       localStorage.removeItem(`execution_${projectId}`);
     } else if (mode === 'continue') {
+      // 继续运行：传递完整上下文用于构建版本关系
+      upstreamContext = {
+        nodes: storeState.nodes.map(node => ({
+          nodeId: node.id,
+          agentId: node.agentId,
+          agentCode: node.agentCode || node.type,
+          inputParam: node.data || {}
+        })),
+        edges: storeState.connections.map(conn => ({
+          fromNodeId: conn.from,
+          toNodeId: conn.to
+        }))
+      };
       // 继续运行：查找 stale 节点及其下游来运行
       const staleNodes = currentNodes.filter(n => n.data?.status === 'stale');
       if (staleNodes.length > 0) {
@@ -865,7 +905,8 @@ const NodeCanvas = ({
         },
         (error) => {
           setIsRunning(false);
-        }
+        },
+        upstreamContext
       );
     } catch (error) {
       setIsRunning(false);

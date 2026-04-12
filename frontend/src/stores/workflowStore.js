@@ -219,6 +219,133 @@ export const useWorkflowStore = create((set, get) => ({
     return state.nodes.filter(n => downstreamIds.has(n.id));
   },
 
+  // 获取上游节点（通过连接关系查找）
+  getUpstreamNodes: (nodeId) => {
+    const state = get();
+    const upstreamIds = new Set();
+    const queue = [nodeId];
+
+    while (queue.length > 0) {
+      const currentId = queue.shift();
+      state.connections.forEach(conn => {
+        if (conn.to === currentId && !upstreamIds.has(conn.from)) {
+          upstreamIds.add(conn.from);
+          queue.push(conn.from);
+        }
+      });
+    }
+
+    return state.nodes.filter(n => upstreamIds.has(n.id));
+  },
+
+  // 检查节点是否可以被修改（没有下游节点被锁定）
+  checkCanModifyNode: (nodeId) => {
+    const state = get();
+    // 找出所有下游节点
+    const downstreamIds = new Set();
+    const queue = [nodeId];
+
+    while (queue.length > 0) {
+      const currentId = queue.shift();
+      state.connections.forEach(conn => {
+        if (conn.from === currentId && !downstreamIds.has(conn.to)) {
+          downstreamIds.add(conn.to);
+          queue.push(conn.to);
+        }
+      });
+    }
+
+    // 检查是否有下游节点被锁定
+    const lockedDownstream = state.nodes.filter(n =>
+      downstreamIds.has(n.id) && n.data?.isLocked
+    );
+
+    if (lockedDownstream.length > 0) {
+      return {
+        canModify: false,
+        lockedBy: lockedDownstream.map(n => n.name || n.id)
+      };
+    }
+
+    return { canModify: true, lockedBy: [] };
+  },
+
+  // 锁定节点及其上游节点
+  lockNodeAndUpstream: (nodeId) => {
+    const state = get();
+    // 先获取所有上游节点
+    const upstreamIds = new Set();
+    const queue = [nodeId];
+
+    while (queue.length > 0) {
+      const currentId = queue.shift();
+      state.connections.forEach(conn => {
+        if (conn.to === currentId && !upstreamIds.has(conn.from)) {
+          upstreamIds.add(conn.from);
+          queue.push(conn.from);
+        }
+      });
+    }
+
+    // 锁定当前节点和所有上游节点
+    const now = new Date().toISOString();
+    const idsToLock = [nodeId, ...Array.from(upstreamIds)];
+
+    set({
+      nodes: state.nodes.map(n =>
+        idsToLock.includes(n.id) ? {
+          ...n,
+          data: {
+            ...n.data,
+            isLocked: true,
+            lockedAt: now,
+            lockedByPropagation: n.id !== nodeId,  // 标记是否是被传播锁定的
+            propagationRoot: nodeId  // 记录锁定传播的根节点
+          }
+        } : n
+      )
+    });
+
+    return idsToLock;
+  },
+
+  // 解锁节点及其上游节点（仅解锁与该节点一起被锁定的上游节点）
+  unlockNodeAndUpstream: (nodeId) => {
+    const state = get();
+    // 找出被这个节点传播锁定的上游节点
+    const idsToUnlock = state.nodes
+      .filter(n =>
+        n.data?.propagationRoot === nodeId && n.data?.lockedByPropagation
+      )
+      .map(n => n.id);
+
+    idsToUnlock.push(nodeId);
+
+    set({
+      nodes: state.nodes.map(n =>
+        idsToUnlock.includes(n.id) ? {
+          ...n,
+          data: {
+            ...n.data,
+            isLocked: false,
+            lockedAt: undefined,
+            lockedByPropagation: undefined,
+            propagationRoot: undefined
+          }
+        } : n
+      )
+    });
+
+    return idsToUnlock;
+  },
+
+  // 检查节点是否因下游锁定而被锁定
+  isLockedByDownstream: (nodeId) => {
+    const state = get();
+    const node = state.nodes.find(n => n.id === nodeId);
+    return node?.data?.lockedByPropagation === true;
+  },
+
   // 标记节点为stale（依赖失效）
   markNodeAsStale: (nodeId, reason) => set((state) => ({
     nodes: state.nodes.map(n =>

@@ -6,6 +6,7 @@ import com.dream.studio.repository.NodeVersionRepository;
 import com.dream.studio.service.RealUpstreamClient;
 import com.dream.studio.service.SimulationUpstreamClient;
 import com.dream.studio.service.UpstreamClient;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -27,12 +28,13 @@ public class UpstreamConfig {
     private final NodeProposalRepository nodeProposalRepository;
     private final AgentChatRecordRepository agentChatRecordRepository;
     private final TransactionTemplate transactionTemplate;
+    private final ObjectMapper objectMapper;
 
     @Bean
     public UpstreamClient upstreamClient() {
         if ("production".equals(clientType)) {
             return new RealUpstreamClient();
         }
-        return new SimulationUpstreamClient(nodeVersionRepository, nodeProposalRepository, agentChatRecordRepository, transactionTemplate);
+        return new SimulationUpstreamClient(nodeVersionRepository, nodeProposalRepository, agentChatRecordRepository, transactionTemplate, objectMapper);
     }
 }

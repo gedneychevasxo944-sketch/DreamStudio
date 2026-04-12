@@ -45,8 +45,9 @@ public interface UpstreamClient {
     /**
      * 6.6 工作流执行 (SSE)
      * POST /v1/workflows/executions/stream
+     * @param upstreamContext 上游上下文，用于构建版本关系（可选）
      */
-    SseEmitter executeWorkflow(DAGDTO dag, List<ChatDTO.WorkflowEdge> edges, Long projectId);
+    SseEmitter executeWorkflow(DAGDTO dag, List<ChatDTO.WorkflowEdge> edges, Long projectId, ChatDTO.UpstreamContext upstreamContext);
 
     /**
      * 6.7 获取执行详情

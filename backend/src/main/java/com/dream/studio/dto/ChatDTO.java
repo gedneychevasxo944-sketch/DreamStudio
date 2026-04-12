@@ -92,4 +92,17 @@ public class ChatDTO {
         private String content;
         private Long timestamp;
     }
+
+    /**
+     * 上游上下文，用于构建版本关系
+     * 当仅运行单个节点时，主 dag 只包含该节点，但 upstreamContext 包含完整 DAG
+     */
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class UpstreamContext {
+        private List<com.dream.studio.dto.DAGDTO.DAGNode> nodes;
+        private List<ChatDTO.WorkflowEdge> edges;
+    }
 }
