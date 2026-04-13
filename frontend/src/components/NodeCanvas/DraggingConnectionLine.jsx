@@ -1,13 +1,5 @@
+import { getDefaultNodeWidth } from '../../utils/nodeUtils';
 import './NodeConnection.css';
-
-// 获取节点默认宽度
-const getDefaultNodeWidth = (nodeType) => {
-  // 美术、分镜和技术节点默认宽度为1.5倍
-  if (nodeType === 'visual' || nodeType === 'director' || nodeType === 'technical') {
-    return 540; // 360 * 1.5
-  }
-  return 360;
-};
 
 const DraggingConnectionLine = ({ fromNode, mousePos, portPositions = {} }) => {
   if (!fromNode) return null;

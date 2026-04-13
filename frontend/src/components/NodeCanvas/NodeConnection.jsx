@@ -1,18 +1,6 @@
 import { useMemo } from 'react';
+import { getDefaultNodeWidth } from '../../utils/nodeUtils';
 import './NodeConnection.css';
-
-// 获取节点默认宽度
-const getDefaultNodeWidth = (nodeType) => {
-  // 视频生成节点和技术节点默认宽度为2倍
-  if (nodeType === 'videoGen' || nodeType === 'technical') {
-    return 720; // 360 * 2
-  }
-  // 美术、分镜节点默认宽度为1.5倍
-  if (nodeType === 'visual' || nodeType === 'director') {
-    return 540; // 360 * 1.5
-  }
-  return 360;
-};
 
 const NodeConnection = ({ connection, nodes, isRunning, portPositions = {} }) => {
   // 计算连线路径

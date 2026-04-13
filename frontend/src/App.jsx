@@ -13,6 +13,7 @@ import ProjectTopBar from './components/ProjectTopBar';
 import AssetDrawer from './components/AssetDrawer';
 import PlanningPage from './components/PlanningPage';
 import { homePageApi, workSpaceApi, nodeVersionApi, proposalApi } from './services/api';
+import { AUTH_ERROR_MESSAGES } from './constants/authConstants';
 import { useProjectStore, useWorkflowStore, useUIStore, calculateTemplateNodePositions } from './stores';
 import './App.css';
 
@@ -450,8 +451,7 @@ function App() {
         }
       } catch (error) {
         console.error('Failed to create project:', error);
-        const authErrors = ['用户不存在', '用户未登录', '登录已过期', '认证失败', '没有访问权限'];
-        if (authErrors.some(e => error.message && error.message.includes(e))) {
+        if (AUTH_ERROR_MESSAGES.some(e => error.message && error.message.includes(e))) {
           localStorage.removeItem('token');
           localStorage.removeItem('userId');
           localStorage.removeItem('user');

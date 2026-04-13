@@ -1,58 +1,6 @@
 import { create } from 'zustand';
-
-// 生成节点默认宽度的函数（统一700px）
-const getDefaultNodeWidth = (nodeType) => {
-  return 700;
-};
-
-// 计算节点位置 - 横向排列，间距基于前一个节点的 endX
-export const calculateNodePositions = (nodes, options = {}) => {
-  const {
-    startX = 50,
-    startY = 200,
-    gap = 100,  // 节点之间的间距
-  } = options;
-
-  let currentX = startX;
-
-  return nodes.map((node, index) => {
-    const nodeWidth = getDefaultNodeWidth(node.type || node.agentCode);
-    const x = currentX;
-    currentX = x + nodeWidth + gap;
-
-    return {
-      ...node,
-      x,
-      y: startY,
-    };
-  });
-};
-
-// 计算模板节点位置（保留兼容）
-const calculateTemplateNodePositions = (columns, startX = 50, startY = 200, gap = 100) => {
-  const nodes = [];
-  let currentX = startX;
-
-  columns.forEach((column) => {
-    const { type, name, color, icon } = column;
-    const nodeWidth = getDefaultNodeWidth(type);
-
-    nodes.push({
-      id: type,
-      name: name,
-      type: type,
-      x: currentX,
-      y: startY,
-      color: color,
-      icon: icon,
-      data: {}
-    });
-
-    currentX += nodeWidth + gap;
-  });
-
-  return nodes;
-};
+import { traverseConnectedNodes } from '../utils/nodeUtils';
+export { calculateNodePositions, calculateTemplateNodePositions } from '../utils/nodeUtils';
 
 export const useWorkflowStore = create((set, get) => ({
   // 画布状态
@@ -203,57 +151,21 @@ export const useWorkflowStore = create((set, get) => ({
   // 获取下游节点（通过连接关系查找）
   getDownstreamNodes: (nodeId) => {
     const state = get();
-    const downstreamIds = new Set();
-    const queue = [nodeId];
-
-    while (queue.length > 0) {
-      const currentId = queue.shift();
-      state.connections.forEach(conn => {
-        if (conn.from === currentId && !downstreamIds.has(conn.to)) {
-          downstreamIds.add(conn.to);
-          queue.push(conn.to);
-        }
-      });
-    }
-
+    const downstreamIds = traverseConnectedNodes(nodeId, state.connections, 'downstream');
     return state.nodes.filter(n => downstreamIds.has(n.id));
   },
 
   // 获取上游节点（通过连接关系查找）
   getUpstreamNodes: (nodeId) => {
     const state = get();
-    const upstreamIds = new Set();
-    const queue = [nodeId];
-
-    while (queue.length > 0) {
-      const currentId = queue.shift();
-      state.connections.forEach(conn => {
-        if (conn.to === currentId && !upstreamIds.has(conn.from)) {
-          upstreamIds.add(conn.from);
-          queue.push(conn.from);
-        }
-      });
-    }
-
+    const upstreamIds = traverseConnectedNodes(nodeId, state.connections, 'upstream');
     return state.nodes.filter(n => upstreamIds.has(n.id));
   },
 
   // 检查节点是否可以被修改（没有下游节点被锁定）
   checkCanModifyNode: (nodeId) => {
     const state = get();
-    // 找出所有下游节点
-    const downstreamIds = new Set();
-    const queue = [nodeId];
-
-    while (queue.length > 0) {
-      const currentId = queue.shift();
-      state.connections.forEach(conn => {
-        if (conn.from === currentId && !downstreamIds.has(conn.to)) {
-          downstreamIds.add(conn.to);
-          queue.push(conn.to);
-        }
-      });
-    }
+    const downstreamIds = traverseConnectedNodes(nodeId, state.connections, 'downstream');
 
     // 检查是否有下游节点被锁定
     const lockedDownstream = state.nodes.filter(n =>
@@ -273,19 +185,7 @@ export const useWorkflowStore = create((set, get) => ({
   // 锁定节点及其上游节点
   lockNodeAndUpstream: (nodeId) => {
     const state = get();
-    // 先获取所有上游节点
-    const upstreamIds = new Set();
-    const queue = [nodeId];
-
-    while (queue.length > 0) {
-      const currentId = queue.shift();
-      state.connections.forEach(conn => {
-        if (conn.to === currentId && !upstreamIds.has(conn.from)) {
-          upstreamIds.add(conn.from);
-          queue.push(conn.from);
-        }
-      });
-    }
+    const upstreamIds = traverseConnectedNodes(nodeId, state.connections, 'upstream');
 
     // 锁定当前节点和所有上游节点
     const now = new Date().toISOString();
@@ -299,8 +199,8 @@ export const useWorkflowStore = create((set, get) => ({
             ...n.data,
             isLocked: true,
             lockedAt: now,
-            lockedByPropagation: n.id !== nodeId,  // 标记是否是被传播锁定的
-            propagationRoot: nodeId  // 记录锁定传播的根节点
+            lockedByPropagation: n.id !== nodeId,
+            propagationRoot: nodeId
           }
         } : n
       )
@@ -358,21 +258,8 @@ export const useWorkflowStore = create((set, get) => ({
 
   // 标记下游所有节点为stale
   markDownstreamAsStale: (nodeId, reason) => set((state) => {
-    // 先找出所有下游节点
-    const downstreamIds = new Set();
-    const queue = [nodeId];
+    const downstreamIds = traverseConnectedNodes(nodeId, state.connections, 'downstream');
 
-    while (queue.length > 0) {
-      const currentId = queue.shift();
-      state.connections.forEach(conn => {
-        if (conn.from === currentId && !downstreamIds.has(conn.to)) {
-          downstreamIds.add(conn.to);
-          queue.push(conn.to);
-        }
-      });
-    }
-
-    // 批量更新所有下游节点为stale
     return {
       nodes: state.nodes.map(n =>
         downstreamIds.has(n.id) ? {
@@ -395,21 +282,8 @@ export const useWorkflowStore = create((set, get) => ({
 
   // 清除下游所有节点的stale状态
   clearDownstreamStale: (nodeId) => set((state) => {
-    // 先找出所有下游节点
-    const downstreamIds = new Set();
-    const queue = [nodeId];
+    const downstreamIds = traverseConnectedNodes(nodeId, state.connections, 'downstream');
 
-    while (queue.length > 0) {
-      const currentId = queue.shift();
-      state.connections.forEach(conn => {
-        if (conn.from === currentId && !downstreamIds.has(conn.to)) {
-          downstreamIds.add(conn.to);
-          queue.push(conn.to);
-        }
-      });
-    }
-
-    // 批量清除所有下游节点的stale状态
     return {
       nodes: state.nodes.map(n =>
         downstreamIds.has(n.id) ? {
@@ -426,8 +300,5 @@ export const useWorkflowStore = create((set, get) => ({
     return state.nodes.length > 0 || state.connections.length > 0;
   },
 }));
-
-// 导出工具函数
-export { calculateTemplateNodePositions, getDefaultNodeWidth };
 
 export default useWorkflowStore;

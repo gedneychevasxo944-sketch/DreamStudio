@@ -1,5 +1,6 @@
 import { apiLogger } from '../utils/logger';
 import { parseApiError, handleNetworkError, ErrorType } from '../utils/errorHandler';
+import { AUTH_ERROR_MESSAGES } from '../constants/authConstants';
 
 const API_BASE_URL = 'http://localhost:8080/api';
 
@@ -7,17 +8,16 @@ const getToken = () => localStorage.getItem('token');
 const getUserId = () => localStorage.getItem('userId');
 
 // 检查是否是认证错误
-function isAuthError(errorMessage) {
-  const authErrors = ['用户不存在', '用户未登录', '登录已过期', '认证失败', '请重新登录', '没有访问权限'];
-  const result = authErrors.some(e => errorMessage && errorMessage.includes(e));
-  console.log('[Auth] isAuthError:', { errorMessage, result, authErrors });
+function isAuthErrorLocal(errorMessage) {
+  const result = AUTH_ERROR_MESSAGES.some(e => errorMessage && errorMessage.includes(e));
+  apiLogger.debug('[Auth] isAuthError:', { errorMessage, result });
   return result;
 }
 
 // 处理认证错误，清除本地存储并提示用户
 function handleAuthError(errorMessage) {
   console.log('[Auth] handleAuthError called:', errorMessage);
-  if (!isAuthError(errorMessage)) {
+  if (!isAuthErrorLocal(errorMessage)) {
     console.log('[Auth] Error not recognized as auth error:', errorMessage);
     return;
   }
@@ -85,7 +85,7 @@ async function request(url, options = {}) {
     apiLogger.error(`API Error: ${response.status}`, errorData);
     // 检查是否是认证错误 - 支持多种错误消息字段
     const errorMessage = errorData?.message || errorData?.msg || errorData?.error || errorText;
-    if (errorMessage && isAuthError(errorMessage)) {
+    if (errorMessage && isAuthErrorLocal(errorMessage)) {
       handleAuthError(errorMessage);
     }
     throw parseApiError(response, errorData);

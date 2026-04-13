@@ -3,33 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Download, FileText, Video, Palette, Target, Code, Maximize2, Users, Image, Layers, Sparkles, ChevronUp, ChevronDown, Shield, CheckCircle, AlertCircle, Play, ChevronDown as ChevronDownIcon } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import ReactMarkdown from 'react-markdown';
+import { parseScript } from '../../utils/scriptUtils';
+import StreamingText from '../common/StreamingText';
 import './AssetPanel.css';
-
-// 流式文本组件
-const StreamingText = ({ text, isStreaming }) => {
-  const [displayText, setDisplayText] = useState('');
-
-  useEffect(() => {
-    if (!isStreaming) {
-      setDisplayText(text);
-      return;
-    }
-
-    let index = 0;
-    const timer = setInterval(() => {
-      if (index <= text.length) {
-        setDisplayText(text.slice(0, index));
-        index++;
-      } else {
-        clearInterval(timer);
-      }
-    }, 30);
-
-    return () => clearInterval(timer);
-  }, [text, isStreaming]);
-
-  return <span>{displayText}{isStreaming && <span className="cursor">|</span>}</span>;
-};
 
 // 思考过程展开组件
 const ThinkingExpanded = ({ thinking }) => {
@@ -606,86 +582,6 @@ const AssetContent = ({ asset }) => {
 };
 
 // ========== 简化版卡片预览组件 ==========
-
-// 解析剧本函数 - 支持集数-场景层级
-const parseScript = (script) => {
-  if (!script) return { episodes: [], totalScenes: 0 };
-  
-  // 尝试匹配集数格式：第X集、Episode X等
-  const episodeRegex = /(第[一二三四五六七八九十百千]+集|第\d+集|Episode\s*\d+|集\s*\d+)[：:\s]*\n?/gi;
-  const sceneRegex = /(场景[一二三四五六七八九十百千]+|第[一二三四五六七八九十百千]+场|场景\s*\d+|第\d+场)[：:\s-]*/gi;
-  
-  const episodes = [];
-  let currentEpisode = null;
-  let episodeCounter = 0;
-  
-  // 先按集数分割
-  const episodeParts = script.split(episodeRegex);
-  
-  if (episodeParts.length <= 1) {
-    // 没有集数，只有场景
-    const scenes = [];
-    const sceneParts = script.split(sceneRegex);
-    
-    sceneParts.forEach((part, index) => {
-      if (part.match(sceneRegex)) {
-        scenes.push({
-          id: index,
-          title: part.trim(),
-          content: sceneParts[index + 1] ? sceneParts[index + 1].trim() : ''
-        });
-      }
-    });
-    
-    if (scenes.length === 0 && script.trim()) {
-      scenes.push({ id: 0, title: '完整剧本', content: script.trim() });
-    }
-    
-    return {
-      episodes: [{ id: 0, title: '第1集', scenes, sceneRange: `第1-${scenes.length}场` }],
-      totalScenes: scenes.length
-    };
-  }
-  
-  // 有集数的情况
-  episodeParts.forEach((part, index) => {
-    if (part.match(episodeRegex)) {
-      episodeCounter++;
-      currentEpisode = {
-        id: episodeCounter - 1,
-        title: part.trim(),
-        scenes: [],
-        sceneRange: ''
-      };
-      
-      // 解析该集内的场景
-      const sceneContent = episodeParts[index + 1] || '';
-      const sceneParts = sceneContent.split(sceneRegex);
-      let sceneCounter = 0;
-      
-      sceneParts.forEach((scenePart, sceneIndex) => {
-        if (scenePart.match(sceneRegex)) {
-          sceneCounter++;
-          currentEpisode.scenes.push({
-            id: `${episodeCounter - 1}-${sceneCounter - 1}`,
-            title: scenePart.trim(),
-            content: sceneParts[sceneIndex + 1] ? sceneParts[sceneIndex + 1].trim().split(/\n{2,}/)[0] : ''
-          });
-        }
-      });
-      
-      if (currentEpisode.scenes.length > 0) {
-        currentEpisode.sceneRange = `第1-${currentEpisode.scenes.length}场`;
-      }
-      
-      episodes.push(currentEpisode);
-    }
-  });
-  
-  const totalScenes = episodes.reduce((sum, ep) => sum + ep.scenes.length, 0);
-  
-  return { episodes, totalScenes };
-};
 
 // 制片人卡片预览 - 只展示项目书前100字
 const ProducerCardPreview = ({ data }) => {

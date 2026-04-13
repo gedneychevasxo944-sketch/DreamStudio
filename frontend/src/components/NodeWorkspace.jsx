@@ -2,7 +2,9 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileText, MessageCircle, Settings, History, GitBranch, Lock, Unlock, RotateCcw, AlertTriangle, Check, ChevronDown, ChevronUp, Play, Palette, PenTool, Video, Code, Users, Layers, List, BookOpen, Zap, Sparkles, Image, X, Target, Loader2, Copy, ExternalLink } from 'lucide-react';
 import ChatConversation from './ChatConversation';
-import { formatTimestamp } from './ChatConversation';
+import { formatTimestamp } from '../utils/dateUtils';
+import { parseScript } from '../utils/scriptUtils';
+import { applyFieldChanges } from '../utils/nodeUtils';
 import './ChatConversation.css';
 import { nodeVersionApi, proposalApi, chatApi } from '../services/api';
 import { useWorkflowStore } from '../stores';
@@ -42,108 +44,6 @@ const getFieldLabel = (fieldPath) => {
     'shot1.duration': '镜头时长',
   };
   return labelMap[fieldPath] || fieldPath;
-};
-
-// 根据 fieldPath 修改数据的辅助函数
-const applyFieldChanges = (data, changes) => {
-  if (!changes || !changes.length) return data || {};
-  if (!data) return {};
-
-  const result = JSON.parse(JSON.stringify(data)); // 深拷贝
-
-  changes.forEach(change => {
-    // 后端使用 key，前端期望 fieldPath，兼容两者
-    const fieldPath = change.fieldPath || change.key || '';
-    const after = change.after || change.afterValue;
-    if (!fieldPath) return;
-
-    const keys = fieldPath.split('.');
-    let current = result;
-    for (let i = 0; i < keys.length - 1; i++) {
-      if (current[keys[i]] === undefined) {
-        current[keys[i]] = {};
-      }
-      current = current[keys[i]];
-    }
-    current[keys[keys.length - 1]] = after;
-  });
-
-  return result;
-};
-
-// 剧本解析函数 - 支持集数-场景层级
-const parseScript = (script) => {
-  if (!script) return { episodes: [], totalScenes: 0 };
-
-  const episodeRegex = /(第[一二三四五六七八九十百千]+集|第\d+集|Episode\s*\d+|集\s*\d+)[：:\s]*\n?/gi;
-  const sceneRegex = /(场景[一二三四五六七八九十百千]+|第[一二三四五六七八九十百千]+场|场景\s*\d+|第\d+场)[：:\s-]*/gi;
-
-  const episodes = [];
-  let currentEpisode = null;
-  let episodeCounter = 0;
-
-  const episodeParts = script.split(episodeRegex);
-
-  if (episodeParts.length <= 1) {
-    const scenes = [];
-    const sceneParts = script.split(sceneRegex);
-
-    sceneParts.forEach((part, index) => {
-      if (part.match(sceneRegex)) {
-        scenes.push({
-          id: index,
-          title: part.trim(),
-          content: sceneParts[index + 1] ? sceneParts[index + 1].trim() : ''
-        });
-      }
-    });
-
-    if (scenes.length === 0 && script.trim()) {
-      scenes.push({ id: 0, title: '完整剧本', content: script.trim() });
-    }
-
-    return {
-      episodes: [{ id: 0, title: '第1集', scenes, sceneRange: `第1-${scenes.length}场` }],
-      totalScenes: scenes.length
-    };
-  }
-
-  episodeParts.forEach((part, index) => {
-    if (part.match(episodeRegex)) {
-      episodeCounter++;
-      currentEpisode = {
-        id: episodeCounter - 1,
-        title: part.trim(),
-        scenes: [],
-        sceneRange: ''
-      };
-
-      const sceneContent = episodeParts[index + 1] || '';
-      const sceneParts = sceneContent.split(sceneRegex);
-      let sceneCounter = 0;
-
-      sceneParts.forEach((scenePart, sceneIndex) => {
-        if (scenePart.match(sceneRegex)) {
-          sceneCounter++;
-          currentEpisode.scenes.push({
-            id: `${episodeCounter - 1}-${sceneCounter - 1}`,
-            title: scenePart.trim(),
-            content: sceneParts[sceneIndex + 1] ? sceneParts[sceneIndex + 1].trim().split(/\n{2,}/)[0] : ''
-          });
-        }
-      });
-
-      if (currentEpisode.scenes.length > 0) {
-        currentEpisode.sceneRange = `第1-${currentEpisode.scenes.length}场`;
-      }
-
-      episodes.push(currentEpisode);
-    }
-  });
-
-  const totalScenes = episodes.reduce((sum, ep) => sum + ep.scenes.length, 0);
-
-  return { episodes, totalScenes };
 };
 
 // 结果 Tab

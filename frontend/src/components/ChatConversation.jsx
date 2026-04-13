@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import ReactMarkdown from 'react-markdown';
 import { Send, Bot, User, Copy, X, ExternalLink, Check, Sparkles, ChevronUp, ChevronDown, ZoomIn, GitBranch, Plus, ArrowRight, Trash2 } from 'lucide-react';
 import { chatApi } from '../services/api';
+import { formatTimestamp } from '../utils/dateUtils';
 import './ChatConversation.css';
 
 const Toast = ({ message, onClose }) => {
@@ -414,18 +415,6 @@ const ResultModal = ({ message, onClose, onShowToast }) => {
     </div>,
     document.body
   );
-};
-
-export const formatTimestamp = () => {
-  return new Date().toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false
-  }).replace(/\//g, '-');
 };
 
 const ChatConversation = forwardRef(({

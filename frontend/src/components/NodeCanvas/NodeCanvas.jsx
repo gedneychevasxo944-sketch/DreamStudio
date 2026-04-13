@@ -2,7 +2,6 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Workflow, Plus, MousePointer2 } from 'lucide-react';
 import { toast } from '../Toast/Toast';
-import { bottomToast } from '../Toast/BottomToast';
 import AgentLibrary from './AgentLibrary';
 import NodeConnection from './NodeConnection';
 import DraggingConnectionLine from './DraggingConnectionLine';
@@ -11,39 +10,10 @@ import ConfirmDialog from '../ConfirmDialog/ConfirmDialog';
 import RichAgentNode from './RichAgentNode';
 import { workSpaceApi, teamApi, agentApi } from '../../services/api';
 import { useWorkflowStore, calculateNodePositions } from '../../stores';
+import { getDefaultNodeWidth, generateThinkingContent, generateResultContent } from '../../utils/nodeUtils';
+import { CANVAS } from '../../constants/layoutConstants';
 import { CanvasToolbar, CanvasStatusBar, FullscreenToolbar, SaveTemplateDialog } from '../Canvas';
 import './NodeCanvas.css';
-
-// 获取节点默认宽度（统一700px）
-const getDefaultNodeWidth = (nodeType) => {
-  return 700;
-};
-
-// 思考内容生成
-const generateThinkingContent = (nodeType) => {
-  const thinkings = {
-    producer: ['正在分析项目可行性...', '评估预算和资源需求...', '制定项目时间线...', '生成项目立项书...'],
-    content: ['构建故事框架...', '设计角色弧线...', '编写分场剧本...', '优化对白和节奏...'],
-    visual: ['分析视觉风格参考...', '生成概念草图...', '优化色彩和构图...', '输出文生图指令...'],
-    director: ['分析剧本节奏...', '设计镜头语言...', '规划运镜方案...', '生成分镜脚本...'],
-    technical: ['解析视觉输入...', '优化视频提示词...', '配置生成参数...', '打包输出指令...'],
-    auditor: ['审核内容质量...', '检查合规性...', '评估技术指标...', '生成审核报告...']
-  };
-  return thinkings[nodeType] || ['处理中...', '分析输入...', '生成输出...'];
-};
-
-// 结果内容生成
-const generateResultContent = (nodeType) => {
-  const results = {
-    producer: '项目立项完成，预算500万，周期6个月',
-    content: '第一场 日 外 城市街道\n\n繁华的都市街头，人来人往...',
-    visual: '概念美术完成，8张关键场景图',
-    director: '分镜脚本完成，45个镜头设计',
-    technical: '视频提示词包生成，15组指令',
-    auditor: '审核通过，质量评分92/100'
-  };
-  return results[nodeType] || '任务执行完成';
-};
 
 const NodeCanvas = ({
   isFullscreen,
@@ -332,12 +302,8 @@ const NodeCanvas = ({
                 status: 'idle'
               };
             });
-            // 使用统一的节点位置计算函数
-            const nodesWithPositions = calculateNodePositions(nodesWithPosition, {
-              startX: 50,
-              startY: 200,
-              gap: 100,  // 节点之间的间距
-            });
+            // 使用统一的节点位置计算函数（使用默认布局常量）
+            const nodesWithPositions = calculateNodePositions(nodesWithPosition);
             return {
               id: team.teamId,
               name: team.teamName,
@@ -415,8 +381,8 @@ const NodeCanvas = ({
 
   // 添加节点 - 横向排列，间距基于最右侧节点的 endX
   const handleAddNode = useCallback((agentType, x, y) => {
-    const gap = 100;
-    const startY = 200;
+    const gap = CANVAS.NODE_GAP;
+    const startY = CANVAS.START_Y;
 
     // 计算最右侧节点的 endX
     const maxEndX = nodes.reduce((max, n) => {
@@ -513,12 +479,12 @@ const NodeCanvas = ({
     if (!agentTypeData) return;
 
     // 计算新节点位置：基于最右侧节点的 endX + gap
-    const gap = 100;
-    const startY = 200;
+    const gap = CANVAS.NODE_GAP;
+    const startY = CANVAS.START_Y;
     const maxEndX = nodes.reduce((max, n) => {
       const nodeWidth = getDefaultNodeWidth(n.type || n.agentCode);
       return Math.max(max, n.x + nodeWidth);
-    }, 50);
+    }, CANVAS.START_X);
     const newX = maxEndX + gap;
 
     addNode({ ...agentTypeData, id: newNodeId, type: agentType, x: newX, y: startY });
@@ -1069,13 +1035,13 @@ const NodeCanvas = ({
         setShowSaveTemplateDialog(false);
         setTemplateName('');
         setTemplateDescribe('');
-        bottomToast.success('保存成功');
+        toast.success('保存成功', { position: 'bottom' });
       } else {
-        bottomToast.error('保存失败：' + (res.message || '未知错误'));
+        toast.error('保存失败：' + (res.message || '未知错误'), { position: 'bottom' });
       }
     } catch (error) {
       console.error('保存团队失败:', error);
-      bottomToast.error('保存失败，请重试');
+      toast.error('保存失败，请重试', { position: 'bottom' });
     }
   }, [templateName, templateDescribe, nodes, connections]);
 
