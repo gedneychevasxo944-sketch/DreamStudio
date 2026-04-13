@@ -1,7 +1,10 @@
 import { useState } from 'react';
-import { Lock, Unlock, ChevronDown, Settings, Play, AlertTriangle } from 'lucide-react';
+import { Lock, Unlock, ChevronDown, ChevronUp, Settings, Play, AlertTriangle, Cpu, MessageSquare, Package, Sliders, Plus, Trash2 } from 'lucide-react';
+import { useWorkflowStore } from '../../stores';
 
 const ConfigTab = ({ node, onNodeUpdate }) => {
+  const [agentSettingsExpanded, setAgentSettingsExpanded] = useState(false);
+
   if (!node) {
     return (
       <div className="workspace-tab-content empty">
@@ -18,7 +21,16 @@ const ConfigTab = ({ node, onNodeUpdate }) => {
     onNodeUpdate?.(node.id, data);
   };
 
-  // 根据节点类型显示不同的配置项
+  // 获取当前智能体配置
+  const agentConfig = node.data?.agentConfig || {
+    modelProvider: 'openai',
+    modelName: 'gpt-4',
+    temperature: 0.7,
+    initialPrompt: '',
+    installedSkills: []
+  };
+
+  // 任务参数配置（根据节点类型）
   const getConfigFields = () => {
     switch (node.type) {
       case 'content': // 编剧
@@ -56,6 +68,195 @@ const ConfigTab = ({ node, onNodeUpdate }) => {
     }
   };
 
+  // 渲染任务参数配置
+  const renderTaskConfig = () => {
+    const configFields = getConfigFields();
+    const isLocked = node.data?.isLocked || false;
+
+    return (
+      <div className="config-section task-config">
+        <div className="section-header">
+          <span className="section-title">任务参数</span>
+        </div>
+        <div className="config-fields">
+          {configFields.map((field, idx) => (
+            <div key={idx} className={`config-field ${isLocked ? 'disabled' : ''}`}>
+              <label className="config-label">{field.label}</label>
+              {field.type === 'select' ? (
+                <select className="config-select" value={field.value} disabled={isLocked} readOnly>
+                  {field.options?.map(opt => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
+              ) : field.type === 'boolean' ? (
+                <label className="config-toggle">
+                  <input type="checkbox" checked={field.value} disabled={isLocked} readOnly />
+                  <span className="toggle-slider"></span>
+                </label>
+              ) : field.type === 'number' ? (
+                <input
+                  type="number"
+                  className="config-input"
+                  value={field.value}
+                  min={0}
+                  disabled={isLocked}
+                  readOnly
+                />
+              ) : (
+                <input
+                  type="text"
+                  className="config-input"
+                  value={field.value}
+                  disabled={isLocked}
+                  readOnly
+                />
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  // 渲染智能体设置
+  const renderAgentConfig = () => {
+    const isLocked = node.data?.isLocked || false;
+
+    const updateAgentConfig = (key, value) => {
+      if (isLocked) return;
+      updateNodeData({
+        agentConfig: {
+          ...agentConfig,
+          [key]: value
+        }
+      });
+    };
+
+    return (
+      <div className="config-section agent-config">
+        <button
+          className="section-header collapsible"
+          onClick={() => setAgentSettingsExpanded(!agentSettingsExpanded)}
+        >
+          <span className="section-title">智能体设置</span>
+          <span className="section-badge">模型 · Prompt · Skill</span>
+          {agentSettingsExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+        </button>
+
+        {agentSettingsExpanded && (
+          <div className="agent-settings-body">
+            {/* 模型设置 */}
+            <div className="agent-settings-group">
+              <div className="group-title">
+                <Cpu size={14} />
+                <span>模型</span>
+              </div>
+              <div className="config-field">
+                <label className="config-label">提供商</label>
+                <select
+                  className="config-select"
+                  value={agentConfig.modelProvider}
+                  onChange={(e) => updateAgentConfig('modelProvider', e.target.value)}
+                  disabled={isLocked}
+                >
+                  <option value="openai">OpenAI</option>
+                  <option value="anthropic">Anthropic</option>
+                  <option value="google">Google</option>
+                  <option value="azure">Azure OpenAI</option>
+                </select>
+              </div>
+              <div className="config-field">
+                <label className="config-label">模型名称</label>
+                <input
+                  type="text"
+                  className="config-input"
+                  value={agentConfig.modelName}
+                  onChange={(e) => updateAgentConfig('modelName', e.target.value)}
+                  disabled={isLocked}
+                />
+              </div>
+            </div>
+
+            {/* 生成参数 */}
+            <div className="agent-settings-group">
+              <div className="group-title">
+                <Sliders size={14} />
+                <span>生成参数</span>
+              </div>
+              <div className="config-field">
+                <label className="config-label">Temperature: {agentConfig.temperature}</label>
+                <input
+                  type="range"
+                  min="0"
+                  max="2"
+                  step="0.1"
+                  value={agentConfig.temperature}
+                  onChange={(e) => updateAgentConfig('temperature', parseFloat(e.target.value))}
+                  disabled={isLocked}
+                />
+              </div>
+            </div>
+
+            {/* Prompt设置 */}
+            <div className="agent-settings-group">
+              <div className="group-title">
+                <MessageSquare size={14} />
+                <span>Prompt</span>
+              </div>
+              <div className="config-field">
+                <label className="config-label">查看/编辑</label>
+                <button className="config-action-btn" disabled={isLocked}>
+                  查看/编辑 →
+                </button>
+              </div>
+            </div>
+
+            {/* Skills设置 */}
+            <div className="agent-settings-group">
+              <div className="group-title">
+                <Package size={14} />
+                <span>Skills</span>
+              </div>
+              <div className="skills-list">
+                {agentConfig.installedSkills?.map(skill => (
+                  <div key={skill.id} className="skill-item">
+                    <span className="skill-name">{skill.name}</span>
+                    <button
+                      className="skill-remove"
+                      onClick={() => {
+                        const newSkills = agentConfig.installedSkills.filter(s => s.id !== skill.id);
+                        updateAgentConfig('installedSkills', newSkills);
+                      }}
+                      disabled={isLocked}
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                ))}
+                <button className="skill-add" disabled={isLocked}>
+                  <Plus size={14} />
+                  安装Skill
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const isLocked = node.data?.isLocked || false;
+  const isPropagationLocked = node.data?.lockedByPropagation;
+
+  const toggleLock = () => {
+    const store = useWorkflowStore.getState();
+    if (isLocked) {
+      store.unlockNodeAndUpstream(node.id);
+    } else {
+      store.lockNodeAndUpstream(node.id);
+    }
+  };
+
   // 渲染自动生成配置（仅技术节点）
   const renderAutoGenConfig = () => {
     if (node.type !== 'technical') return null;
@@ -71,8 +272,8 @@ const ConfigTab = ({ node, onNodeUpdate }) => {
     };
 
     return (
-      <div className="auto-gen-config">
-        <div className="auto-gen-header">
+      <div className="config-section auto-gen-config">
+        <div className="section-header">
           <Play size={14} />
           <span>自动生成视频节点</span>
           <span className={`config-badge ${autoGenConfig.mode}`}>
@@ -120,22 +321,6 @@ const ConfigTab = ({ node, onNodeUpdate }) => {
         </div>
       </div>
     );
-  };
-
-  const configFields = getConfigFields();
-  const isLocked = node.data?.isLocked || false;
-  const isPropagationLocked = node.data?.lockedByPropagation;
-  const propagationRoot = node.data?.propagationRoot;
-
-  const toggleLock = () => {
-    const store = useWorkflowStore.getState();
-    if (isLocked) {
-      // 解锁：仅解锁当前节点和被传播锁定的上游
-      store.unlockNodeAndUpstream(node.id);
-    } else {
-      // 锁定：锁定当前节点和所有上游
-      store.lockNodeAndUpstream(node.id);
-    }
   };
 
   return (
@@ -189,42 +374,14 @@ const ConfigTab = ({ node, onNodeUpdate }) => {
         )}
       </div>
 
-      <div className="config-fields">
-        {configFields.map((field, idx) => (
-          <div key={idx} className={`config-field ${isLocked ? 'disabled' : ''}`}>
-            <label className="config-label">{field.label}</label>
-            {field.type === 'select' ? (
-              <select className="config-select" value={field.value} disabled={isLocked} readOnly>
-                {field.options?.map(opt => (
-                  <option key={opt} value={opt}>{opt}</option>
-                ))}
-              </select>
-            ) : field.type === 'boolean' ? (
-              <label className="config-toggle">
-                <input type="checkbox" checked={field.value} disabled={isLocked} readOnly />
-                <span className="toggle-slider"></span>
-              </label>
-            ) : field.type === 'number' ? (
-              <input
-                type="number"
-                className="config-input"
-                value={field.value}
-                min={0}
-                disabled={isLocked}
-                readOnly
-              />
-            ) : (
-              <input
-                type="text"
-                className="config-input"
-                value={field.value}
-                disabled={isLocked}
-                readOnly
-              />
-            )}
-          </div>
-        ))}
-      </div>
+      {/* 任务参数 - 默认展开 */}
+      {renderTaskConfig()}
+
+      {/* 分隔线 */}
+      <div className="config-divider" />
+
+      {/* 智能体设置 - 默认折叠 */}
+      {renderAgentConfig()}
 
       {/* 自动生成配置（技术节点专用） */}
       {renderAutoGenConfig()}

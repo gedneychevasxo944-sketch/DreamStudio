@@ -5,7 +5,6 @@ import { toast } from '../Toast/Toast';
 import AgentLibrary from './AgentLibrary';
 import NodeConnection from './NodeConnection';
 import DraggingConnectionLine from './DraggingConnectionLine';
-import AgentSettings from '../AgentSettings/AgentSettings';
 import ConfirmDialog from '../ConfirmDialog/ConfirmDialog';
 import RichAgentNode from './RichAgentNode';
 import { workSpaceApi, teamApi, agentApi } from '../../services/api';
@@ -61,8 +60,6 @@ const NodeCanvas = ({
   const [connectingFrom, setConnectingFrom] = useState(null);
   const [connectingMousePos, setConnectingMousePos] = useState({ x: 0, y: 0 });
   const [showLibrary, setShowLibrary] = useState(false);
-  const [showAgentSettings, setShowAgentSettings] = useState(false);
-  const [editingAgent, setEditingAgent] = useState(null);
   const [nodeDimensions, setNodeDimensions] = useState({});
   const [portPositions, setPortPositions] = useState({});
   const [agentTypes, setAgentTypes] = useState({});
@@ -964,30 +961,10 @@ const NodeCanvas = ({
     setSelectedNodeId(null);
   }, [nodes, connections, deleteNode, deleteConnection]);
 
-  // 打开智能体设置
-  const handleOpenAgentSettings = useCallback((node) => {
-    setEditingAgent(node);
-    setShowAgentSettings(true);
-  }, []);
-
   // 关闭智能体库
   const handleCloseLibrary = useCallback(() => {
     setShowLibrary(false);
   }, []);
-
-  // 保存智能体设置
-  const handleSaveAgentSettings = useCallback((settings) => {
-    if (editingAgent) updateNode(editingAgent.id, settings);
-    setShowAgentSettings(false);
-    setEditingAgent(null);
-  }, [editingAgent, updateNode]);
-
-  // 复制智能体
-  const handleDuplicateAgent = useCallback((agent) => {
-    const newNodeId = `${agent.type}-custom-${Date.now()}`;
-    addNode({ ...agent, id: newNodeId, name: `${agent.name} (副本)`, category: '自定义', x: agent.x + 50, y: agent.y + 50, initialPrompt: agent.initialPrompt || '', selfEvolutionPrompt: agent.selfEvolutionPrompt || '' });
-    setEditingAgent(null);
-  }, [addNode]);
 
   // 保存模板（改为保存团队）
   const handleSaveTemplate = useCallback(async () => {
@@ -1124,7 +1101,6 @@ const NodeCanvas = ({
               isDemoMode={isDemoMode}
               onSelect={() => handleNodeSelect(node)}
               onDelete={() => !isDemoMode && handleDeleteNode(node.id)}
-              onEdit={() => !isDemoMode && handleOpenAgentSettings(node)}
               onUpdatePosition={!isDemoMode ? handleUpdateNodePosition : () => {}}
               onUpdateData={!isDemoMode ? handleUpdateNodeData : () => {}}
               onStartConnection={!isDemoMode ? startConnection : () => {}}
@@ -1133,7 +1109,6 @@ const NodeCanvas = ({
               isConnecting={isDemoMode ? false : isConnecting}
               connectingFrom={isDemoMode ? null : connectingFrom}
               availableAgents={Object.values(agentTypes)}
-              onOpenSettings={!isDemoMode ? handleOpenAgentSettings : () => {}}
               onBringToFront={() => setSelectedNodeId(node.id)}
               onDimensionChange={handleNodeDimensionChange}
               onAddNode={!isDemoMode ? addConnectedNode : () => {}}
@@ -1191,18 +1166,6 @@ const NodeCanvas = ({
           >
             已退出自动跟踪模式，你可以手动滚动画布
           </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* 智能体设置弹窗 */}
-      <AnimatePresence>
-        {showAgentSettings && (
-          <AgentSettings
-            agent={editingAgent}
-            onClose={() => setShowAgentSettings(false)}
-            onSave={handleSaveAgentSettings}
-            onDuplicate={handleDuplicateAgent}
-          />
         )}
       </AnimatePresence>
 

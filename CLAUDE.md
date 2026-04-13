@@ -64,10 +64,19 @@ POST /v1/projects/{projectId}/nodes/{nodeId}/versions/{versionId}/activate
 - 包含：ResultTab、ChatTab、ConfigTab、HistoryTab、ImpactTab
 - 版本历史下拉：浮动面板，点击遮罩或 ESC 关闭
 
+### ConfigTab 两层配置
+- **任务参数**（默认展开）：画质、时长、比例等高频配置
+- **智能体设置**（默认折叠）：模型、Temperature、Prompt、Skills
+- 智能体配置入口统一在右侧面板，不再使用节点右上角 Edit3 按钮
+
 ### 版本历史下拉布局
 ```
 Grid: [60px 版本号] [1fr 时间] [24px 状态图标]
 ```
+
+### 节点卡片职责
+- 节点卡片只保留：拖拽手柄、删除按钮、执行状态、结果摘要
+- 智能体配置（模型/Prompt/Skills）移至右侧 NodeWorkspace Config Tab
 
 ### 状态管理
 - 使用 Zustand store（workflowStore）
@@ -75,7 +84,23 @@ Grid: [60px 版本号] [1fr 时间] [24px 状态图标]
 
 ---
 
-## 常见坑和注意事项
+## 统一布局（规划/执行）
+
+规划区和执行区共用左侧对话区域，通过 `currentView` 状态切换：
+
+```
+左侧面板          中间区域          右侧面板
+┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+│   Console    │  │              │  │  规划区:      │
+│  (共用对话)  │  │  规划:       │  │  ContextPanel │
+│              │  │  PlanPreview │  │              │
+│              │  │              │  │  执行区:      │
+│              │  │  执行:       │  │  NodeWorkspace│
+│              │  │  NodeCanvas │  │  (按需展开)   │
+└──────────────┘  └──────────────┘  └──────────────┘
+```
+
+### 常见坑和注意事项
 
 ### 1. 版本 ID 混淆
 - `v.id` = 数据库主键，用于 API 调用
@@ -148,13 +173,22 @@ frontend/
 ├── src/
 │   ├── components/
 │   │   ├── NodeWorkspace.jsx      # 节点工作区主组件
-│   │   ├── NodeWorkspace.css
-│   │   ├── ChatConversation.jsx   # 对话组件
+│   │   ├── NodeWorkspace/
+│   │   │   ├── ConfigTab.jsx      # 配置 Tab（任务参数 + 智能体设置）
+│   │   │   ├── HistoryTab.jsx     # 历史 Tab
+│   │   │   └── ImpactTab.jsx     # 影响 Tab
+│   │   ├── NodeCanvas/
+│   │   │   ├── RichAgentNode.jsx  # 节点卡片组件
+│   │   │   └── ...
+│   │   ├── ChatConversation.jsx  # 对话组件（规划/执行共用）
+│   │   ├── Console.jsx            # 左侧面板包装组件
+│   │   ├── PlanPreview.jsx       # 规划区方案预览
+│   │   ├── ContextPanel.jsx      # 规划区上下文面板
 │   │   └── ...
 │   ├── stores/
-│   │   └── workflowStore.js       # Zustand 状态管理
+│   │   └── workflowStore.js      # Zustand 状态管理
 │   ├── services/
-│   │   └── api.js                 # API 接口定义
-│   └── App.jsx                    # 主应用组件
+│   │   └── api.js                # API 接口定义
+│   └── App.jsx                   # 主应用组件
 └── ...
 ```

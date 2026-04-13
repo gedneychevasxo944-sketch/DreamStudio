@@ -6,7 +6,6 @@ import {
   ChevronDown,
   ChevronUp,
   ChevronRight,
-  Edit3,
   Image,
   MessageSquare,
   Play,
@@ -921,7 +920,6 @@ const RichAgentNode = ({
   isRunning,
   onSelect,
   onDelete,
-  onEdit,
   onUpdatePosition,
   onUpdateData,
   onStartConnection,
@@ -932,7 +930,6 @@ const RichAgentNode = ({
   onDimensionChange,
   onAddNode,
   availableAgents,
-  onOpenSettings,
   onPortPositionChange,
   onGenerateVideoNodes,
   scale = 1,
@@ -1267,10 +1264,6 @@ const RichAgentNode = ({
 
           <button className="node-delete-btn" onClick={(e) => { e.stopPropagation(); onDelete?.(); }}>
             <X size={12} />
-          </button>
-
-          <button className="node-edit-btn" onClick={(e) => { e.stopPropagation(); onEdit?.(); }}>
-            <Edit3 size={12} />
           </button>
 
           {/* 调整大小手柄 */}
