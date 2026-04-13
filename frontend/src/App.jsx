@@ -1120,7 +1120,7 @@ const planToNodesAndConnections = (plan, userInput) => {
           {showSkillMarket && (
             <SkillMarket
               onClose={() => setShowSkillMarket(false)}
-              onInstallSkill={(skill) => console.log('安装Skill:', skill)}
+              onInstallSkill={(skill) => uiLogger.info('[Skill] 安装Skill:', skill)}
             />
           )}
         </div>

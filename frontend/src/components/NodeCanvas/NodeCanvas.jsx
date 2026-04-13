@@ -10,7 +10,7 @@ import ConfirmDialog from '../ConfirmDialog/ConfirmDialog';
 import RichAgentNode from './RichAgentNode';
 import { workSpaceApi, teamApi, agentApi } from '../../services/api';
 import { useWorkflowStore, calculateNodePositions } from '../../stores';
-import { getDefaultNodeWidth, generateThinkingContent, generateResultContent } from '../../utils/nodeUtils';
+import { getDefaultNodeWidth, generateThinkingContent, generateResultContent, traverseConnectedNodes } from '../../utils/nodeUtils';
 import { CANVAS, TEMPLATE_LAYOUT } from '../../constants/layoutConstants';
 import { canvasLogger } from '../../utils/logger';
 import { CanvasToolbar, CanvasStatusBar, FullscreenToolbar, SaveTemplateDialog } from '../Canvas';
@@ -705,15 +705,7 @@ const NodeCanvas = ({
           toNodeId: conn.to
         }))
       };
-      const downstreamNodes = new Set();
-      const queue = [selectedNodeId];
-      while (queue.length > 0) {
-        const nodeId = queue.shift();
-        downstreamNodes.add(nodeId);
-        currentConnections.filter(c => c.from === nodeId).forEach(c => {
-          if (!downstreamNodes.has(c.to)) queue.push(c.to);
-        });
-      }
+      const downstreamNodes = traverseConnectedNodes(selectedNodeId, currentConnections, 'downstream');
       currentNodes = currentNodes.filter(n => downstreamNodes.has(n.id));
       currentConnections = currentConnections.filter(c => downstreamNodes.has(c.from) && downstreamNodes.has(c.to));
       executionId = null;

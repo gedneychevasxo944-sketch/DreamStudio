@@ -1,61 +1,116 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { FileText, MessageCircle, Settings, History, GitBranch, Lock, Unlock, RotateCcw, AlertTriangle, Check, ChevronDown, ChevronUp, Play, Palette, PenTool, Video, Code, Users, Layers, List, BookOpen, Zap, Sparkles, Image, X, Target, Loader2, Copy, ExternalLink } from 'lucide-react';
-import ChatConversation from './ChatConversation';
-import { formatTimestamp } from '../utils/dateUtils';
-import { parseScript } from '../utils/scriptUtils';
-import { applyFieldChanges } from '../utils/nodeUtils';
-import { canvasLogger } from '../utils/logger';
-import NodeResultRenderer from './NodeWorkspace/NodeResultRenderer';
-import './ChatConversation.css';
-import { nodeVersionApi, proposalApi, chatApi } from '../services/api';
-import { useWorkflowStore } from '../stores';
-import './NodeWorkspace.css';
+import { AlertTriangle, Play, GitBranch, Check } from 'lucide-react';
 
-// Tab 图标组件
-const TabIcon = ({ type, size = 16 }) => {
-  switch (type) {
-    case 'result':
-      return <FileText size={size} />;
-    case 'chat':
-      return <MessageCircle size={size} />;
-    case 'config':
-      return <Settings size={size} />;
-    case 'history':
-      return <History size={size} />;
-    case 'impact':
-      return <GitBranch size={size} />;
-    default:
-      return <FileText size={size} />;
+const ImpactTab = ({ node, downstreamNodes, upstreamNodes, onRerunFromNode, onViewFullImpact }) => {
+  if (!node) {
+    return (
+      <div className="workspace-tab-content empty">
+        <div className="empty-state">
+          <GitBranch size={32} />
+          <p>选择一个节点查看影响范围</p>
+        </div>
+      </div>
+    );
   }
-};
 
-// 把技术路径转成用户友好的标签
-const getFieldLabel = (fieldPath) => {
-  const labelMap = {
-    'genParams.quality': '画质',
-    'genParams.duration': '时长',
-    'genParams.model': '模型',
-    'genParams.ratio': '比例',
-    'budget': '预算',
-    'duration': '周期',
-    'style': '风格',
-    'model': '模型',
-    'scene3.description': '场景描述',
-    'shot1.type': '镜头类型',
-    'shot1.duration': '镜头时长',
+  const isStale = node.data?.status === 'stale';
+
+  // 处理从当前节点重新运行
+  const handleRerunFromNode = () => {
+    onRerunFromNode?.(node.id);
   };
-  return labelMap[fieldPath] || fieldPath;
+
+  // 处理查看完整影响范围
+  const handleViewFullImpact = () => {
+    onViewFullImpact?.(node.id);
+  };
+
+  return (
+    <div className="workspace-tab-content impact-tab">
+      {/* 当前节点状态 */}
+      <div className="impact-section">
+        <div className="impact-section-header">
+          <span className="section-title">当前节点</span>
+        </div>
+        <div className={`current-node-status ${node.data?.status || 'ready'}`}>
+          <div className="node-info">
+            <span className="node-name">{node.name}</span>
+            <span className={`node-status-badge ${node.data?.status || 'ready'}`}>
+              {node.data?.status === 'stale' && '依赖失效'}
+              {node.data?.status === 'completed' && '已完成'}
+              {node.data?.status === 'running' && '运行中'}
+              {!node.data?.status && '就绪'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* 下游影响 */}
+      <div className="impact-section">
+        <div className="impact-section-header">
+          <span className="section-title">下游影响</span>
+          <span className="impact-count">{downstreamNodes.length} 个节点</span>
+        </div>
+        {downstreamNodes.length > 0 ? (
+          <div className="downstream-nodes">
+            {downstreamNodes.map((dn) => (
+              <div key={dn.id} className="downstream-node-item">
+                <div className="node-connection-line">
+                  <GitBranch size={12} />
+                </div>
+                <div className="node-info">
+                  <span className="node-name">{dn.name}</span>
+                  <span className={`node-status-badge ${dn.status}`}>
+                    <AlertTriangle size={10} />
+                    {dn.reason}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="impact-empty">无下游节点</div>
+        )}
+      </div>
+
+      {/* 建议操作 */}
+      {downstreamNodes.length > 0 && (
+        <div className="impact-section">
+          <div className="impact-section-header">
+            <span className="section-title">建议操作</span>
+          </div>
+          <div className="suggested-actions">
+            <button className="action-btn primary" onClick={handleRerunFromNode}>
+              从当前节点重新运行
+            </button>
+            <button className="action-btn secondary" onClick={handleViewFullImpact}>
+              查看完整影响范围
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 上游依赖 */}
+      <div className="impact-section">
+        <div className="impact-section-header">
+          <span className="section-title">上游依赖</span>
+        </div>
+        <div className="upstream-nodes">
+          {upstreamNodes.map((un) => (
+            <div key={un.id} className="upstream-node-item">
+              <span className="node-name">{un.name}</span>
+              <span className={`node-status-badge ${un.status}`}>
+                <Check size={10} />
+                已完成
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 };
 
-// 结果 Tab
-
-import ResultTab from './NodeWorkspace/ResultTab';
-import ChatTab from './NodeWorkspace/ChatTab';
-import ConfigTab from './NodeWorkspace/ConfigTab';
-import HistoryTab from './NodeWorkspace/HistoryTab';
-import ImpactTab from './NodeWorkspace/ImpactTab';
-
+// 主组件
 const NodeWorkspace = ({
   selectedNode,
   projectId,
@@ -347,4 +402,4 @@ const NodeWorkspace = ({
   );
 };
 
-export default NodeWorkspace;
+export default ImpactTab;
