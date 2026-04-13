@@ -5,6 +5,7 @@ import ChatConversation from './ChatConversation';
 import { formatTimestamp } from '../utils/dateUtils';
 import { parseScript } from '../utils/scriptUtils';
 import { applyFieldChanges } from '../utils/nodeUtils';
+import { canvasLogger } from '../utils/logger';
 import './ChatConversation.css';
 import { nodeVersionApi, proposalApi, chatApi } from '../services/api';
 import { useWorkflowStore } from '../stores';
@@ -95,7 +96,7 @@ const ResultTab = ({ node, projectId, onGenerateVideo, onRestoreVersion, version
         if (currentNodeId !== node?.id) return;
 
         if (versionsRes.data && versionsRes.data.versions) {
-          console.log('[ResultTab] versions from API:', versionsRes.data.versions);
+          canvasLogger.debug('[ResultTab] versions from API:', versionsRes.data.versions);
           setApiVersions(versionsRes.data.versions);
         } else {
           setApiVersions([]);
@@ -119,9 +120,9 @@ const ResultTab = ({ node, projectId, onGenerateVideo, onRestoreVersion, version
           } else {
             // 处理 configDiff 格式（其他节点）
             const changes = diffJson?.configDiff?.changes || [];
-            console.log('[ResultTab] loaded appliedProposal:', appliedProposalRes.data);
-            console.log('[ResultTab] changes:', changes);
-            console.log('[ResultTab] currentNodeData:', currentNodeData);
+            canvasLogger.debug('[ResultTab] loaded appliedProposal:', appliedProposalRes.data);
+            canvasLogger.debug('[ResultTab] changes:', changes);
+            canvasLogger.debug('[ResultTab] currentNodeData:', currentNodeData);
             setModifiedData(applyFieldChanges(currentNodeData, changes));
           }
         } else {
@@ -130,7 +131,7 @@ const ResultTab = ({ node, projectId, onGenerateVideo, onRestoreVersion, version
           setModifiedData(null);
         }
       } catch (error) {
-        console.error('Failed to load version data:', error);
+        canvasLogger.error('[NodeWorkspace] Failed to load version data:', error);
         if (currentNodeId !== node?.id) return;
         setApiVersions([]);
         setCurrentVersionResult(null);
@@ -864,7 +865,7 @@ const ChatTab = ({ node, projectId, messages, setMessages, onApplyProposal, onRe
 
   // 获取diff变更列表（兼容不同格式）
   const getDiffChanges = (proposal) => {
-    console.log('[getDiffChanges] proposal:', proposal);
+    canvasLogger.debug('[NodeWorkspace] [getDiffChanges] proposal:', proposal);
     if (!proposal?.diffJson) return [];
 
     // configDiff 格式（新的通用格式）
@@ -995,7 +996,7 @@ const ChatTab = ({ node, projectId, messages, setMessages, onApplyProposal, onRe
                                       await onApplyProposal?.(msgProposal.nodeId, msgProposal.id);
                                       onApplySuccess?.(msgProposal.id);
                                     } catch (error) {
-                                      console.error('Failed to apply proposal:', error);
+                                      canvasLogger.error('[NodeWorkspace] Failed to apply proposal:', error);
                                     } finally {
                                       setApplyingProposalId(null);
                                     }
@@ -1660,7 +1661,7 @@ const HistoryTab = ({ node, projectId, versionRefreshKey }) => {
     const nodeName = upstream.nodeName || upstream.nodeId || '';
     const nodeType = nodeName.toLowerCase();
 
-    console.log('[Upstream DEBUG] nodeName:', nodeName, 'resultJson:', resultJson.substring(0, 100));
+    canvasLogger.debug('[NodeWorkspace] [Upstream DEBUG] nodeName:', nodeName, 'resultJson:', resultJson.substring(0, 100));
 
     // 优先使用 resultJson 解析结构化数据
     let displayData = {};
@@ -1946,7 +1947,7 @@ const HistoryTab = ({ node, projectId, versionRefreshKey }) => {
           setRunRecords(records);
         }
       } catch (error) {
-        console.error('Failed to load history:', error);
+        canvasLogger.error('[NodeWorkspace] Failed to load history:', error);
         setRunRecords([]);
       } finally {
         setLoading(false);
@@ -1967,7 +1968,7 @@ const HistoryTab = ({ node, projectId, versionRefreshKey }) => {
         setRecordDetail(response.data);
       }
     } catch (error) {
-      console.error('Failed to load record detail:', error);
+      canvasLogger.error('[NodeWorkspace] Failed to load record detail:', error);
       setRecordDetail(null);
     } finally {
       setDetailLoading(false);
@@ -2245,18 +2246,18 @@ const NodeWorkspace = ({
 
     const loadChatHistory = async () => {
       try {
-        console.log('[ChatHistory] Loading for node:', currentNodeId, 'project:', projectId);
+        canvasLogger.debug('[NodeWorkspace] [ChatHistory] Loading for node:', currentNodeId, 'project:', projectId);
         const res = await chatApi.getNodeChatHistory(projectId, currentNodeId);
-        console.log('[ChatHistory] Response:', res);
+        canvasLogger.debug('[NodeWorkspace] [ChatHistory] Response:', res);
 
         // Check if this effect is still valid (node hasn't changed)
         if (cancelled) {
-          console.log('[ChatHistory] Cancelled, ignoring response for node:', currentNodeId);
+          canvasLogger.debug('[NodeWorkspace] [ChatHistory] Cancelled, ignoring response for node:', currentNodeId);
           return;
         }
 
         if (res.data && Array.isArray(res.data)) {
-          console.log('[ChatHistory] Found', res.data.length, 'records for node:', currentNodeId);
+          canvasLogger.debug('[NodeWorkspace] [ChatHistory] Found', res.data.length, 'records for node:', currentNodeId);
           // 转换历史消息格式
           const historyMessages = [];
           res.data.forEach(record => {
@@ -2279,11 +2280,11 @@ const NodeWorkspace = ({
           });
           setChatMessages(historyMessages);
         } else {
-          console.log('[ChatHistory] No data or empty array for node:', currentNodeId);
+          canvasLogger.debug('[NodeWorkspace] [ChatHistory] No data or empty array for node:', currentNodeId);
           setChatMessages([]);
         }
       } catch (error) {
-        console.error('[ChatHistory] Failed to load chat history:', error);
+        canvasLogger.error('[NodeWorkspace] [ChatHistory] Failed to load chat history:', error);
         if (!cancelled) {
           setChatMessages([]);
         }

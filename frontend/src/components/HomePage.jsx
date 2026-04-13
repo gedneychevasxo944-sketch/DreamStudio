@@ -5,6 +5,8 @@ import ProjectCard from './ProjectCard';
 import AuthModal from './AuthModal/AuthModal';
 import { homePageApi, authApi, teamApi } from '../services/api';
 import { transformProjectData } from '../utils/transformUtils';
+import { uiLogger } from '../utils/logger';
+import { authStorage } from '../utils/authStorage';
 import './HomePage.css';
 
 // 转换后端团队数据为前端演示案例格式
@@ -199,20 +201,18 @@ const HomePage = ({ onEnter }) => {
 
   // 检查登录状态并验证 token 有效性
   useEffect(() => {
-    console.log('[HomePage] Checking auth status...');
-    const user = localStorage.getItem('user');
-    const token = localStorage.getItem('token');
-    console.log('[HomePage] User:', !!user, 'Token:', !!token);
+    uiLogger.debug('[HomePage] Checking auth status...');
+    const user = authStorage.getUser();
+    const token = authStorage.getToken();
+    uiLogger.debug('[HomePage] User:', !!user, 'Token:', !!token);
 
     // 先检查是否有认证错误（从其他页面重定向过来）
     const error = sessionStorage.getItem('authError');
     if (error) {
-      console.log('[HomePage] Found auth error in sessionStorage:', error);
+      uiLogger.debug('[HomePage] Found auth error in sessionStorage:', error);
       sessionStorage.removeItem('authError');
       // 清除可能残留的登录信息，直接显示登录弹窗
-      localStorage.removeItem('token');
-      localStorage.removeItem('userId');
-      localStorage.removeItem('user');
+      authStorage.clearAuth();
       setCurrentUser(null);
       setAuthError(error);
       setShowAuthModal(true);
@@ -220,24 +220,22 @@ const HomePage = ({ onEnter }) => {
     }
 
     if (user && token) {
-      console.log('[HomePage] Has user and token, validating...');
-      setCurrentUser(JSON.parse(user));
+      uiLogger.debug('[HomePage] Has user and token, validating...');
+      setCurrentUser(user);
 
       // 使用专门的 /auth/me 接口验证 token
       authApi.checkStatus()
         .then((res) => {
-          console.log('[HomePage] Token validation passed', res);
+          uiLogger.debug('[HomePage] Token validation passed', res);
           // 用后端返回的最新用户信息更新状态
           if (res.data) {
             setCurrentUser(res.data);
           }
         })
         .catch((err) => {
-          console.log('[HomePage] Token validation failed:', err);
+          uiLogger.debug('[HomePage] Token validation failed:', err);
           // token 无效，清除本地存储，直接显示登录弹窗
-          localStorage.removeItem('token');
-          localStorage.removeItem('userId');
-          localStorage.removeItem('user');
+          authStorage.clearAuth();
           setCurrentUser(null);
           setAuthError(err.message || '登录已失效，请重新登录');
           setShowAuthModal(true);
@@ -269,9 +267,7 @@ const HomePage = ({ onEnter }) => {
 
   // 处理登出
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('userId');
-    localStorage.removeItem('user');
+    authStorage.clearAuth();
     setCurrentUser(null);
     setRecentProjects([]);
   };
@@ -287,7 +283,7 @@ const HomePage = ({ onEnter }) => {
         setDemoTemplates(transformedDemos);
       }
     } catch (err) {
-      console.error('Failed to load data:', err);
+      uiLogger.error('[HomePage] Failed to load data:', err);
       setError('加载数据失败，请检查后端服务是否启动');
       setDemoTemplates([]);
     } finally {
@@ -306,7 +302,7 @@ const HomePage = ({ onEnter }) => {
         setRecentProjects([]);
       }
     } catch (err) {
-      console.error('Failed to load recent projects:', err);
+      uiLogger.error('[HomePage] Failed to load recent projects:', err);
       setRecentProjects([]);
     }
   };
@@ -334,7 +330,7 @@ const HomePage = ({ onEnter }) => {
         setError(response.message || '创建项目失败');
       }
     } catch (err) {
-      console.error('Failed to create project:', err);
+      uiLogger.error('[HomePage] Failed to create project:', err);
       setError('创建项目失败，请稍后重试');
     } finally {
       setCreating(false);
@@ -357,7 +353,7 @@ const HomePage = ({ onEnter }) => {
         setError(response.message || '创建项目失败');
       }
     } catch (err) {
-      console.error('Failed to fork template:', err);
+      uiLogger.error('[HomePage] Failed to fork template:', err);
       setError('创建项目失败，请稍后重试');
     } finally {
       setCreating(false);

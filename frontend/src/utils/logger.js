@@ -97,6 +97,7 @@ export const apiLogger = createLogger('API');
 export const storeLogger = createLogger('STORE');
 export const canvasLogger = createLogger('CANVAS');
 export const chatLogger = createLogger('CHAT');
+export const uiLogger = createLogger('APP');
 
 export default {
   debug,

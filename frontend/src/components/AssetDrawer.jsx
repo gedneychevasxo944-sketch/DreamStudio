@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronRight, Image, FileText, Video, Copy, Download, RotateCcw, MapPin, Check, Clock, AlertTriangle } from 'lucide-react';
 import { assetApi } from '../services/api';
+import { uiLogger } from '../utils/logger';
 import './AssetDrawer.css';
 
 const AssetDrawer = ({
@@ -52,7 +53,7 @@ const AssetDrawer = ({
           setAssets([]);
         }
       } catch (error) {
-        console.error('Failed to load assets:', error);
+        uiLogger.error('[AssetDrawer] Failed to load assets:', error);
         setAssets([]);
       } finally {
         setLoading(false);

@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown';
 import { Send, Bot, User, Copy, X, ExternalLink, Check, Sparkles, ChevronUp, ChevronDown, ZoomIn, GitBranch, Plus, ArrowRight, Trash2 } from 'lucide-react';
 import { chatApi } from '../services/api';
 import { formatTimestamp } from '../utils/dateUtils';
+import { chatLogger } from '../utils/logger';
 import './ChatConversation.css';
 
 const Toast = ({ message, onClose }) => {
@@ -576,7 +577,7 @@ const ChatConversation = forwardRef(({
         },
 
         onError: (data) => {
-          console.error('[ChatConversation] SSE error:', data);
+          chatLogger.error('[ChatConversation] SSE error:', data);
           const errorMsg = data?.message || '抱歉，发生了错误，请稍后重试。';
           updateMessages(prev => prev.map(msg =>
             msg.id === assistantMsgId

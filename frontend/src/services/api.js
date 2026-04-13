@@ -1,11 +1,9 @@
 import { apiLogger } from '../utils/logger';
 import { parseApiError, handleNetworkError, ErrorType } from '../utils/errorHandler';
 import { AUTH_ERROR_MESSAGES } from '../constants/authConstants';
+import { authStorage } from '../utils/authStorage';
 
 const API_BASE_URL = 'http://localhost:8080/api';
-
-const getToken = () => localStorage.getItem('token');
-const getUserId = () => localStorage.getItem('userId');
 
 // 检查是否是认证错误
 function isAuthErrorLocal(errorMessage) {
@@ -16,36 +14,33 @@ function isAuthErrorLocal(errorMessage) {
 
 // 处理认证错误，清除本地存储并提示用户
 function handleAuthError(errorMessage) {
-  console.log('[Auth] handleAuthError called:', errorMessage);
+  apiLogger.info('[Auth] handleAuthError called:', errorMessage);
   if (!isAuthErrorLocal(errorMessage)) {
-    console.log('[Auth] Error not recognized as auth error:', errorMessage);
+    apiLogger.debug('[Auth] Error not recognized as auth error:', errorMessage);
     return;
   }
-  console.log('[Auth] Processing auth error:', errorMessage);
+  apiLogger.info('[Auth] Processing auth error:', errorMessage);
   try {
-    // 清除所有可能存储的登录信息
-    localStorage.removeItem('token');
-    localStorage.removeItem('userId');
-    localStorage.removeItem('user');
-    console.log('[Auth] Cleared localStorage');
+    authStorage.clearAuth();
+    apiLogger.debug('[Auth] Cleared auth storage');
     // 设置标志让前端知道需要重新登录
     sessionStorage.setItem('authError', errorMessage || '登录已失效，请重新登录');
-    console.log('[Auth] Set sessionStorage authError');
+    apiLogger.debug('[Auth] Set sessionStorage authError');
     // 强制导航到首页 - 使用 replace 避免在历史记录中留下痕迹
     const redirectUrl = window.location.origin + '/';
-    console.log('[Auth] Redirecting to:', redirectUrl);
+    apiLogger.debug('[Auth] Redirecting to:', redirectUrl);
     window.location.replace(redirectUrl);
-    console.log('[Auth] Redirect called');
+    apiLogger.debug('[Auth] Redirect called');
   } catch (e) {
-    console.error('[Auth] Error in handleAuthError:', e);
+    apiLogger.error('[Auth] Error in handleAuthError:', e);
     // 最后的后备方案
     window.location.href = '/';
   }
 }
 
 async function request(url, options = {}) {
-  const token = getToken();
-  const userId = getUserId();
+  const token = authStorage.getToken();
+  const userId = authStorage.getUserId();
 
   const defaultOptions = {
     headers: {
@@ -97,7 +92,7 @@ async function request(url, options = {}) {
 }
 
 function createSSEConnection(url, onMessage, onError, onClose) {
-  const token = getToken();
+  const token = authStorage.getToken();
   const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
 
   const eventSource = new EventSource(`${API_BASE_URL}${url}`, {
@@ -127,8 +122,8 @@ function createSSEConnection(url, onMessage, onError, onClose) {
 }
 
 function createSSEConnectionForExecution(url, body, onMessage, onError) {
-  const token = getToken();
-  const userId = getUserId();
+  const token = authStorage.getToken();
+  const userId = authStorage.getUserId();
   const headers = {
     'Content-Type': 'application/json',
     ...(userId && { 'X-User-Id': userId }),
@@ -359,8 +354,8 @@ export const homePageApi = {
 export function sendChatMessageStream(params, callbacks) {
   const { projectId, projectVersion, agentId, agentName, message, nodeId, generation } = params;
 
-  const token = getToken();
-  const userId = getUserId();
+  const token = authStorage.getToken();
+  const userId = authStorage.getUserId();
   const headers = {
     'Content-Type': 'application/json',
     ...(userId && { 'X-User-Id': userId }),
@@ -465,7 +460,7 @@ export function sendChatMessageStream(params, callbacks) {
                     }
                 }
               } catch (e) {
-                console.error('[Chat API] Parse error:', e, 'dataStr was:', dataStr);
+                apiLogger.warn('[Chat API] Parse error:', e, 'dataStr was:', dataStr);
               }
             }
           }
@@ -625,8 +620,8 @@ export const agentApi = {
 
   // 6.4 智能体对话 (SSE)
   chat: (agentId, params, callbacks) => {
-    const token = getToken();
-    const userId = getUserId();
+    const token = authStorage.getToken();
+    const userId = authStorage.getUserId();
     const headers = {
       'Content-Type': 'application/json',
       ...(userId && { 'X-User-Id': userId }),
@@ -687,7 +682,7 @@ export const agentApi = {
                     default: callbacks.onMessage?.(data);
                   }
                 } catch (e) {
-                  console.error('[agentApi chat] Parse error:', e);
+                  apiLogger.warn('[agentApi chat] Parse error:', e);
                 }
               }
             }

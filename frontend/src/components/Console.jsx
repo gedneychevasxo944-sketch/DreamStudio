@@ -3,6 +3,7 @@ import { Bot } from 'lucide-react';
 import ChatConversation from './ChatConversation';
 import { COMPONENT_TYPE, ASSISTANT_AGENT_ID } from '../constants/ComponentType';
 import { useProjectStore, useWorkflowStore } from '../stores';
+import { uiLogger } from '../utils/logger';
 import './Console.css';
 
 const Console = ({ onLoadWorkflow, pendingChatMessage, onPendingChatMessageSent }) => {
@@ -77,7 +78,7 @@ const Console = ({ onLoadWorkflow, pendingChatMessage, onPendingChatMessageSent 
           break;
 
         default:
-          console.warn('[Console] Unknown proposal action:', change.action);
+          uiLogger.warn('[Console] Unknown proposal action:', change.action);
       }
     });
   }, [canvasNodes, addNode, deleteNode, updateNodeData]);

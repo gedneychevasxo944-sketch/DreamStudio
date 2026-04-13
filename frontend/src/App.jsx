@@ -14,6 +14,8 @@ import AssetDrawer from './components/AssetDrawer';
 import PlanningPage from './components/PlanningPage';
 import { homePageApi, workSpaceApi, nodeVersionApi, proposalApi } from './services/api';
 import { AUTH_ERROR_MESSAGES } from './constants/authConstants';
+import { uiLogger } from './utils/logger';
+import { authStorage } from './utils/authStorage';
 import { useProjectStore, useWorkflowStore, useUIStore, calculateTemplateNodePositions } from './stores';
 import './App.css';
 
@@ -282,7 +284,7 @@ function App() {
         setCurrentVersion(currentVersionObj);
       }
     } catch (error) {
-      console.error('Failed to load versions:', error);
+      uiLogger.error('[App] Failed to load versions:', error);
     }
   }, [setVersions, setCurrentVersion]);
 
@@ -367,7 +369,7 @@ function App() {
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 2000);
     } catch (error) {
-      console.error('Failed to save project:', error);
+      uiLogger.error('[App] Failed to save project:', error);
       alert('保存失败: ' + error.message);
     } finally {
       setIsSaving(false);
@@ -429,14 +431,14 @@ function App() {
                 if (config.viewport) setCanvasViewport(config.viewport);
               }, 100);
             } catch (e) {
-              console.error('Failed to parse project config:', e);
+              uiLogger.error('[App] Failed to parse project config:', e);
             }
           }
 
           await loadVersions(projectId);
         }
       } catch (error) {
-        console.error('Failed to load project data:', error);
+        uiLogger.error('[App] Failed to load project data:', error);
       }
     } else {
       const projectTitle = initialProjectName || (userInput ? (userInput.length > 20 ? userInput.substring(0, 20) + '...' : userInput) : '未命名项目');
@@ -450,11 +452,9 @@ function App() {
           setCurrentVersion(null);
         }
       } catch (error) {
-        console.error('Failed to create project:', error);
+        uiLogger.error('[App] Failed to create project:', error);
         if (AUTH_ERROR_MESSAGES.some(e => error.message && error.message.includes(e))) {
-          localStorage.removeItem('token');
-          localStorage.removeItem('userId');
-          localStorage.removeItem('user');
+          authStorage.clearAuth();
           sessionStorage.setItem('authError', '登录已失效，请重新登录');
           alert('登录已失效，请重新登录');
           window.location.href = '/';
@@ -548,12 +548,10 @@ const planToNodesAndConnections = (plan, userInput) => {
         setCurrentVersion(null);
       }
     } catch (error) {
-      console.error('Failed to create project:', error);
+      uiLogger.error('[App] Failed to create project:', error);
       const authErrors = ['用户不存在', '用户未登录', '登录已过期', '认证失败', '没有访问权限'];
       if (authErrors.some(e => error.message && error.message.includes(e))) {
-        localStorage.removeItem('token');
-        localStorage.removeItem('userId');
-        localStorage.removeItem('user');
+        authStorage.clearAuth();
         sessionStorage.setItem('authError', '登录已失效，请重新登录');
         alert('登录已失效，请重新登录');
         window.location.href = '/';
@@ -619,7 +617,7 @@ const planToNodesAndConnections = (plan, userInput) => {
       setCurrentVersion(version);
       setShowVersionDropdown(false);
     } catch (error) {
-      console.error('Failed to switch version:', error);
+      uiLogger.error('[App] Failed to switch version:', error);
       alert('切换版本失败: ' + error.message);
     }
   }, [
@@ -638,7 +636,7 @@ const planToNodesAndConnections = (plan, userInput) => {
           setCurrentVersion(remainingVersions[0]);
         }
       } catch (error) {
-        console.error('Failed to delete version:', error);
+        uiLogger.error('[App] Failed to delete version:', error);
         alert('删除版本失败: ' + error.message);
       }
     }
@@ -758,13 +756,13 @@ const planToNodesAndConnections = (plan, userInput) => {
   // 运行相关处理
   const handleRun = (runType = 'restart') => {
     // runType: 'restart' | 'continue' | 'fromCurrent' | 'currentOnly'
-    console.log('Running workflow with type:', runType);
+    uiLogger.debug('[App] Running workflow with type:', runType);
     // TODO: 根据 runType 调用不同的运行逻辑
   };
 
   // 从指定节点重新运行
   const handleRerunFromNode = (nodeId) => {
-    console.log('Rerun from node:', nodeId);
+    uiLogger.debug('[App] Rerun from node:', nodeId);
     const targetNode = canvasNodes.find(n => n.id === nodeId);
     if (!targetNode) return;
 
@@ -778,7 +776,7 @@ const planToNodesAndConnections = (plan, userInput) => {
 
   // 查看完整影响范围
   const handleViewFullImpact = (nodeId) => {
-    console.log('View full impact for node:', nodeId);
+    uiLogger.debug('[App] View full impact for node:', nodeId);
     const targetNode = canvasNodes.find(n => n.id === nodeId);
     if (!targetNode) return;
 
@@ -831,14 +829,14 @@ const planToNodesAndConnections = (plan, userInput) => {
 
   const handleLocateNode = (nodeId) => {
     // 定位到指定节点
-    console.log('Locate node:', nodeId);
+    uiLogger.debug('[App] Locate node:', nodeId);
     setAssetDrawerOpen(false);
   };
 
   const handleRestoreVersion = async (nodeKey, versionId) => {
-    console.log('Restore version:', nodeKey, versionId);
+    uiLogger.debug('[App] Restore version:', nodeKey, versionId);
     if (!currentProjectId) {
-      console.warn('No projectId available for restore version');
+      uiLogger.warn('[App] No projectId available for restore version');
       return;
     }
 
@@ -857,7 +855,7 @@ const planToNodesAndConnections = (plan, userInput) => {
       const { markDownstreamAsStale } = useWorkflowStore.getState();
       markDownstreamAsStale(nodeKey, `节点 ${targetNode.name} 已恢复到版本 ${versionId}`);
     } catch (error) {
-      console.error('Failed to restore version:', error);
+      uiLogger.error('[App] Failed to restore version:', error);
       alert('恢复版本失败: ' + error.message);
     }
   };
@@ -865,7 +863,7 @@ const planToNodesAndConnections = (plan, userInput) => {
   // 提案处理 - 应用提案
   const handleApplyProposal = async (nodeId, proposalId) => {
     if (!currentProjectId) {
-      console.warn('No projectId available for apply proposal');
+      uiLogger.warn('[App] No projectId available for apply proposal');
       return;
     }
 
@@ -888,9 +886,9 @@ const planToNodesAndConnections = (plan, userInput) => {
       });
       document.dispatchEvent(event);
 
-      console.log('Proposal applied:', nodeId, proposalId);
+      uiLogger.debug('[App] Proposal applied:', nodeId, proposalId);
     } catch (error) {
-      console.error('Failed to apply proposal:', error);
+      uiLogger.error('[App] Failed to apply proposal:', error);
       alert('应用提案失败: ' + error.message);
     }
   };
@@ -905,13 +903,13 @@ const planToNodesAndConnections = (plan, userInput) => {
       proposalStatus: 'pending'
     });
 
-    console.log('Proposal regenerated:', nodeId, proposal);
+    uiLogger.debug('[App] Proposal regenerated:', nodeId, proposal);
   };
 
   // 提案处理 - 拒绝提案
   const handleRejectProposal = async (nodeId, proposalId) => {
     if (!currentProjectId) {
-      console.warn('No projectId available for reject proposal');
+      uiLogger.warn('[App] No projectId available for reject proposal');
       return;
     }
 
@@ -926,16 +924,16 @@ const planToNodesAndConnections = (plan, userInput) => {
       });
       document.dispatchEvent(event);
 
-      console.log('Proposal rejected:', nodeId, proposalId);
+      uiLogger.debug('[App] Proposal rejected:', nodeId, proposalId);
     } catch (error) {
-      console.error('Failed to reject proposal:', error);
+      uiLogger.error('[App] Failed to reject proposal:', error);
       alert('拒绝提案失败: ' + error.message);
     }
   };
 
   // 导出处理
   const handleExport = () => {
-    console.log('Export project');
+    uiLogger.debug('[App] Export project');
     alert('导出功能开发中...');
   };
 
@@ -951,7 +949,7 @@ const planToNodesAndConnections = (plan, userInput) => {
           rawInput={planningRawInput}
           attachments={planningAttachments}
           onConfirmPlan={(plan) => {
-            console.log('Plan confirmed:', plan);
+            uiLogger.debug('[App] Plan confirmed:', plan);
             // 根据方案创建真实DAG
             const { nodes, connections } = planToNodesAndConnections(plan, planningRawInput);
             if (nodes.length > 0) {

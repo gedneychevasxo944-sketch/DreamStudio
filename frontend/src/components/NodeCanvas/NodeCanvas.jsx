@@ -12,6 +12,7 @@ import { workSpaceApi, teamApi, agentApi } from '../../services/api';
 import { useWorkflowStore, calculateNodePositions } from '../../stores';
 import { getDefaultNodeWidth, generateThinkingContent, generateResultContent } from '../../utils/nodeUtils';
 import { CANVAS } from '../../constants/layoutConstants';
+import { canvasLogger } from '../../utils/logger';
 import { CanvasToolbar, CanvasStatusBar, FullscreenToolbar, SaveTemplateDialog } from '../Canvas';
 import './NodeCanvas.css';
 
@@ -319,7 +320,7 @@ const NodeCanvas = ({
           setTemplates(templateList);
         }
       } catch (error) {
-        console.error('[NodeCanvas] Failed to load data:', error);
+        canvasLogger.error('[NodeCanvas] Failed to load data:', error);
       } finally {
         setLoadingAgents(false);
       }
@@ -578,11 +579,11 @@ const NodeCanvas = ({
             sseConnection.close();
           }
         },
-        (error) => { console.error('SSE error:', error); setIsRunning(false); },
+        (error) => { canvasLogger.error('[NodeCanvas] SSE error:', error); setIsRunning(false); },
         null
       );
     } catch (error) {
-      console.error('Failed to execute new video nodes:', error);
+      canvasLogger.error('[NodeCanvas] Failed to execute new video nodes:', error);
       setIsRunning(false);
     }
   }, [projectId, projectVersion, setIsRunning, updateNodeStatus, updateNodeData, updateNodeResult, scrollToNode, handleNodeSelect]);
@@ -1040,7 +1041,7 @@ const NodeCanvas = ({
         toast.error('保存失败：' + (res.message || '未知错误'), { position: 'bottom' });
       }
     } catch (error) {
-      console.error('保存团队失败:', error);
+      canvasLogger.error('[NodeCanvas] 保存团队失败:', error);
       toast.error('保存失败，请重试', { position: 'bottom' });
     }
   }, [templateName, templateDescribe, nodes, connections]);

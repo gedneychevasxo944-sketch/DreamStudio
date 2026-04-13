@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, User, Lock, Mail, UserPlus, Loader2 } from 'lucide-react';
 import { authApi } from '../../services/api';
+import { authStorage } from '../../utils/authStorage';
 import './AuthModal.css';
 
 const AuthModal = ({ isOpen, onClose, onLoginSuccess }) => {
@@ -82,9 +83,7 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }) => {
           name: response.data.name,
           avatar: response.data.avatar,
         };
-        localStorage.setItem('token', response.data.token);
-        localStorage.setItem('userId', response.data.id);
-        localStorage.setItem('user', JSON.stringify(user));
+        authStorage.setAuth(response.data.token, response.data.id, user);
         onLoginSuccess(user);
         onClose();
         resetForms();
@@ -128,9 +127,7 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }) => {
             name: loginResponse.data.name,
             avatar: loginResponse.data.avatar,
           };
-          localStorage.setItem('token', loginResponse.data.token);
-          localStorage.setItem('userId', loginResponse.data.id);
-          localStorage.setItem('user', JSON.stringify(user));
+          authStorage.setAuth(loginResponse.data.token, loginResponse.data.id, user);
           onLoginSuccess(user);
           onClose();
           resetForms();

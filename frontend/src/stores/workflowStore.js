@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { traverseConnectedNodes } from '../utils/nodeUtils';
+import { storeLogger } from '../utils/logger';
 export { calculateNodePositions, calculateTemplateNodePositions } from '../utils/nodeUtils';
 
 export const useWorkflowStore = create((set, get) => ({
@@ -88,7 +89,7 @@ export const useWorkflowStore = create((set, get) => ({
   updateNodeResult: (nodeId, result, thinking = []) => set((state) => {
     const nodeExists = state.nodes.some(n => n.id === nodeId);
     if (!nodeExists) {
-      console.warn('[workflowStore] updateNodeResult: node not found:', nodeId);
+      storeLogger.warn('[workflowStore] updateNodeResult: node not found:', nodeId);
       return state;
     }
     return {

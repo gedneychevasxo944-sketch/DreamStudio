@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Package, Loader2, CheckCircle } from 'lucide-react';
 import JSZip from 'jszip';
+import { uiLogger } from '../utils/logger';
 import './ExportAssets.css';
 
 const ExportAssets = ({ projectName = '未命名项目', assets = {} }) => {
@@ -140,7 +141,7 @@ const ExportAssets = ({ projectName = '未命名项目', assets = {} }) => {
       }, 2000);
 
     } catch (error) {
-      console.error('导出失败:', error);
+      uiLogger.error('[ExportAssets] 导出失败:', error);
       setIsExporting(false);
     }
   };

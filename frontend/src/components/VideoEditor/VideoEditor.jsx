@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { uiLogger } from '../../utils/logger';
 import './VideoEditor.css';
 
 const VideoEditor = ({ isOpen, onClose, projectId, onExport, videos = [] }) => {
@@ -47,14 +48,14 @@ const VideoEditor = ({ isOpen, onClose, projectId, onExport, videos = [] }) => {
         
         // 检查是否已经加载过 WebCut
         if (!window.webcutLoaded) {
-          console.log('[VideoEditor] 开始加载 WebCut...');
+          uiLogger.debug('[VideoEditor] 开始加载 WebCut...');
           
           // 加载 CSS
           const link = document.createElement('link');
           link.rel = 'stylesheet';
           link.href = 'https://unpkg.com/webcut@0.2.9/webcomponents/bundle/style.css';
           document.head.appendChild(link);
-          console.log('[VideoEditor] CSS 已加载');
+          uiLogger.debug('[VideoEditor] CSS 已加载');
 
           // 加载 JS - 直接加载脚本
           await new Promise((resolve, reject) => {
@@ -62,11 +63,11 @@ const VideoEditor = ({ isOpen, onClose, projectId, onExport, videos = [] }) => {
             script.type = 'module';
             script.src = 'https://unpkg.com/webcut@0.2.9/webcomponents/bundle/index.js';
             script.onload = () => {
-              console.log('[VideoEditor] WebCut 脚本加载完成');
+              uiLogger.debug('[VideoEditor] WebCut 脚本加载完成');
               resolve();
             };
             script.onerror = (e) => {
-              console.error('[VideoEditor] WebCut 脚本加载失败', e);
+              uiLogger.error('[VideoEditor] WebCut 脚本加载失败', e);
               reject(e);
             };
             document.head.appendChild(script);
@@ -76,10 +77,10 @@ const VideoEditor = ({ isOpen, onClose, projectId, onExport, videos = [] }) => {
           await new Promise((resolve) => {
             const checkWebCut = () => {
               if (customElements.get('webcut-editor')) {
-                console.log('[VideoEditor] WebCut 组件已注册');
+                uiLogger.debug('[VideoEditor] WebCut 组件已注册');
                 resolve();
               } else {
-                console.log('[VideoEditor] 等待 WebCut 组件注册...');
+                uiLogger.debug('[VideoEditor] 等待 WebCut 组件注册...');
                 setTimeout(checkWebCut, 100);
               }
             };
@@ -92,7 +93,7 @@ const VideoEditor = ({ isOpen, onClose, projectId, onExport, videos = [] }) => {
         setIsWebCutReady(true);
         setIsLoading(false);
       } catch (err) {
-        console.error('[VideoEditor] 加载 WebCut 失败:', err);
+        uiLogger.error('[VideoEditor] 加载 WebCut 失败:', err);
         setError('加载视频编辑器失败: ' + err.message);
         setIsLoading(false);
       }
@@ -105,7 +106,7 @@ const VideoEditor = ({ isOpen, onClose, projectId, onExport, videos = [] }) => {
   useEffect(() => {
     if (!isOpen || isLoading || !isWebCutReady || !containerRef.current) return;
 
-    console.log('[VideoEditor] 创建 WebCut 编辑器', { videoCount: videoList.length });
+    uiLogger.debug('[VideoEditor] 创建 WebCut 编辑器', { videoCount: videoList.length });
 
     try {
       // 清空容器
@@ -140,7 +141,7 @@ const VideoEditor = ({ isOpen, onClose, projectId, onExport, videos = [] }) => {
         }
       };
 
-      console.log('[VideoEditor] 项目数据:', projectData);
+      uiLogger.debug('[VideoEditor] 项目数据:', projectData);
 
       // 创建 WebCut 编辑器元素
       const editor = document.createElement('webcut-editor');
@@ -153,19 +154,19 @@ const VideoEditor = ({ isOpen, onClose, projectId, onExport, videos = [] }) => {
       
       // 监听事件
       editor.addEventListener('export', (e) => {
-        console.log('[VideoEditor] 导出视频:', e.detail);
+        uiLogger.debug('[VideoEditor] 导出视频:', e.detail);
         onExport?.(e.detail);
       });
       
       editor.addEventListener('error', (e) => {
-        console.error('[VideoEditor] WebCut 错误:', e.detail);
+        uiLogger.error('[VideoEditor] WebCut 错误:', e.detail);
       });
 
       // 添加到容器
       containerRef.current.appendChild(editor);
       editorRef.current = editor;
       
-      console.log('[VideoEditor] WebCut 编辑器已添加到 DOM');
+      uiLogger.debug('[VideoEditor] WebCut 编辑器已添加到 DOM');
 
       // 返回清理函数
       return () => {
@@ -181,7 +182,7 @@ const VideoEditor = ({ isOpen, onClose, projectId, onExport, videos = [] }) => {
       };
 
     } catch (err) {
-      console.error('[VideoEditor] 创建编辑器失败:', err);
+      uiLogger.error('[VideoEditor] 创建编辑器失败:', err);
       setError('创建编辑器失败: ' + err.message);
     }
 
