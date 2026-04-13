@@ -150,6 +150,8 @@ const PlanningPage = ({
   projectId = null,
   rawInput = '',
   attachments = [],
+  messages = [],
+  onMessagesChange,
   onConfirmPlan,
   onCancel,
 }) => {
@@ -223,6 +225,8 @@ const PlanningPage = ({
             ref={chatRef}
             agentId={0}
             projectId={projectId}
+            messages={messages}
+            onMessagesChange={onMessagesChange}
             onPlanReceived={handlePlanReceived}
             placeholder="输入消息..."
             disabledPlaceholder="生成完成后可对话"

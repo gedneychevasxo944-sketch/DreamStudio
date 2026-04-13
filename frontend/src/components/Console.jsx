@@ -6,8 +6,7 @@ import { useProjectStore, useWorkflowStore } from '../stores';
 import { uiLogger } from '../utils/logger';
 import './Console.css';
 
-const Console = ({ onLoadWorkflow, pendingChatMessage, onPendingChatMessageSent }) => {
-  const [messages, setMessages] = useState([]);
+const Console = ({ onLoadWorkflow, pendingChatMessage, onPendingChatMessageSent, messages, onMessagesChange, onPlanReceived }) => {
   const chatRef = useRef(null);
   const hasSentPendingMessage = useRef(false);
 
@@ -96,11 +95,12 @@ const Console = ({ onLoadWorkflow, pendingChatMessage, onPendingChatMessageSent 
         projectId={currentProjectId}
         projectVersion={currentVersion?.version}
         messages={messages}
-        onMessagesChange={setMessages}
+        onMessagesChange={onMessagesChange}
         placeholder="输入消息..."
         disabledPlaceholder="生成完成后可对话"
         onWorkflowCreated={handleWorkflowCreated}
         onApplyProposal={handleApplyProposal}
+        onPlanReceived={onPlanReceived}
       />
     </div>
   );

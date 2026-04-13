@@ -6,13 +6,15 @@
 .cc-container {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
 }
 
 /* 消息区域 */
 .cc-messages {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   margin: 0;
   padding: 0;
@@ -339,8 +341,7 @@
 
 /* 底部输入区 */
 .cc-input-area {
-  margin: 0;
-  padding: 0;
+  padding: 8px;
   width: 100%;
   background: var(--bg-secondary);
   flex-shrink: 0;

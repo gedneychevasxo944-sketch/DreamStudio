@@ -11,7 +11,8 @@ import HomePage from './components/HomePage';
 import SkillMarket from './components/SkillMarket/SkillMarket';
 import ProjectTopBar from './components/ProjectTopBar';
 import AssetDrawer from './components/AssetDrawer';
-import PlanningPage from './components/PlanningPage';
+import PlanPreview from './components/PlanPreview';
+import ContextPanel from './components/ContextPanel';
 import { homePageApi, workSpaceApi, nodeVersionApi, proposalApi } from './services/api';
 import { AUTH_ERROR_MESSAGES } from './constants/authConstants';
 import { WORKFLOW_LAYOUT, PLAN_LAYOUT } from './constants/layoutConstants';
@@ -28,6 +29,24 @@ function App() {
   // Planning state
   const [planningRawInput, setPlanningRawInput] = useState('');
   const [planningAttachments, setPlanningAttachments] = useState([]);
+
+  // 共享对话状态 - 规划页和工作区共用
+  const [sharedMessages, setSharedMessages] = useState([]);
+
+  // Plan 状态 - 规划态使用
+  const [selectedPlanId, setSelectedPlanId] = useState(null);
+  const [plan, setPlan] = useState(null);
+
+  // 右侧面板状态 - 工作态使用
+  const [rightPanelVisible, setRightPanelVisible] = useState(false);
+
+  // Plan 收到后的回调
+  const handlePlanReceived = useCallback((receivedPlan) => {
+    if (receivedPlan) {
+      setPlan(receivedPlan);
+      setSelectedPlanId(receivedPlan.id);
+    }
+  }, []);
 
   // Project Store
   const {
@@ -108,6 +127,38 @@ function App() {
     closeDeleteConfirm,
     getActualWidths,
   } = useUIStore();
+
+  // 确认方案
+  const handleConfirmPlan = useCallback(() => {
+    if (!plan) return;
+    uiLogger.debug('[App] Plan confirmed:', plan);
+    const { nodes, connections } = planToNodesAndConnections(plan, planningRawInput);
+    if (nodes.length > 0) {
+      incrementCanvasKey();
+      loadWorkflow(nodes, connections);
+    }
+    if (plan.mode) {
+      setProjectMode(plan.mode === 'director' ? 'director' : 'factory');
+    }
+    setCurrentView('workspace');
+    setRightPanelVisible(false);
+  }, [plan, planningRawInput, incrementCanvasKey, loadWorkflow, setCurrentView]);
+
+  // 自己搭建
+  const handleBuildOwn = useCallback(() => {
+    incrementCanvasKey();
+    resetCanvas();
+    setCurrentView('workspace');
+    setRightPanelVisible(false);
+  }, [incrementCanvasKey, resetCanvas, setCurrentView]);
+
+  // 取消规划
+  const handleCancelPlanning = useCallback(() => {
+    setCurrentView('home');
+    setPlan(null);
+    setSelectedPlanId(null);
+    setSharedMessages([]);
+  }, [setCurrentView]);
 
   // 从 canvasNodes 派生 selectedNode，确保与 store 同步
   const selectedNode = useMemo(() => {
@@ -440,6 +491,8 @@ function App() {
       setCurrentView('planning');
       setPlanningRawInput(userInput);
       setPlanningAttachments([]);
+      setPlan(null);
+      setSelectedPlanId(null);
     } else {
       setCurrentView('workspace');
     }
@@ -903,40 +956,9 @@ const planToNodesAndConnections = (plan, userInput) => {
       {currentView === 'home' && (
         <HomePage onEnter={handleHomePageEnter} />
       )}
-      {currentView === 'planning' && (
-        <PlanningPage
-          projectName={projectName}
-          projectId={currentProjectId}
-          rawInput={planningRawInput}
-          attachments={planningAttachments}
-          onConfirmPlan={(plan) => {
-            uiLogger.debug('[App] Plan confirmed:', plan);
-            // 根据方案创建真实DAG
-            const { nodes, connections } = planToNodesAndConnections(plan, planningRawInput);
-            if (nodes.length > 0) {
-              incrementCanvasKey();
-              loadWorkflow(nodes, connections);
-            }
-            // 设置项目模式
-            if (plan && plan.mode) {
-              setProjectMode(plan.mode === 'director' ? 'director' : 'factory');
-            }
-            setCurrentView('workspace');
-          }}
-          onCancel={() => setCurrentView('home')}
-          onGoToExecution={(options) => {
-            // 自己搭建 - 进入空白执行态
-            if (options && options.mode === 'blank') {
-              incrementCanvasKey();
-              resetCanvas();
-            }
-            setCurrentView('workspace');
-          }}
-        />
-      )}
-      {currentView === 'workspace' && (
+      {(currentView === 'planning' || currentView === 'workspace') && (
         <div className="workspace">
-          {/* 项目顶栏 - 包含项目级控制 */}
+          {/* 项目顶栏 */}
           <ProjectTopBar
             projectName={projectName}
             hasUnsavedChanges={hasUnsavedChanges}
@@ -947,29 +969,25 @@ const planToNodesAndConnections = (plan, userInput) => {
             showVersionDropdown={showVersionDropdown}
             onSave={handleSaveProject}
             onNewProject={handleNewProjectClick}
-            onGoHome={() => setCurrentView('home')}
+            onGoHome={handleCancelPlanning}
             onVersionSelect={handleSwitchVersion}
             onVersionDelete={confirmDeleteVersion}
             onToggleVersionDropdown={() => setShowVersionDropdown(!showVersionDropdown)}
             onOpenAssetDrawer={handleOpenAssetDrawer}
             onExport={handleExport}
             onOpenSettings={() => setShowSkillMarket(true)}
-            // 项目名称编辑
             isEditingName={isEditingName}
             tempProjectName={tempProjectName}
             onStartEditName={startEditingName}
             onSaveName={saveProjectName}
             onCancelEdit={cancelEditingName}
             onNameChange={setTempProjectName}
-            // 版本下拉
             versionDropdownRef={versionDropdownRef}
-            // 删除版本确认
             showDeleteConfirm={showDeleteConfirm}
             versionToDelete={versionToDelete}
             onOpenDeleteConfirm={openDeleteConfirm}
             onCloseDeleteConfirm={closeDeleteConfirm}
             onConfirmDelete={confirmDeleteVersion}
-            // 新建项目确认
             showNewProjectConfirm={showNewProjectConfirm}
             onCloseNewProjectConfirm={() => setShowNewProjectConfirm(false)}
             onDiscardNewProject={createNewProject}
@@ -981,7 +999,7 @@ const planToNodesAndConnections = (plan, userInput) => {
             ref={containerRef}
             className={`workspace-main ${isCanvasFullscreen ? 'canvas-fullscreen' : ''} ${isDraggingLeft || isDraggingRight ? 'dragging' : ''}`}
           >
-            {/* 左侧面板 - 全局对话 */}
+            {/* 左侧面板 */}
             <aside
               className={`panel-left ${leftCollapsed ? 'collapsed' : ''} ${isCanvasFullscreen ? 'hidden' : ''}`}
               style={{ flex: `0 0 ${actualLeftWidth}vw` }}
@@ -989,8 +1007,11 @@ const planToNodesAndConnections = (plan, userInput) => {
               <div className="panel-content">
                 <Console
                   onLoadWorkflow={handleLoadWorkflow}
-                  pendingChatMessage={pendingChatMessage}
-                  onPendingChatMessageSent={clearPendingChatMessage}
+                  pendingChatMessage={currentView === 'planning' ? planningRawInput : pendingChatMessage}
+                  onPendingChatMessageSent={currentView === 'planning' ? () => {} : clearPendingChatMessage}
+                  messages={sharedMessages}
+                  onMessagesChange={setSharedMessages}
+                  onPlanReceived={handlePlanReceived}
                 />
               </div>
               <button
@@ -1019,25 +1040,39 @@ const planToNodesAndConnections = (plan, userInput) => {
               />
             )}
 
-            {/* 中间画布区域 */}
+            {/* 中间区域 */}
             <section
               className="panel-center"
               style={{ flex: `1 1 ${centerWidth}vw` }}
             >
-              <NodeCanvas
-                key={canvasKey}
-                isFullscreen={isCanvasFullscreen}
-                onToggleFullscreen={toggleCanvasFullscreen}
-                projectId={currentProjectId}
-                projectVersion={currentVersion?.version}
-                projectMode={projectMode}
-                onModeChange={handleModeChange}
-                runButtonText={isDemoMode ? 'Demo模式不可运行' : runButtonText}
-                runExplanation={isDemoMode ? 'Demo模式为只读展示' : runExplanation}
-                hasStaleNodes={hasStaleNodes}
-                onNodeSelect={handleNodeSelect}
-                isDemoMode={isDemoMode}
-              />
+              {currentView === 'planning' ? (
+                <PlanPreview
+                  plan={plan}
+                  selectedPlanId={selectedPlanId}
+                  onSelectPlan={setSelectedPlanId}
+                  onBuildOwn={handleBuildOwn}
+                />
+              ) : (
+                <NodeCanvas
+                  key={canvasKey}
+                  isFullscreen={isCanvasFullscreen}
+                  onToggleFullscreen={toggleCanvasFullscreen}
+                  projectId={currentProjectId}
+                  projectVersion={currentVersion?.version}
+                  projectMode={projectMode}
+                  onModeChange={handleModeChange}
+                  runButtonText={isDemoMode ? 'Demo模式不可运行' : runButtonText}
+                  runExplanation={isDemoMode ? 'Demo模式为只读展示' : runExplanation}
+                  hasStaleNodes={hasStaleNodes}
+                  onNodeSelect={(node) => {
+                    handleNodeSelect(node);
+                    if (node) {
+                      setRightPanelVisible(true);
+                    }
+                  }}
+                  isDemoMode={isDemoMode}
+                />
+              )}
             </section>
 
             {!isCanvasFullscreen && !rightCollapsed && (
@@ -1057,48 +1092,66 @@ const planToNodesAndConnections = (plan, userInput) => {
               </button>
             )}
 
-            {/* 右侧面板 - 节点工作区 */}
-            <aside
-              className={`panel-right ${rightCollapsed ? 'collapsed' : ''} ${isCanvasFullscreen ? 'hidden' : ''}`}
-              style={{ flex: `0 0 ${actualRightWidth}vw` }}
-            >
-              <button
-                className="collapse-btn right"
-                onClick={toggleRightCollapse}
-                title={rightCollapsed ? '展开' : '收起'}
+            {/* 右侧面板 */}
+            {currentView === 'planning' ? (
+              <aside
+                className={`panel-right ${isCanvasFullscreen ? 'hidden' : ''}`}
+                style={{ flex: `0 0 ${actualRightWidth}vw` }}
               >
-                {rightCollapsed ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
-              </button>
-              <div className="panel-content">
-                <NodeWorkspace
-                  selectedNode={selectedNode}
-                  projectId={currentProjectId}
-                  onNodeUpdate={(nodeId, data) => {
-                    const { updateNodeData } = useWorkflowStore.getState();
-                    updateNodeData(nodeId, data);
-                    // selectedNode now derived from canvasNodes via useMemo, no manual sync needed
-                  }}
-                  onGenerateVideo={(nodeId, promptIdx) => {
-                    const event = new CustomEvent('generateVideo', {
-                      detail: { sourceNodeId: nodeId, count: 0, promptId: promptIdx },
-                      bubbles: true
-                    });
-                    document.dispatchEvent(event);
-                  }}
-                  onApplyProposal={handleApplyProposal}
-                  onRegenerateProposal={handleRegenerateProposal}
-                  onRejectProposal={handleRejectProposal}
-                  onRerunFromNode={handleRerunFromNode}
-                  onViewFullImpact={handleViewFullImpact}
-                  onRestoreVersion={handleRestoreVersion}
-                  downstreamNodes={downstreamNodes}
-                  upstreamNodes={upstreamNodes}
+                <ContextPanel
+                  rawInput={planningRawInput}
+                  attachments={planningAttachments}
+                  brief={planningRawInput ? `目标：制作一部 ${planningRawInput.length > 20 ? '短剧' : planningRawInput} 类型视频\n风格：待确认\n时长：待确认` : null}
+                  plan={plan}
+                  onConfirm={handleConfirmPlan}
+                  onCancel={handleCancelPlanning}
+                  onBuildOwn={handleBuildOwn}
                 />
-              </div>
-            </aside>
+              </aside>
+            ) : (
+              rightPanelVisible && selectedNode && (
+                <aside
+                  className={`panel-right ${rightCollapsed ? 'collapsed' : ''} ${isCanvasFullscreen ? 'hidden' : ''}`}
+                  style={{ flex: `0 0 ${actualRightWidth}vw` }}
+                >
+                  <button
+                    className="collapse-btn right"
+                    onClick={() => setRightPanelVisible(false)}
+                    title="收起"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                  <div className="panel-content">
+                    <NodeWorkspace
+                      selectedNode={selectedNode}
+                      projectId={currentProjectId}
+                      onNodeUpdate={(nodeId, data) => {
+                        const { updateNodeData } = useWorkflowStore.getState();
+                        updateNodeData(nodeId, data);
+                      }}
+                      onGenerateVideo={(nodeId, promptIdx) => {
+                        const event = new CustomEvent('generateVideo', {
+                          detail: { sourceNodeId: nodeId, count: 0, promptId: promptIdx },
+                          bubbles: true
+                        });
+                        document.dispatchEvent(event);
+                      }}
+                      onApplyProposal={handleApplyProposal}
+                      onRegenerateProposal={handleRegenerateProposal}
+                      onRejectProposal={handleRejectProposal}
+                      onRerunFromNode={handleRerunFromNode}
+                      onViewFullImpact={handleViewFullImpact}
+                      onRestoreVersion={handleRestoreVersion}
+                      downstreamNodes={downstreamNodes}
+                      upstreamNodes={upstreamNodes}
+                    />
+                  </div>
+                </aside>
+              )
+            )}
           </main>
 
-          {/* 资产抽屉 - 从右滑出的叠加层 */}
+          {/* 资产抽屉 */}
           <AssetDrawer
             isOpen={assetDrawerOpen}
             onClose={() => setAssetDrawerOpen(false)}

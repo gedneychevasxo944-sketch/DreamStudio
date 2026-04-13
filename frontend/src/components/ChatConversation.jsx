@@ -431,7 +431,8 @@ const ChatConversation = forwardRef(({
   onApplyProposal,
   onRejectProposal,
   inputMode = 'textarea',
-  disableAutoScroll = false
+  disableAutoScroll = false,
+  autoSend = null
 }, ref) => {
   const [inputValue, setInputValue] = useState('');
   const [modalMessage, setModalMessage] = useState(null);
@@ -441,10 +442,13 @@ const ChatConversation = forwardRef(({
   const messagesContainerRef = useRef(null);
   const sseConnectionRef = useRef(null);
   const sendMessageFnRef = useRef(null);
+  const autoSendFn = useRef(null);
+  const [fnReady, setFnReady] = useState(false);
   const [internalMessages, setInternalMessages] = useState([]);
   const hasExternalMessages = typeof onMessagesChange === 'function';
   const effectiveMessages = hasExternalMessages ? messages : internalMessages;
   const updateMessages = hasExternalMessages ? onMessagesChange : setInternalMessages;
+  const hasAutoSentRef = useRef(false);
 
   // 自动滚动到最新消息
   useEffect(() => {
@@ -455,6 +459,14 @@ const ChatConversation = forwardRef(({
       }
     }
   }, [effectiveMessages]);
+
+  // 自动发送消息 - 使用 fnReady 触发
+  useEffect(() => {
+    if (autoSend && fnReady && !hasAutoSentRef.current) {
+      hasAutoSentRef.current = true;
+      autoSendFn.current(autoSend);
+    }
+  }, [autoSend, fnReady]);
 
   const showToast = useCallback((message) => {
     setToast(message);
@@ -592,11 +604,16 @@ const ChatConversation = forwardRef(({
   }, [loading, updateMessages, projectId, projectVersion, agentId, onWorkflowCreated, onPlanReceived]);
 
   // 暴露 sendMessage 方法给父组件
-  useImperativeHandle(ref, () => ({
-    sendMessage: (content) => {
-      sendChatMessage(content);
-    }
-  }), [sendChatMessage]);
+  useImperativeHandle(ref, () => {
+    // 同时更新 autoSendFn ref 并标记为就绪
+    autoSendFn.current = sendChatMessage;
+    setFnReady(true);
+    return {
+      sendMessage: (content) => {
+        sendChatMessage(content);
+      }
+    };
+  }, [sendChatMessage]);
 
   // 组件卸载时关闭 SSE 连接
   // 注意：在 StrictMode 下，cleanup 会在 remount 之前运行，所以这里关闭可能导致问题

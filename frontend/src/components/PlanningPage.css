@@ -555,3 +555,33 @@
 .context-btn.danger:hover {
   background: rgba(239, 68, 68, 0.1);
 }
+
+/* Planning chat wrapper - used in unified layout */
+.planning-chat-wrapper {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.planning-chat-wrapper > .cc-container {
+  flex: 1;
+  min-height: 0;
+}
+
+.planning-chat-wrapper .console-header-simple {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid var(--glass-border);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.planning-chat-wrapper .console-header-simple svg {
+  color: var(--accent-cyan);
+}
