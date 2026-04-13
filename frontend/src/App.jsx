@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { GitCompare, ChevronLeft, ChevronRight, PanelLeft, PanelRight, Package, Save, Plus, FileText, Edit2, Check, X, History, Trash2, AlertTriangle, FilePlus, Home, Download, Settings, FolderOpen } from 'lucide-react';
 import Console from './components/Console';
 import ToastContainer from './components/Toast/Toast';
@@ -1045,34 +1046,54 @@ const planToNodesAndConnections = (plan, userInput) => {
               className="panel-center"
               style={{ flex: `1 1 ${centerWidth}vw` }}
             >
-              {currentView === 'planning' ? (
-                <PlanPreview
-                  plan={plan}
-                  selectedPlanId={selectedPlanId}
-                  onSelectPlan={setSelectedPlanId}
-                  onBuildOwn={handleBuildOwn}
-                />
-              ) : (
-                <NodeCanvas
-                  key={canvasKey}
-                  isFullscreen={isCanvasFullscreen}
-                  onToggleFullscreen={toggleCanvasFullscreen}
-                  projectId={currentProjectId}
-                  projectVersion={currentVersion?.version}
-                  projectMode={projectMode}
-                  onModeChange={handleModeChange}
-                  runButtonText={isDemoMode ? 'Demo模式不可运行' : runButtonText}
-                  runExplanation={isDemoMode ? 'Demo模式为只读展示' : runExplanation}
-                  hasStaleNodes={hasStaleNodes}
-                  onNodeSelect={(node) => {
-                    handleNodeSelect(node);
-                    if (node) {
-                      setRightPanelVisible(true);
-                    }
-                  }}
-                  isDemoMode={isDemoMode}
-                />
-              )}
+              <AnimatePresence mode="wait">
+                {currentView === 'planning' ? (
+                  <motion.div
+                    key="plan-preview"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.3, ease: 'easeInOut' }}
+                    style={{ height: '100%' }}
+                  >
+                    <PlanPreview
+                      plan={plan}
+                      selectedPlanId={selectedPlanId}
+                      onSelectPlan={setSelectedPlanId}
+                      onBuildOwn={handleBuildOwn}
+                    />
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key={`canvas-${canvasKey}`}
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.3, ease: 'easeInOut' }}
+                    style={{ height: '100%' }}
+                  >
+                    <NodeCanvas
+                      key={canvasKey}
+                      isFullscreen={isCanvasFullscreen}
+                      onToggleFullscreen={toggleCanvasFullscreen}
+                      projectId={currentProjectId}
+                      projectVersion={currentVersion?.version}
+                      projectMode={projectMode}
+                      onModeChange={handleModeChange}
+                      runButtonText={isDemoMode ? 'Demo模式不可运行' : runButtonText}
+                      runExplanation={isDemoMode ? 'Demo模式为只读展示' : runExplanation}
+                      hasStaleNodes={hasStaleNodes}
+                      onNodeSelect={(node) => {
+                        handleNodeSelect(node);
+                        if (node) {
+                          setRightPanelVisible(true);
+                        }
+                      }}
+                      isDemoMode={isDemoMode}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </section>
 
             {!isCanvasFullscreen && !rightCollapsed && (
@@ -1093,62 +1114,74 @@ const planToNodesAndConnections = (plan, userInput) => {
             )}
 
             {/* 右侧面板 */}
-            {currentView === 'planning' ? (
-              <aside
-                className={`panel-right ${isCanvasFullscreen ? 'hidden' : ''}`}
-                style={{ flex: `0 0 ${actualRightWidth}vw` }}
-              >
-                <ContextPanel
-                  rawInput={planningRawInput}
-                  attachments={planningAttachments}
-                  brief={planningRawInput ? `目标：制作一部 ${planningRawInput.length > 20 ? '短剧' : planningRawInput} 类型视频\n风格：待确认\n时长：待确认` : null}
-                  plan={plan}
-                  onConfirm={handleConfirmPlan}
-                  onCancel={handleCancelPlanning}
-                  onBuildOwn={handleBuildOwn}
-                />
-              </aside>
-            ) : (
-              rightPanelVisible && selectedNode && (
-                <aside
-                  className={`panel-right ${rightCollapsed ? 'collapsed' : ''} ${isCanvasFullscreen ? 'hidden' : ''}`}
+            <AnimatePresence mode="wait">
+              {currentView === 'planning' ? (
+                <motion.aside
+                  key="context-panel"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 20 }}
+                  transition={{ duration: 0.3, ease: 'easeInOut' }}
+                  className={`panel-right ${isCanvasFullscreen ? 'hidden' : ''}`}
                   style={{ flex: `0 0 ${actualRightWidth}vw` }}
                 >
-                  <button
-                    className="collapse-btn right"
-                    onClick={() => setRightPanelVisible(false)}
-                    title="收起"
+                  <ContextPanel
+                    rawInput={planningRawInput}
+                    attachments={planningAttachments}
+                    brief={planningRawInput ? `目标：制作一部 ${planningRawInput.length > 20 ? '短剧' : planningRawInput} 类型视频\n风格：待确认\n时长：待确认` : null}
+                    plan={plan}
+                    onConfirm={handleConfirmPlan}
+                    onCancel={handleCancelPlanning}
+                    onBuildOwn={handleBuildOwn}
+                  />
+                </motion.aside>
+              ) : (
+                rightPanelVisible && selectedNode && (
+                  <motion.aside
+                    key="node-workspace"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 20 }}
+                    transition={{ duration: 0.3, ease: 'easeInOut' }}
+                    className={`panel-right ${rightCollapsed ? 'collapsed' : ''} ${isCanvasFullscreen ? 'hidden' : ''}`}
+                    style={{ flex: `0 0 ${actualRightWidth}vw` }}
                   >
-                    <ChevronRight size={16} />
-                  </button>
-                  <div className="panel-content">
-                    <NodeWorkspace
-                      selectedNode={selectedNode}
-                      projectId={currentProjectId}
-                      onNodeUpdate={(nodeId, data) => {
-                        const { updateNodeData } = useWorkflowStore.getState();
-                        updateNodeData(nodeId, data);
-                      }}
-                      onGenerateVideo={(nodeId, promptIdx) => {
-                        const event = new CustomEvent('generateVideo', {
-                          detail: { sourceNodeId: nodeId, count: 0, promptId: promptIdx },
-                          bubbles: true
-                        });
-                        document.dispatchEvent(event);
-                      }}
-                      onApplyProposal={handleApplyProposal}
-                      onRegenerateProposal={handleRegenerateProposal}
-                      onRejectProposal={handleRejectProposal}
-                      onRerunFromNode={handleRerunFromNode}
-                      onViewFullImpact={handleViewFullImpact}
-                      onRestoreVersion={handleRestoreVersion}
-                      downstreamNodes={downstreamNodes}
-                      upstreamNodes={upstreamNodes}
-                    />
-                  </div>
-                </aside>
-              )
-            )}
+                    <button
+                      className="collapse-btn right"
+                      onClick={() => setRightPanelVisible(false)}
+                      title="收起"
+                    >
+                      <ChevronRight size={16} />
+                    </button>
+                    <div className="panel-content">
+                      <NodeWorkspace
+                        selectedNode={selectedNode}
+                        projectId={currentProjectId}
+                        onNodeUpdate={(nodeId, data) => {
+                          const { updateNodeData } = useWorkflowStore.getState();
+                          updateNodeData(nodeId, data);
+                        }}
+                        onGenerateVideo={(nodeId, promptIdx) => {
+                          const event = new CustomEvent('generateVideo', {
+                            detail: { sourceNodeId: nodeId, count: 0, promptId: promptIdx },
+                            bubbles: true
+                          });
+                          document.dispatchEvent(event);
+                        }}
+                        onApplyProposal={handleApplyProposal}
+                        onRegenerateProposal={handleRegenerateProposal}
+                        onRejectProposal={handleRejectProposal}
+                        onRerunFromNode={handleRerunFromNode}
+                        onViewFullImpact={handleViewFullImpact}
+                        onRestoreVersion={handleRestoreVersion}
+                        downstreamNodes={downstreamNodes}
+                        upstreamNodes={upstreamNodes}
+                      />
+                    </div>
+                  </motion.aside>
+                )
+              )}
+            </AnimatePresence>
           </main>
 
           {/* 资产抽屉 */}
