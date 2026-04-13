@@ -336,48 +336,27 @@ export const homePageApi = {
 };
 
 /**
- * 发送聊天消息并处理 SSE 流式响应
- * @param {Object} params - 请求参数
- * @param {string} params.projectId - 项目ID
- * @param {string} params.projectVersion - 项目版本
- * @param {string} params.agentId - 智能体ID
- * @param {string} params.agentName - 智能体名称
- * @param {string} params.message - 消息内容
+ * SSE 流式请求基础函数
+ * @param {string} url - 请求 URL
+ * @param {Object} options - 请求选项
  * @param {Object} callbacks - 回调函数
- * @param {Function} callbacks.onThinking - 思考步骤回调 (data) => void
- * @param {Function} callbacks.onResult - 结果回调 (data) => void
- * @param {Function} callbacks.onWorkflowCreated - 工作流创建回调 (nodes, edges) => void
- * @param {Function} callbacks.onComplete - 完成回调 (data) => void
- * @param {Function} callbacks.onError - 错误回调 (data) => void
  * @returns {Object} 包含 close 方法的对象
  */
-export function sendChatMessageStream(params, callbacks) {
-  const { projectId, projectVersion, agentId, agentName, message, nodeId, generation } = params;
-
+function createSSEStream(url, options, callbacks) {
+  const { body, extraHeaders = {} } = options;
   const token = authStorage.getToken();
   const userId = authStorage.getUserId();
   const headers = {
     'Content-Type': 'application/json',
     ...(userId && { 'X-User-Id': userId }),
     ...(token && { 'Authorization': `Bearer ${token}` }),
+    ...extraHeaders,
   };
-
-  const body = JSON.stringify({
-    projectId,
-    projectVersion,
-    agentId,
-    agentName: agentId,
-    message: message.trim(),
-    nodeId,
-  });
 
   let closed = false;
   let reader = null;
-  let currentGeneration = generation;
 
-  closed = false;
-
-  fetch(`${API_BASE_URL}/v1/agents/${agentId}/chat/stream`, {
+  fetch(`${API_BASE_URL}${url}`, {
     method: 'POST',
     headers,
     body,
@@ -423,63 +402,103 @@ export function sendChatMessageStream(params, callbacks) {
               if (!dataStr) continue;
               try {
                 const data = JSON.parse(dataStr);
-                // 保留原始 type 字段，同时存储 eventType
                 const eventWithType = { ...data, eventType };
-
-                switch (eventType) {
-                  case 'init':
-                    callbacks.onInit?.(eventWithType);
-                    break;
-                  case 'thinking':
-                    callbacks.onThinking?.(eventWithType);
-                    break;
-                  case 'status':
-                    callbacks.onStatus?.(eventWithType);
-                    break;
-                  case 'result':
-                    callbacks.onResult?.(eventWithType);
-                    break;
-                  case 'data':
-                    callbacks.onData?.(eventWithType);
-                    break;
-                  case 'complete':
-                    callbacks.onComplete?.(eventWithType);
-                    break;
-                  case 'error':
-                    callbacks.onError?.(eventWithType);
-                    break;
-                  default:
-                    if (data.step) {
-                      callbacks.onThinking?.(eventWithType);
-                    } else if (data.resultType !== undefined || data.result !== undefined) {
-                      callbacks.onResult?.(eventWithType);
-                    } else if (data.workflowCreated) {
-                      callbacks.onWorkflowCreated?.(eventWithType.workflowNodes, eventWithType.workflowEdges);
-                    } else {
-                      callbacks.onMessage?.(eventWithType);
-                    }
-                }
+                callbacks.onEvent?.(eventType, eventWithType, data);
               } catch (e) {
-                apiLogger.warn('[Chat API] Parse error:', e, 'dataStr was:', dataStr);
+                apiLogger.warn('[SSE] Parse error:', e, 'dataStr:', dataStr);
               }
             }
           }
 
           read();
         }).catch(error => {
-          if (!closed) {
-            callbacks.onError?.({ message: error.message });
-          }
+          if (!closed) callbacks.onError?.({ message: error.message });
         });
       }
 
       read();
     })
     .catch(error => {
-      if (!closed) {
-        callbacks.onError?.({ message: error.message });
-      }
+      if (!closed) callbacks.onError?.({ message: error.message });
     });
+
+  return {
+    close: () => {
+      closed = true;
+      if (reader) reader.cancel();
+    },
+  };
+}
+
+/**
+ * 发送聊天消息并处理 SSE 流式响应
+ * @param {Object} params - 请求参数
+ * @param {string} params.projectId - 项目ID
+ * @param {string} params.projectVersion - 项目版本
+ * @param {string} params.agentId - 智能体ID
+ * @param {string} params.agentName - 智能体名称
+ * @param {string} params.message - 消息内容
+ * @param {Object} callbacks - 回调函数
+ * @param {Function} callbacks.onThinking - 思考步骤回调 (data) => void
+ * @param {Function} callbacks.onResult - 结果回调 (data) => void
+ * @param {Function} callbacks.onWorkflowCreated - 工作流创建回调 (nodes, edges) => void
+ * @param {Function} callbacks.onComplete - 完成回调 (data) => void
+ * @param {Function} callbacks.onError - 错误回调 (data) => void
+ * @returns {Object} 包含 close 方法的对象
+ */
+export function sendChatMessageStream(params, callbacks) {
+  const { projectId, projectVersion, agentId, agentName, message, nodeId, generation } = params;
+
+  const body = JSON.stringify({
+    projectId,
+    projectVersion,
+    agentId,
+    agentName: agentId,
+    message: message.trim(),
+    nodeId,
+  });
+
+  let closed = false;
+  let currentGeneration = generation;
+
+  const sse = createSSEStream(`/v1/agents/${agentId}/chat/stream`, { body }, {
+    onEvent: (eventType, eventWithType, data) => {
+      switch (eventType) {
+        case 'init':
+          callbacks.onInit?.(eventWithType);
+          break;
+        case 'thinking':
+          callbacks.onThinking?.(eventWithType);
+          break;
+        case 'status':
+          callbacks.onStatus?.(eventWithType);
+          break;
+        case 'result':
+          callbacks.onResult?.(eventWithType);
+          break;
+        case 'data':
+          callbacks.onData?.(eventWithType);
+          break;
+        case 'complete':
+          callbacks.onComplete?.(eventWithType);
+          break;
+        case 'error':
+          callbacks.onError?.(eventWithType);
+          break;
+        default:
+          if (data.step) {
+            callbacks.onThinking?.(eventWithType);
+          } else if (data.resultType !== undefined || data.result !== undefined) {
+            callbacks.onResult?.(eventWithType);
+          } else if (data.workflowCreated) {
+            callbacks.onWorkflowCreated?.(eventWithType.workflowNodes, eventWithType.workflowEdges);
+          } else {
+            callbacks.onMessage?.(eventWithType);
+          }
+      }
+    },
+    onError: callbacks.onError,
+  });
 
   return {
     close: (options = {}) => {
@@ -488,9 +507,7 @@ export function sendChatMessageStream(params, callbacks) {
         return;
       }
       closed = true;
-      if (reader) {
-        reader.cancel();
-      }
+      sse.close();
     },
     generation: currentGeneration,
   };
@@ -620,89 +637,21 @@ export const agentApi = {
 
   // 6.4 智能体对话 (SSE)
   chat: (agentId, params, callbacks) => {
-    const token = authStorage.getToken();
-    const userId = authStorage.getUserId();
-    const headers = {
-      'Content-Type': 'application/json',
-      ...(userId && { 'X-User-Id': userId }),
-      ...(token && { 'Authorization': `Bearer ${token}` }),
-    };
+    const body = JSON.stringify(params);
 
-    let closed = false;
-    let reader = null;
-
-    fetch(`${API_BASE_URL}/v1/agents/${agentId}/chat/stream`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(params),
-    })
-      .then(response => {
-        if (!response.ok) {
-          closed = true;
-          response.json().then(errData => {
-            const errorMessage = errData.message || `HTTP error! status: ${response.status}`;
-            handleAuthError(errorMessage);
-            callbacks.onError?.({ message: errorMessage });
-          }).catch(() => {
-            callbacks.onError?.({ message: `HTTP error! status: ${response.status}` });
-          });
-          return;
+    return createSSEStream(`/v1/agents/${agentId}/chat/stream`, { body }, {
+      onEvent: (eventType, eventWithType, data) => {
+        switch (eventType) {
+          case 'init': callbacks.onInit?.(data); break;
+          case 'thinking': callbacks.onThinking?.(data); break;
+          case 'result': callbacks.onResult?.(data); break;
+          case 'complete': callbacks.onComplete?.(data); break;
+          case 'error': callbacks.onError?.(data); break;
+          default: callbacks.onMessage?.(data);
         }
-
-        reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-
-        function read() {
-          if (closed) return;
-          reader.read().then(({ done, value }) => {
-            if (done || closed) return;
-
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop();
-
-            let eventType = 'message';
-
-            for (const line of lines) {
-              const trimmed = line.trim();
-              if (!trimmed) continue;
-              if (trimmed.startsWith('event:')) {
-                eventType = trimmed.slice(6).trim();
-              } else if (trimmed.startsWith('data:')) {
-                const dataStr = trimmed.slice(5).trim();
-                try {
-                  const data = JSON.parse(dataStr);
-                  switch (eventType) {
-                    case 'init': callbacks.onInit?.(data); break;
-                    case 'thinking': callbacks.onThinking?.(data); break;
-                    case 'result': callbacks.onResult?.(data); break;
-                    case 'complete': callbacks.onComplete?.(data); break;
-                    case 'error': callbacks.onError?.(data); break;
-                    default: callbacks.onMessage?.(data);
-                  }
-                } catch (e) {
-                  apiLogger.warn('[agentApi chat] Parse error:', e);
-                }
-              }
-            }
-            read();
-          }).catch(error => {
-            if (!closed) callbacks.onError?.({ message: error.message });
-          });
-        }
-        read();
-      })
-      .catch(error => {
-        if (!closed) callbacks.onError?.({ message: error.message });
-      });
-
-    return {
-      close: () => {
-        closed = true;
-        if (reader) reader.cancel();
       },
-    };
+      onError: callbacks.onError,
+    });
   },
 };
 

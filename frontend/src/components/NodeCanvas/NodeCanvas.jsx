@@ -11,7 +11,7 @@ import RichAgentNode from './RichAgentNode';
 import { workSpaceApi, teamApi, agentApi } from '../../services/api';
 import { useWorkflowStore, calculateNodePositions } from '../../stores';
 import { getDefaultNodeWidth, generateThinkingContent, generateResultContent } from '../../utils/nodeUtils';
-import { CANVAS } from '../../constants/layoutConstants';
+import { CANVAS, TEMPLATE_LAYOUT } from '../../constants/layoutConstants';
 import { canvasLogger } from '../../utils/logger';
 import { CanvasToolbar, CanvasStatusBar, FullscreenToolbar, SaveTemplateDialog } from '../Canvas';
 import './NodeCanvas.css';
@@ -613,12 +613,8 @@ const NodeCanvas = ({
     }
 
     // 计算基础位置（在源节点右侧，跳过源节点宽度 + 间隔）
-    const sourceNodeWidth = 540;
-    const horizontalGap = 300;
-    const baseX = sourceNode.x + sourceNodeWidth + horizontalGap;
+    const baseX = sourceNode.x + TEMPLATE_LAYOUT.SOURCE_NODE_WIDTH + TEMPLATE_LAYOUT.HORIZONTAL_GAP;
     const baseY = sourceNode.y;
-    const videoGenNodeHeight = 300;
-    const verticalGap = 150;
 
     // 计算已有多少个视频节点，用于计算新节点的位置
     const existingVideoNodes = nodes.filter(n => n.id.startsWith('videoGen-'));
@@ -636,7 +632,7 @@ const NodeCanvas = ({
         name: `${videoGenAgent.name} ${nodeIndex + 1}`,
         type: 'videoGen',
         x: baseX,
-        y: baseY + nodeIndex * (videoGenNodeHeight + verticalGap),
+        y: baseY + nodeIndex * (TEMPLATE_LAYOUT.VIDEO_GEN_NODE_HEIGHT + TEMPLATE_LAYOUT.VERTICAL_GAP),
         data: {
           videoPrompt: prompt.prompt || prompt.text || '',
           promptId: prompt.id,

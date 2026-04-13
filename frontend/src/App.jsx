@@ -14,9 +14,11 @@ import AssetDrawer from './components/AssetDrawer';
 import PlanningPage from './components/PlanningPage';
 import { homePageApi, workSpaceApi, nodeVersionApi, proposalApi } from './services/api';
 import { AUTH_ERROR_MESSAGES } from './constants/authConstants';
+import { WORKFLOW_LAYOUT, PLAN_LAYOUT } from './constants/layoutConstants';
 import { uiLogger } from './utils/logger';
 import { authStorage } from './utils/authStorage';
 import { useProjectStore, useWorkflowStore, useUIStore, calculateTemplateNodePositions } from './stores';
+import { traverseConnectedNodes } from './utils/nodeUtils';
 import './App.css';
 
 function App() {
@@ -116,19 +118,7 @@ function App() {
   // 计算下游节点（基于选中节点和连接关系）
   const downstreamNodes = useMemo(() => {
     if (!selectedNode) return [];
-    const downstreamIds = new Set();
-    const queue = [selectedNode.id];
-
-    while (queue.length > 0) {
-      const currentId = queue.shift();
-      canvasConnections.forEach(conn => {
-        if (conn.from === currentId && !downstreamIds.has(conn.to)) {
-          downstreamIds.add(conn.to);
-          queue.push(conn.to);
-        }
-      });
-    }
-
+    const downstreamIds = traverseConnectedNodes(selectedNode.id, canvasConnections, 'downstream');
     return canvasNodes.filter(n => downstreamIds.has(n.id)).map(n => ({
       id: n.id,
       name: n.name,
@@ -140,19 +130,7 @@ function App() {
   // 计算上游节点（基于选中节点和连接关系）
   const upstreamNodes = useMemo(() => {
     if (!selectedNode) return [];
-    const upstreamIds = new Set();
-    const queue = [selectedNode.id];
-
-    while (queue.length > 0) {
-      const currentId = queue.shift();
-      canvasConnections.forEach(conn => {
-        if (conn.to === currentId && !upstreamIds.has(conn.from)) {
-          upstreamIds.add(conn.from);
-          queue.push(conn.from);
-        }
-      });
-    }
-
+    const upstreamIds = traverseConnectedNodes(selectedNode.id, canvasConnections, 'upstream');
     return canvasNodes.filter(n => upstreamIds.has(n.id)).map(n => ({
       id: n.id,
       name: n.name,
@@ -186,9 +164,6 @@ function App() {
       const baseVer = selectedNode.data?.baseVersion;
       if (baseVer && currentVer > baseVer) {
         // 当前节点已被修订，需要重生成
-        const downstreamNodes = canvasNodes.filter(n => {
-          return canvasConnections.some(c => c.from === selectedNode.id && c.to === n.id);
-        });
         const downstreamNames = downstreamNodes.map(n => n.name).join(' → ');
         return {
           runButtonText: '从当前节点重新运行',
@@ -290,16 +265,11 @@ function App() {
 
   // 加载工作流到画布
   const handleLoadWorkflow = useCallback((nodes, edges) => {
-    const startX = 100;
-    const startY = 300;
-    const gap = 150;
-
-    let currentX = startX;
+    let currentX = WORKFLOW_LAYOUT.START_X;
     const formattedNodes = nodes.map((node) => {
-      const nodeWidth = 360;
       const x = node.x ?? currentX;
-      const y = node.y ?? startY;
-      currentX += nodeWidth + gap;
+      const y = node.y ?? WORKFLOW_LAYOUT.START_Y;
+      currentX += WORKFLOW_LAYOUT.NODE_WIDTH + WORKFLOW_LAYOUT.GAP;
       return {
         id: node.id,
         name: node.label,
@@ -490,13 +460,8 @@ const planToNodesAndConnections = (plan, userInput) => {
   // 如果 plan 包含完整的节点配置（从 API 获取），直接使用
   if (plan.nodes && plan.edges) {
     // 计算节点位置（横向排列）
-    const startX = 100;
-    const startY = 300;
-    const gap = 100;
-    const nodeWidth = 700;
-
     const nodeMap = new Map();
-    let currentX = startX;
+    let currentX = PLAN_LAYOUT.START_X;
 
     // 第一次遍历：设置位置
     const positionedNodes = plan.nodes.map(node => {
@@ -510,10 +475,10 @@ const planToNodesAndConnections = (plan, userInput) => {
         outputs: [{ id: 'output', label: '输出', type: 'any' }],
         status: 'idle',
         x: currentX,
-        y: startY
+        y: PLAN_LAYOUT.START_Y
       };
       nodeMap.set(node.id, fullNode);
-      currentX += nodeWidth + gap;
+      currentX += PLAN_LAYOUT.NODE_WIDTH + PLAN_LAYOUT.GAP;
       return fullNode;
     });
 
@@ -717,10 +682,6 @@ const planToNodesAndConnections = (plan, userInput) => {
       const baseVer = selectedNode.data?.baseVersion;
       if (baseVer && currentVer > baseVer) {
         // 当前节点已被修订，需要重生成
-        const downstreamNodes = canvasNodes.filter(n => {
-          // 简单的下游检测：检查连接关系
-          return canvasConnections.some(c => c.from === selectedNode.id && c.to === n.id);
-        });
         const downstreamNames = downstreamNodes.map(n => n.name).join(' → ');
         return {
           runButtonText: '从当前节点重新运行',
