@@ -26,11 +26,9 @@ const ChatTab = ({ node, projectId, messages, setMessages, onApplyProposal, onRe
 
   if (!node) {
     return (
-      <div className="workspace-tab-content empty">
-        <div className="empty-state">
-          <MessageCircle size={32} />
-          <p>选择一个节点开始对话</p>
-        </div>
+      <div className="empty-state">
+        <MessageCircle size={32} />
+        <p>选择一个节点开始对话</p>
       </div>
     );
   }
@@ -146,7 +144,7 @@ const ChatTab = ({ node, projectId, messages, setMessages, onApplyProposal, onRe
   };
 
   return (
-    <div className="workspace-tab-content chat-tab">
+    <div className="chat-tab">
       {/* 对话消息列表 */}
       <div className="cc-messages">
         {messages.map((msg, idx) => {

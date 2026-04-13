@@ -1,24 +1,25 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FileText, MessageCircle, Settings, History, GitBranch, Lock, Unlock, RotateCcw, AlertTriangle, Check, ChevronDown, ChevronUp, Play, Palette, PenTool, Video, Code, Users, Layers, List, BookOpen, Zap, Sparkles, Image, X, Target, Loader2, Copy, ExternalLink } from 'lucide-react';
+import { FileText, MessageCircle, Settings, History, GitBranch, Lock, Unlock, RotateCcw, AlertTriangle, Check, ChevronDown, ChevronUp, Play, Palette, PenTool, Video, Code, Users, Layers, List, BookOpen, Zap, Sparkles, Image, X, Target, Loader2, Copy, ExternalLink, ChevronRight } from 'lucide-react';
 import ChatConversation from './ChatConversation';
 import { formatTimestamp } from '../utils/dateUtils';
 import { parseScript } from '../utils/scriptUtils';
 import { applyFieldChanges } from '../utils/nodeUtils';
 import { canvasLogger } from '../utils/logger';
 import NodeResultRenderer from './NodeWorkspace/NodeResultRenderer';
+import ResultTab from './NodeWorkspace/ResultTab';
+import ChatTab from './NodeWorkspace/ChatTab';
+import ConfigTab from './NodeWorkspace/ConfigTab';
+import HistoryTab from './NodeWorkspace/HistoryTab';
+import ImpactTab from './NodeWorkspace/ImpactTab';
 import './ChatConversation.css';
 import { nodeVersionApi, proposalApi, chatApi } from '../services/api';
 import { useWorkflowStore } from '../stores';
 import './NodeWorkspace.css';
 
-// Tab 图标组件
-const TabIcon = ({ type, size = 16 }) => {
+// Drawer 折叠项图标组件
+const DrawerIcon = ({ type, size = 14 }) => {
   switch (type) {
-    case 'result':
-      return <FileText size={size} />;
-    case 'chat':
-      return <MessageCircle size={size} />;
     case 'config':
       return <Settings size={size} />;
     case 'history':
@@ -26,7 +27,7 @@ const TabIcon = ({ type, size = 16 }) => {
     case 'impact':
       return <GitBranch size={size} />;
     default:
-      return <FileText size={size} />;
+      return <Settings size={size} />;
   }
 };
 
@@ -48,14 +49,6 @@ const getFieldLabel = (fieldPath) => {
   return labelMap[fieldPath] || fieldPath;
 };
 
-// 结果 Tab
-
-import ResultTab from './NodeWorkspace/ResultTab';
-import ChatTab from './NodeWorkspace/ChatTab';
-import ConfigTab from './NodeWorkspace/ConfigTab';
-import HistoryTab from './NodeWorkspace/HistoryTab';
-import ImpactTab from './NodeWorkspace/ImpactTab';
-
 const NodeWorkspace = ({
   selectedNode,
   projectId,
@@ -70,7 +63,14 @@ const NodeWorkspace = ({
   downstreamNodes = [],
   upstreamNodes = []
 }) => {
-  const [activeTab, setActiveTab] = useState('result');
+  // 分割线位置 (0-100, 表示结果区占比)
+  const [splitRatio, setSplitRatio] = useState(60);
+  const [isDragging, setIsDragging] = useState(false);
+  const containerRef = useRef(null);
+
+  // Drawer 状态 (config | history | impact | null)
+  const [activeDrawer, setActiveDrawer] = useState(null);
+
   const [versionRefreshKey, setVersionRefreshKey] = useState(0);
   const [chatMessages, setChatMessages] = useState([]);
   const [applyingProposalId, setApplyingProposalId] = useState(null);
@@ -155,7 +155,6 @@ const NodeWorkspace = ({
       }
       return msg;
     }));
-    setActiveTab('result');
   }, []);
 
   // 处理重新运行 - 只调用 onRerunFromNode，不在这里递增 versionRefreshKey
@@ -197,49 +196,60 @@ const NodeWorkspace = ({
     };
   }, []);
 
-  const tabs = [
-    { id: 'result', label: '结果', icon: 'result' },
-    { id: 'chat', label: '对话', icon: 'chat' },
-    { id: 'config', label: '配置', icon: 'config' },
-    { id: 'history', label: '记录', icon: 'history' },
-    { id: 'impact', label: '影响', icon: 'impact' },
-  ];
+  // 分割线拖动逻辑
+  const handleMouseDown = useCallback((e) => {
+    e.preventDefault();
+    setIsDragging(true);
+  }, []);
 
-  // Tab 内容组件映射
-  const tabContentMap = {
-    result: <ResultTab
-      node={selectedNode}
-      projectId={projectId}
-      onGenerateVideo={onGenerateVideo}
-      onRestoreVersion={onRestoreVersion}
-      versionRefreshKey={versionRefreshKey}
-    />,
-    chat: <ChatTab
-      node={selectedNode}
-      projectId={projectId}
-      messages={chatMessages}
-      setMessages={setChatMessages}
-      onApplyProposal={onApplyProposal}
-      onRegenerateProposal={onRegenerateProposal}
-      onRejectProposal={onRejectProposal}
-      onApplySuccess={handleChatApplySuccess}
-      applyingProposalId={applyingProposalId}
-      setApplyingProposalId={setApplyingProposalId}
-    />,
-    config: <ConfigTab node={selectedNode} onNodeUpdate={onNodeUpdate} />,
-    history: <HistoryTab node={selectedNode} projectId={projectId} versionRefreshKey={versionRefreshKey} />,
-    impact: <ImpactTab
-      node={selectedNode}
-      downstreamNodes={downstreamNodes}
-      upstreamNodes={upstreamNodes}
-      onRerunFromNode={handleRerunAndRefresh}
-      onViewFullImpact={onViewFullImpact}
-    />,
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const handleMouseMove = (e) => {
+      if (!containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const y = e.clientY - rect.top;
+      const newRatio = Math.min(Math.max((y / rect.height) * 100, 30), 80);
+      setSplitRatio(newRatio);
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging]);
+
+  // 切换 drawer
+  const toggleDrawer = (drawerId) => {
+    setActiveDrawer(prev => prev === drawerId ? null : drawerId);
   };
+
+  // 检查节点是否被锁定
+  const isNodeLocked = selectedNode?.data?.isLocked;
+  const isNodePropagationLocked = selectedNode?.data?.lockedByPropagation;
+
+  // 解锁节点（会同时解锁被传播锁定的上游节点）
+  const handleUnlock = () => {
+    if (!selectedNode) return;
+    const store = useWorkflowStore.getState();
+    store.unlockNodeAndUpstream(selectedNode.id);
+  };
+
+  const drawerItems = [
+    { id: 'config', label: '配置参数' },
+    { id: 'history', label: '历史记录' },
+    { id: 'impact', label: '影响范围' },
+  ];
 
   // 无节点时的项目概览
   const renderProjectOverview = () => (
-    <div className="workspace-tab-content project-overview">
+    <div className="workspace-main-content project-overview">
       <div className="overview-header">
         <h3>项目概览</h3>
       </div>
@@ -263,17 +273,6 @@ const NodeWorkspace = ({
     </div>
   );
 
-  // 检查节点是否被锁定
-  const isNodeLocked = selectedNode?.data?.isLocked;
-  const isNodePropagationLocked = selectedNode?.data?.lockedByPropagation;
-
-  // 解锁节点（会同时解锁被传播锁定的上游节点）
-  const handleUnlock = () => {
-    if (!selectedNode) return;
-    const store = useWorkflowStore.getState();
-    store.unlockNodeAndUpstream(selectedNode.id);
-  };
-
   return (
     <div className={`node-workspace ${isNodeLocked ? 'locked' : ''}`}>
       {/* 节点信息区域 */}
@@ -295,26 +294,46 @@ const NodeWorkspace = ({
         </div>
       )}
 
-      {/* Tab 栏 */}
-      <div className="workspace-tabs">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            className={`workspace-tab ${activeTab === tab.id ? 'active' : ''}`}
-            onClick={() => setActiveTab(tab.id)}
-          >
-            <TabIcon type={tab.icon} size={14} />
-            <span>{tab.label}</span>
-          </button>
-        ))}
-      </div>
-
-      {/* Tab 内容 */}
-      <div className="workspace-tab-panel">
+      {/* 主内容区：结果 + 对话 + 分割线 */}
+      <div className="workspace-main-area" ref={containerRef}>
         {selectedNode ? (
           <>
-            {tabContentMap[activeTab]}
-            {/* 锁定覆盖层 - 锁定时所有Tab都显示 */}
+            {/* 结果区 */}
+            <div className="workspace-result-pane" style={{ height: `${splitRatio}%` }}>
+              <ResultTab
+                node={selectedNode}
+                projectId={projectId}
+                onGenerateVideo={onGenerateVideo}
+                onRestoreVersion={onRestoreVersion}
+                versionRefreshKey={versionRefreshKey}
+              />
+            </div>
+
+            {/* 分割线 */}
+            <div
+              className={`workspace-split-handle ${isDragging ? 'dragging' : ''}`}
+              onMouseDown={handleMouseDown}
+            >
+              <div className="split-handle-bar" />
+            </div>
+
+            {/* 对话区 */}
+            <div className="workspace-chat-pane" style={{ height: `${100 - splitRatio}%` }}>
+              <ChatTab
+                node={selectedNode}
+                projectId={projectId}
+                messages={chatMessages}
+                setMessages={setChatMessages}
+                onApplyProposal={onApplyProposal}
+                onRegenerateProposal={onRegenerateProposal}
+                onRejectProposal={onRejectProposal}
+                onApplySuccess={handleChatApplySuccess}
+                applyingProposalId={applyingProposalId}
+                setApplyingProposalId={setApplyingProposalId}
+              />
+            </div>
+
+            {/* 锁定覆盖层 */}
             {isNodeLocked && (
               <div className="locked-overlay">
                 <div className="locked-overlay-content">
@@ -343,6 +362,61 @@ const NodeWorkspace = ({
           renderProjectOverview()
         )}
       </div>
+
+      {/* 底部 Drawer 折叠条 */}
+      {selectedNode && (
+        <div className="workspace-drawer-bar">
+          {drawerItems.map((item) => (
+            <button
+              key={item.id}
+              className={`drawer-tab ${activeDrawer === item.id ? 'active' : ''}`}
+              onClick={() => toggleDrawer(item.id)}
+            >
+              <DrawerIcon type={item.id} size={14} />
+              <span>{item.label}</span>
+              <ChevronRight size={12} className={`drawer-chevron ${activeDrawer === item.id ? 'open' : ''}`} />
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Drawer 展开内容 */}
+      <AnimatePresence>
+        {activeDrawer && (
+          <motion.div
+            className="workspace-drawer-overlay"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: '60%', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: 'easeInOut' }}
+          >
+            <div className="workspace-drawer-content">
+              <div className="drawer-header">
+                <span className="drawer-title">
+                  <DrawerIcon type={activeDrawer} size={16} />
+                  {drawerItems.find(d => d.id === activeDrawer)?.label}
+                </span>
+                <button className="drawer-close" onClick={() => setActiveDrawer(null)}>
+                  <X size={16} />
+                </button>
+              </div>
+              <div className="drawer-body">
+                {activeDrawer === 'config' && <ConfigTab node={selectedNode} onNodeUpdate={onNodeUpdate} />}
+                {activeDrawer === 'history' && <HistoryTab node={selectedNode} projectId={projectId} versionRefreshKey={versionRefreshKey} />}
+                {activeDrawer === 'impact' && (
+                  <ImpactTab
+                    node={selectedNode}
+                    downstreamNodes={downstreamNodes}
+                    upstreamNodes={upstreamNodes}
+                    onRerunFromNode={handleRerunAndRefresh}
+                    onViewFullImpact={onViewFullImpact}
+                  />
+                )}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

@@ -125,11 +125,9 @@ const ResultTab = ({ node, projectId, onGenerateVideo, onRestoreVersion, version
 
   if (!node) {
     return (
-      <div className="workspace-tab-content empty">
-        <div className="empty-state">
-          <FileText size={32} />
-          <p>选择一个节点查看结果</p>
-        </div>
+      <div className="empty-state">
+        <FileText size={32} />
+        <p>选择一个节点查看结果</p>
       </div>
     );
   }
@@ -197,7 +195,7 @@ const ResultTab = ({ node, projectId, onGenerateVideo, onRestoreVersion, version
 
 
   return (
-    <div className="workspace-tab-content result-tab">
+    <div className="result-tab">
       {/* 结果头部 */}
       <div className="result-header">
         <div className="result-meta">
@@ -291,18 +289,6 @@ const ResultTab = ({ node, projectId, onGenerateVideo, onRestoreVersion, version
       {/* 节点特定的结果内容 */}
       <div className="result-content">
         {renderNodeResult()}
-      </div>
-
-      {/* 状态指示器 */}
-      <div className={`status-indicator ${status}`}>
-        <span className="status-dot"></span>
-        <span className="status-text">
-          {status === 'completed' && '已完成'}
-          {status === 'running' && '运行中'}
-          {status === 'failed' && '失败'}
-          {status === 'stale' && '依赖失效'}
-          {status === 'awaiting_apply' && '待应用'}
-        </span>
       </div>
 
       {/* 图片预览模态框 */}
