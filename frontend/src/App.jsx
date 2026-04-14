@@ -7,6 +7,7 @@ import BottomToastContainer from './components/Toast/BottomToast';
 import NodeCanvas from './components/NodeCanvas/NodeCanvas';
 import AssetDrawer from './components/AssetDrawer';
 import AssetPanel from './components/AssetPanel/AssetPanel';
+import AssetLibrary from './components/AssetLibrary';
 import NodeWorkspace from './components/NodeWorkspace';
 import Modal from './components/Modal';
 import HomePage from './components/HomePage';
@@ -72,6 +73,7 @@ function App() {
   const [plan, setPlan] = useState(null);
   const [rightPanelVisible, setRightPanelVisible] = useState(false);
   const [assetDrawerOpen, setAssetDrawerOpen] = useState(false);
+  const [assetLibraryOpen, setAssetLibraryOpen] = useState(false);
   const [isDemoMode, setIsDemoMode] = useState(false);
   const [projectMode, setProjectMode] = useState('factory');
 
@@ -1206,7 +1208,7 @@ function App() {
             onLayerChange={handleLayerChange}
             onGoHome={handleCancelPlanning}
             onSave={handleSaveProject}
-            onOpenAssetDrawer={handleOpenAssetDrawer}
+            onOpenAssetLibrary={() => setAssetLibraryOpen(true)}
             isSaving={isSaving}
             saveSuccess={saveSuccess}
             hasUnsavedChanges={hasUnsavedChanges}
@@ -1718,6 +1720,23 @@ function App() {
             onLocateNode={handleLocateNode}
             onRestoreVersion={handleRestoreVersion}
           />
+
+          {/* P5: 资产库侧边栏 - 可收起，直接集成在编辑区旁边 */}
+          {(currentLayer === 'storyboard' || currentLayer === 'conversation') && (
+            <AssetLibrary
+              isOpen={assetLibraryOpen}
+              onClose={() => setAssetLibraryOpen(false)}
+              title="资产库"
+              width={320}
+              currentEditingContext={selectedShotId ? `镜头${selectedShotId.replace('shot-', '')}` : null}
+              onAssetSelect={(asset) => {
+                console.log('[App] 资产选中:', asset);
+              }}
+              onAssetDrag={(asset) => {
+                console.log('[App] 资产拖拽:', asset);
+              }}
+            />
+          )}
 
           {/* 模态框 */}
           {activeModal && (

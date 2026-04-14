@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { ChevronLeft, MessageSquare, LayoutGrid, Settings, Save, Home, Download, MoreVertical, PanelRight } from 'lucide-react';
+import { ChevronLeft, MessageSquare, LayoutGrid, Settings, Save, Home, Download, MoreVertical, Library } from 'lucide-react';
 import './TopBar.css';
 
 /**
@@ -20,7 +20,7 @@ const TopBar = ({
   onLayerChange,
   onGoHome,
   onSave,
-  onOpenAssetDrawer,
+  onOpenAssetLibrary,
   isSaving = false,
   saveSuccess = false,
   hasUnsavedChanges = false,
@@ -124,8 +124,8 @@ const TopBar = ({
             {isSaving ? '保存中...' : saveSuccess ? '已保存' : '保存'}
           </button>
 
-          <button className="action-btn icon-only" onClick={onOpenAssetDrawer} title="资产库">
-            <PanelRight size={16} />
+          <button className="action-btn icon-only asset-library-btn" onClick={onOpenAssetLibrary} title="资产库">
+            <Library size={16} />
           </button>
 
           <button className="action-btn icon-only" title="更多操作">

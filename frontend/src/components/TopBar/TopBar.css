@@ -201,3 +201,12 @@
   border-color: #22c55e;
   color: #22c55e;
 }
+
+.action-btn.asset-library-btn {
+  background: rgba(59, 130, 246, 0.15);
+  color: #3b82f6;
+}
+
+.action-btn.asset-library-btn:hover {
+  background: rgba(59, 130, 246, 0.25);
+}

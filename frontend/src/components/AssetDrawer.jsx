@@ -124,8 +124,129 @@ const AssetDrawer = ({
       });
   };
 
-  // 当API返回为空时，使用节点数据作为备用
-  const displayAssets = assets.length > 0 ? assets : generateAssetsFromNodes();
+  // 模拟资产数据（当API和节点都为空时使用）
+  const MOCK_ASSETS = [
+    {
+      key: 'char-001',
+      nodeId: 'char-001',
+      nodeName: '赛博朋克红发女',
+      currentVersion: 'V2',
+      currentContent: '红发女黑客，霓虹灯光下身穿战术外套，眼神坚定',
+      assetType: 'image',
+      history: [
+        { version: 'V2', type: '修订版', time: '2026-04-15 10:30', status: 'current', imageUrl: 'https://picsum.photos/seed/cyberchar1/400/300', content: '红发女黑客，霓虹灯光下身穿战术外套，眼神坚定' },
+        { version: 'V1', type: '运行版', time: '2026-04-14 16:20', status: 'history', imageUrl: 'https://picsum.photos/seed/cyberchar1v1/400/300', content: '红发女概念设计，赛博朋克风格' }
+      ]
+    },
+    {
+      key: 'char-002',
+      nodeId: 'char-002',
+      nodeName: '安保人员A',
+      currentVersion: 'V1',
+      currentContent: '身穿黑色制服的安保人员，手持电击棍，表情严肃',
+      assetType: 'image',
+      history: [
+        { version: 'V1', type: '运行版', time: '2026-04-15 09:15', status: 'current', imageUrl: 'https://picsum.photos/seed/guard1/400/300', content: '身穿黑色制服的安保人员，手持电击棍，表情严肃' }
+      ]
+    },
+    {
+      key: 'char-003',
+      nodeId: 'char-003',
+      nodeName: 'AI防御系统',
+      currentVersion: 'V3',
+      currentContent: '悬浮球形AI监控设备，蓝色全息投影，扫描半径50米',
+      assetType: 'image',
+      history: [
+        { version: 'V3', type: '修订版', time: '2026-04-15 11:45', status: 'current', imageUrl: 'https://picsum.photos/seed/ai1/400/300', content: '悬浮球形AI监控设备，蓝色全息投影，扫描半径50米' },
+        { version: 'V2', type: '修订版', time: '2026-04-14 20:00', status: 'history', imageUrl: 'https://picsum.photos/seed/ai1v2/400/300', content: '球形AI监控设备' },
+        { version: 'V1', type: '运行版', time: '2026-04-13 15:30', status: 'history', imageUrl: 'https://picsum.photos/seed/ai1v1/400/300', content: 'AI防御系统原型' }
+      ]
+    },
+    {
+      key: 'scene-001',
+      nodeId: 'scene-001',
+      nodeName: '数据中心办公室',
+      currentVersion: 'V2',
+      currentContent: '高科技数据中心，满墙服务器，蓝色LED灯光，窗外霓虹夜景',
+      assetType: 'image',
+      history: [
+        { version: 'V2', type: '修订版', time: '2026-04-15 10:00', status: 'current', imageUrl: 'https://picsum.photos/seed/datacenter1/400/300', content: '高科技数据中心，满墙服务器，蓝色LED灯光，窗外霓虹夜景' },
+        { version: 'V1', type: '运行版', time: '2026-04-14 14:20', status: 'history', imageUrl: 'https://picsum.photos/seed/datacenter1v1/400/300', content: '数据中心室内场景' }
+      ]
+    },
+    {
+      key: 'scene-002',
+      nodeId: 'scene-002',
+      nodeName: '霓虹雨夜街道',
+      currentVersion: 'V1',
+      currentContent: '赛博朋克风格雨夜街道，霓虹灯牌倒映在积水，远处摩天楼',
+      assetType: 'image',
+      history: [
+        { version: 'V1', type: '运行版', time: '2026-04-15 08:45', status: 'current', imageUrl: 'https://picsum.photos/seed/neonstreet/400/300', content: '赛博朋克风格雨夜街道，霓虹灯牌倒映在积水，远处摩天楼' }
+      ]
+    },
+    {
+      key: 'scene-003',
+      nodeId: 'scene-003',
+      nodeName: '地下停车场',
+      currentVersion: 'V1',
+      currentContent: '昏暗的地下停车场，汽车轮廓，紧急出口标志发出绿光',
+      assetType: 'image',
+      history: [
+        { version: 'V1', type: '运行版', time: '2026-04-14 17:30', status: 'current', imageUrl: 'https://picsum.photos/seed/parking/400/300', content: '昏暗的地下停车场，汽车轮廓，紧急出口标志发出绿光' }
+      ]
+    },
+    {
+      key: 'prop-001',
+      nodeId: 'prop-001',
+      nodeName: '服务器终端',
+      currentVersion: 'V1',
+      currentContent: '复古CRT显示器风格的终端，绿色字符滚动，显示入侵警告',
+      assetType: 'image',
+      history: [
+        { version: 'V1', type: '运行版', time: '2026-04-14 19:00', status: 'current', imageUrl: 'https://picsum.photos/seed/terminal1/400/300', content: '复古CRT显示器风格的终端，绿色字符滚动，显示入侵警告' }
+      ]
+    },
+    {
+      key: 'script-001',
+      nodeId: 'script-001',
+      nodeName: '第1集：潜入开始',
+      currentVersion: 'V3',
+      currentContent: '红发女黑客潜入数据中心，目标是三层加密的财务数据库。她快速输入一串指令，防火墙的警示灯开始闪烁。突然，警报响起！她快速拔出数据线，向紧急出口奔去...',
+      assetType: 'script',
+      history: [
+        { version: 'V3', type: '修订版', time: '2026-04-15 12:00', status: 'current', content: '红发女黑客潜入数据中心，目标是三层加密的财务数据库。她快速输入一串指令，防火墙的警示灯开始闪烁。突然，警报响起！她快速拔出数据线，向紧急出口奔去...' },
+        { version: 'V2', type: '修订版', time: '2026-04-14 22:00', status: 'history', content: '红发女黑客潜入数据中心，目标是三层加密的财务数据库。警报突然响起，她不得不中断行动...' },
+        { version: 'V1', type: '运行版', time: '2026-04-13 10:00', status: 'history', content: '红发女黑客进入数据中心' }
+      ]
+    },
+    {
+      key: 'video-001',
+      nodeId: 'video-001',
+      nodeName: '追逐场景A',
+      currentVersion: 'V1',
+      currentContent: '红发女在走廊奔跑，安保在后面追赶，镜头跟随视角',
+      assetType: 'video',
+      history: [
+        { version: 'V1', type: '运行版', time: '2026-04-15 14:00', status: 'current', videoUrl: 'https://www.w3schools.com/html/mov_bbb.mp4', content: '红发女在走廊奔跑，安保在后面追赶，镜头跟随视角' }
+      ]
+    },
+    {
+      key: 'video-002',
+      nodeId: 'video-002',
+      nodeName: '城市追车片段',
+      currentVersion: 'V2',
+      currentContent: '摩托车在城市街道疾驰，无人机追踪，镜头环绕旋转',
+      assetType: 'video',
+      history: [
+        { version: 'V2', type: '修订版', time: '2026-04-15 15:30', status: 'current', videoUrl: 'https://www.w3schools.com/html/mov_bbb.mp4', content: '摩托车在城市街道疾驰，无人机追踪，镜头环绕旋转' },
+        { version: 'V1', type: '运行版', time: '2026-04-14 18:00', status: 'history', videoUrl: 'https://www.w3schools.com/html/mov_bbb.mp4', content: '摩托车城市追逐' }
+      ]
+    }
+  ];
+
+  // 当API返回为空时，使用节点数据作为备用，再使用模拟数据
+  const displayAssets = assets.length > 0 ? assets : (generateAssetsFromNodes().length > 0 ? generateAssetsFromNodes() : MOCK_ASSETS);
 
   const handleLocate = (nodeId) => {
     if (onLocateNode) {
