@@ -1,0 +1,97 @@
+.drill-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.drill-panel {
+  background: var(--bg-primary, #1a1a2e);
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.drill-panel-right {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 0;
+  max-height: 100vh;
+  z-index: 1001;
+}
+
+.drill-panel-center {
+  width: 560px;
+  max-width: 90vw;
+  max-height: 85vh;
+}
+
+.drill-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+  flex-shrink: 0;
+}
+
+.drill-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary, #fff);
+  margin: 0;
+}
+
+.drill-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary, #888);
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.drill-close:hover {
+  background: var(--bg-hover, rgba(255, 255, 255, 0.1));
+  color: var(--text-primary, #fff);
+}
+
+.drill-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+/* Scrollbar styling */
+.drill-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.drill-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.drill-content::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+.drill-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}

@@ -946,3 +946,16 @@
   font-size: 18px;
   padding: 6px 0;
 }
+
+/* P1 新增：钻取按钮样式 */
+.cc-result-action-btn.drill-down {
+  background: rgba(245, 158, 11, 0.1);
+  border-color: rgba(245, 158, 11, 0.3);
+  color: #f59e0b;
+}
+
+.cc-result-action-btn.drill-down:hover {
+  background: rgba(245, 158, 11, 0.2);
+  border-color: rgba(245, 158, 11, 0.5);
+  color: #f59e0b;
+}

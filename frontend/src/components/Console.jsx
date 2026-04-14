@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, forwardRef } from 'react';
 import { Bot } from 'lucide-react';
 import ChatConversation from './ChatConversation';
 import { COMPONENT_TYPE, ASSISTANT_AGENT_ID } from '../constants/ComponentType';
@@ -6,8 +6,7 @@ import { useProjectStore, useWorkflowStore } from '../stores';
 import { uiLogger } from '../utils/logger';
 import './Console.css';
 
-const Console = ({ onLoadWorkflow, pendingChatMessage, onPendingChatMessageSent, messages, onMessagesChange, onPlanReceived }) => {
-  const chatRef = useRef(null);
+const Console = forwardRef(({ onLoadWorkflow, pendingChatMessage, onPendingChatMessageSent, messages, onMessagesChange, onPlanReceived, onDrillDown }, ref) => {
   const hasSentPendingMessage = useRef(false);
 
   // 从 projectStore 获取当前项目上下文
@@ -22,8 +21,8 @@ const Console = ({ onLoadWorkflow, pendingChatMessage, onPendingChatMessageSent,
   useEffect(() => {
     if (pendingChatMessage && !hasSentPendingMessage.current) {
       hasSentPendingMessage.current = true;
-      if (chatRef.current?.sendMessage) {
-        chatRef.current.sendMessage(pendingChatMessage);
+      if (ref.current?.sendMessage) {
+        ref.current.sendMessage(pendingChatMessage);
       }
       onPendingChatMessageSent?.();
     }
@@ -90,7 +89,7 @@ const Console = ({ onLoadWorkflow, pendingChatMessage, onPendingChatMessageSent,
       </div>
 
       <ChatConversation
-        ref={chatRef}
+        ref={ref}
         agentId={ASSISTANT_AGENT_ID}
         projectId={currentProjectId}
         projectVersion={currentVersion?.version}
@@ -101,9 +100,10 @@ const Console = ({ onLoadWorkflow, pendingChatMessage, onPendingChatMessageSent,
         onWorkflowCreated={handleWorkflowCreated}
         onApplyProposal={handleApplyProposal}
         onPlanReceived={onPlanReceived}
+        onDrillDown={onDrillDown}
       />
     </div>
   );
-};
+});
 
 export default Console;

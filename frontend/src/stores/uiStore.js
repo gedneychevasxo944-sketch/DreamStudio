@@ -31,6 +31,9 @@ export const useUIStore = create((set, get) => ({
   showDeleteConfirm: false,
   versionToDelete: null,
 
+  // P5: 右侧预览面板状态
+  rightPreviewVisible: true,  // 对话层右侧预览面板显示状态
+
   // Actions - 视图
   setCurrentView: (view) => set({ currentView: view }),
 
@@ -74,6 +77,11 @@ export const useUIStore = create((set, get) => ({
   setShowDeleteConfirm: (show) => set({ showDeleteConfirm: show }),
 
   setVersionToDelete: (version) => set({ versionToDelete: version }),
+
+  // P5: 右侧预览面板
+  setRightPreviewVisible: (visible) => set({ rightPreviewVisible: visible }),
+
+  toggleRightPreview: () => set((state) => ({ rightPreviewVisible: !state.rightPreviewVisible })),
 
   // 打开删除确认
   openDeleteConfirm: (version) => set({ showDeleteConfirm: true, versionToDelete: version }),

@@ -640,3 +640,96 @@
     padding: 8px;
   }
 }
+
+/* P3: 简化视图切换按钮 */
+.simplified-view-toggle {
+  position: absolute;
+  bottom: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: var(--bg-panel);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-medium);
+  border-radius: 20px;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 50;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.simplified-view-toggle:hover {
+  background: rgba(99, 102, 241, 0.15);
+  border-color: rgba(99, 102, 241, 0.4);
+  color: var(--accent-color, #6366f1);
+  transform: translateX(-50%) scale(1.02);
+}
+
+/* P0: 子图列表切换按钮 */
+.subgraph-list-toggle {
+  position: absolute;
+  bottom: 56px;
+  left: 16px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 8px;
+  color: var(--accent-blue, #3b82f6);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 50;
+}
+
+.subgraph-list-toggle:hover {
+  background: rgba(59, 130, 246, 0.2);
+  border-color: rgba(59, 130, 246, 0.5);
+  transform: scale(1.02);
+}
+
+/* P3: 收拢节点占位符 */
+.collapsed-nodes-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 80px;
+  background: rgba(99, 102, 241, 0.1);
+  border: 2px dashed rgba(99, 102, 241, 0.4);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 10;
+}
+
+.collapsed-nodes-placeholder:hover {
+  background: rgba(99, 102, 241, 0.2);
+  border-color: rgba(99, 102, 241, 0.6);
+  transform: translateY(-50%) scale(1.05);
+}
+
+.collapsed-nodes-placeholder .collapsed-count {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--accent-color, #6366f1);
+  line-height: 1;
+}
+
+.collapsed-nodes-placeholder .collapsed-label {
+  font-size: 10px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+  text-align: center;
+}

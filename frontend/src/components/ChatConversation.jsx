@@ -55,7 +55,7 @@ const VideoViewer = ({ url, onClose }) => {
   );
 };
 
-const AssistantMessage = ({ message, onOpenModal, onShowToast, onApplyProposal, onRejectProposal }) => {
+const AssistantMessage = ({ message, onOpenModal, onShowToast, onApplyProposal, onRejectProposal, onDrillDown }) => {
   const [thinkingExpanded, setThinkingExpanded] = useState(false);
   const [imageViewerOpen, setImageViewerOpen] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -245,6 +245,12 @@ const AssistantMessage = ({ message, onOpenModal, onShowToast, onApplyProposal, 
                   <Copy size={12} />
                   复制
                 </button>
+                {message.hasModification && (
+                  <button className="cc-result-action-btn drill-down" onClick={() => onDrillDown?.(message)}>
+                    <Sparkles size={12} />
+                    查看改了什么
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -430,6 +436,7 @@ const ChatConversation = forwardRef(({
   onPlanReceived,
   onApplyProposal,
   onRejectProposal,
+  onDrillDown,
   inputMode = 'textarea',
   disableAutoScroll = false
 }, ref) => {
@@ -590,10 +597,13 @@ const ChatConversation = forwardRef(({
     );
   }, [loading, updateMessages, projectId, projectVersion, agentId, onWorkflowCreated, onPlanReceived]);
 
-  // 暴露 sendMessage 方法给父组件
+  // 暴露 sendMessage 和 injectMessage 方法给父组件
   useImperativeHandle(ref, () => ({
     sendMessage: (content) => {
       sendChatMessage(content);
+    },
+    injectMessage: (content) => {
+      setInputValue(prev => prev ? `${prev}\n${content}` : content);
     }
   }), [sendChatMessage]);
 
@@ -645,6 +655,7 @@ const ChatConversation = forwardRef(({
                 onShowToast={showToast}
                 onApplyProposal={onApplyProposal}
                 onRejectProposal={onRejectProposal}
+                onDrillDown={onDrillDown}
               />
             )
           ))

@@ -1,0 +1,947 @@
+/* RightPreviewPanel - 右侧预览面板 */
+
+/* 主容器 */
+.right-preview-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-panel);
+  border-left: 1px solid var(--border-subtle);
+}
+
+/* 空状态 */
+.right-preview-panel.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 32px;
+  text-align: center;
+}
+
+.empty-icon {
+  font-size: 48px;
+  opacity: 0.5;
+}
+
+.empty-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.empty-desc {
+  font-size: 12px;
+  color: var(--text-disabled);
+  margin: 0;
+  max-width: 200px;
+  line-height: 1.5;
+}
+
+/* 标题栏 */
+.preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-toolbar);
+  flex-shrink: 0;
+}
+
+.preview-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.preview-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.preview-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+}
+
+.preview-action-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+  border-color: var(--border-medium);
+}
+
+/* 内容区 */
+.preview-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.preview-content-inner {
+  height: 100%;
+}
+
+/* ============================================
+   SingleAssetView - 单资产详情
+   ============================================ */
+
+.single-asset-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 16px;
+}
+
+.asset-preview-image {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16/9;
+  background: var(--bg-canvas);
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.asset-preview-image:hover {
+  transform: scale(1.02);
+}
+
+.asset-preview-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.asset-preview-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: var(--text-disabled);
+  font-size: 48px;
+}
+
+.asset-fullscreen-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  border: none;
+  border-radius: 6px;
+  color: white;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.asset-preview-image:hover .asset-fullscreen-btn {
+  opacity: 1;
+}
+
+.asset-fullscreen-btn:hover {
+  background: rgba(0, 0, 0, 0.8);
+}
+
+/* 悬停显示全屏按钮 */
+.asset-preview-image:hover .asset-fullscreen-btn {
+  opacity: 1;
+}
+
+/* @引用按钮 */
+.asset-reference-btn {
+  position: absolute;
+  top: 8px;
+  right: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: rgba(59, 130, 246, 0.8);
+  backdrop-filter: blur(8px);
+  border: none;
+  border-radius: 6px;
+  color: white;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s ease, background 0.15s ease;
+  z-index: 10;
+}
+
+.asset-reference-btn:hover {
+  background: rgba(59, 130, 246, 1);
+}
+
+/* 悬停显示@按钮 */
+.asset-preview-image:hover .asset-reference-btn {
+  opacity: 1;
+}
+
+/* 抽屉内图片悬停提示 */
+.asset-preview-hint {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 12px;
+  background: rgba(0, 0, 0, 0.7);
+  border-radius: 6px;
+  color: white;
+  font-size: 11px;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+
+.asset-preview-image:hover .asset-preview-hint {
+  opacity: 1;
+}
+
+/* 全屏查看遮罩 */
+.asset-fullscreen-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.95);
+  z-index: 10000;
+  cursor: pointer;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.asset-fullscreen-close {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  border-radius: 50%;
+  color: white;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.asset-fullscreen-close:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.asset-fullscreen-image {
+  max-width: 90vw;
+  max-height: 90vh;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  cursor: default;
+}
+
+/* 资产信息 */
+.asset-info {
+  margin-top: 16px;
+  padding: 16px;
+  background: var(--bg-secondary);
+  border-radius: 10px;
+}
+
+.asset-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 8px 0;
+}
+
+.asset-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.asset-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.asset-meta-label {
+  color: var(--text-disabled);
+  min-width: 50px;
+}
+
+.asset-meta-value {
+  color: var(--text-secondary);
+}
+
+/* 资产操作 */
+.asset-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.asset-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.asset-action-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--border-medium);
+}
+
+.asset-action-btn.primary {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: rgba(59, 130, 246, 0.3);
+  color: var(--accent-blue);
+}
+
+.asset-action-btn.primary:hover {
+  background: rgba(59, 130, 246, 0.25);
+}
+
+/* ============================================
+   AssetGridView - 多资产网格
+   ============================================ */
+
+.asset-grid-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 16px;
+}
+
+.asset-grid-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  padding: 4px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+}
+
+.asset-grid-tab {
+  flex: 1;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.asset-grid-tab:hover {
+  color: var(--text-secondary);
+}
+
+.asset-grid-tab.active {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.asset-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.asset-grid-card {
+  position: relative;
+  aspect-ratio: 1;
+  background: var(--bg-secondary);
+  border-radius: 10px;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.asset-grid-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.asset-grid-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.asset-grid-card-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: var(--text-disabled);
+  font-size: 32px;
+}
+
+.asset-grid-card-label {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 8px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+  font-size: 11px;
+  color: white;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 资产卡片按钮 */
+.asset-card-fullscreen-icon {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 6px;
+  color: white;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: 5;
+  pointer-events: auto;
+}
+
+.asset-grid-card:hover .asset-card-fullscreen-icon {
+  opacity: 1;
+}
+
+/* @引用按钮 */
+.asset-card-reference-btn {
+  position: absolute;
+  top: 8px;
+  right: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: rgba(59, 130, 246, 0.8);
+  border: none;
+  border-radius: 6px;
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s ease, background 0.15s ease;
+  z-index: 5;
+  pointer-events: auto;
+}
+
+.asset-card-reference-btn:hover {
+  background: rgba(59, 130, 246, 1);
+}
+
+.asset-grid-card:hover .asset-card-reference-btn {
+  opacity: 1;
+}
+
+.asset-grid-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.asset-count {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.asset-grid-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* ============================================
+   ScriptEditorView - 剧本编辑器
+   ============================================ */
+
+.script-editor-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 16px;
+}
+
+.script-content {
+  flex: 1;
+  padding: 16px;
+  background: var(--bg-secondary);
+  border-radius: 10px;
+  overflow-y: auto;
+}
+
+.script-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 16px 0;
+}
+
+.script-text {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.8;
+  white-space: pre-wrap;
+}
+
+.script-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.script-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 12px;
+  background: rgba(6, 182, 212, 0.08);
+  border: 1px dashed rgba(6, 182, 212, 0.3);
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--accent-cyan);
+}
+
+.script-hint-icon {
+  flex-shrink: 0;
+}
+
+/* 剧集选择标签 */
+.script-episodes-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  padding: 4px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+}
+
+.script-episode-tab {
+  flex: 1;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.script-episode-tab:hover {
+  color: var(--text-secondary);
+}
+
+.script-episode-tab.active {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+/* 场景列表 */
+.script-scenes {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.script-scene-item {
+  background: var(--bg-secondary);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.script-scene-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.script-scene-header:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.script-scene-toggle {
+  color: var(--text-tertiary);
+  display: flex;
+  align-items: center;
+}
+
+.script-scene-title {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.script-scene-meta {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+.script-scene-content {
+  padding: 0 14px 14px 36px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.8;
+  white-space: pre-wrap;
+  margin: 0;
+}
+
+/* ============================================
+   SequenceModeView - 序列模式（故事板微缩版）
+   ============================================ */
+
+.sequence-mode-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* 场景横向滚动 */
+.sequence-scenes {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.sequence-scenes::-webkit-scrollbar {
+  height: 4px;
+}
+
+.sequence-scenes::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sequence-scenes::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+
+.scene-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.scene-tab:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary);
+}
+
+.scene-tab.active {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: rgba(59, 130, 246, 0.3);
+  color: var(--accent-blue);
+}
+
+.scene-tab-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-disabled);
+}
+
+.scene-tab.active .scene-tab-dot {
+  background: var(--accent-blue);
+}
+
+/* 当前场景详情 */
+.sequence-current-scene {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.current-scene-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 16px 0;
+}
+
+.shots-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.shot-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+.shot-row::-webkit-scrollbar {
+  height: 4px;
+}
+
+.shot-row::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+
+.shot-item {
+  position: relative;
+  width: 120px;
+  height: 80px;
+  flex-shrink: 0;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+}
+
+.shot-item:hover {
+  transform: scale(1.05);
+  border-color: var(--accent-blue);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.shot-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.shot-item-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: var(--text-disabled);
+  font-size: 24px;
+}
+
+.shot-item-label {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 4px 6px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+  font-size: 10px;
+  color: white;
+}
+
+.shot-item.video::after {
+  content: '';
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 8px;
+  height: 8px;
+  background: var(--accent-cyan);
+  border-radius: 50%;
+}
+
+/* 可折叠区域 */
+.sequence-collapsible {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.collapsible-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.collapsible-header:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.collapsible-icon {
+  color: var(--text-tertiary);
+  transition: transform 0.2s ease;
+}
+
+.collapsible-icon.expanded {
+  transform: rotate(90deg);
+}
+
+.collapsible-title {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.collapsible-badge {
+  padding: 2px 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+
+.collapsible-content {
+  padding: 0 16px 16px 16px;
+}
+
+/* 角色卡片网格 */
+.characters-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.character-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.character-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.character-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  background: var(--bg-tertiary);
+  overflow: hidden;
+}
+
+.character-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.character-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.character-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.character-role {
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+
+/* 剧本摘要 */
+.script-summary {
+  padding: 12px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+  .asset-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+
+  .characters-grid {
+    grid-template-columns: 1fr;
+  }
+}

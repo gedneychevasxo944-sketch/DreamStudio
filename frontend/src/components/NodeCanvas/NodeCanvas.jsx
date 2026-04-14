@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Workflow, Plus, MousePointer2 } from 'lucide-react';
 import { toast } from '../Toast/Toast';
@@ -7,13 +7,17 @@ import NodeConnection from './NodeConnection';
 import DraggingConnectionLine from './DraggingConnectionLine';
 import ConfirmDialog from '../ConfirmDialog/ConfirmDialog';
 import RichAgentNode from './RichAgentNode';
+import SubgraphCanvas from './SubgraphCanvas';
 import { workSpaceApi, teamApi, agentApi } from '../../services/api';
-import { useWorkflowStore, calculateNodePositions } from '../../stores';
+import { useWorkflowStore, useSubgraphStore, calculateNodePositions } from '../../stores';
 import { getDefaultNodeWidth, generateThinkingContent, generateResultContent, traverseConnectedNodes } from '../../utils/nodeUtils';
 import { CANVAS, TEMPLATE_LAYOUT } from '../../constants/layoutConstants';
 import { canvasLogger } from '../../utils/logger';
 import { CanvasToolbar, CanvasStatusBar, FullscreenToolbar, SaveTemplateDialog } from '../Canvas';
 import './NodeCanvas.css';
+
+// 主流程节点类型（简化视图中显示的节点）
+const MAIN_FLOW_TYPES = ['producer', 'content', 'visual', 'director', 'technical', 'videoGen', 'videoEditor'];
 
 const NodeCanvas = ({
   isFullscreen,
@@ -32,11 +36,19 @@ const NodeCanvas = ({
   onGenerateVideo,
   // Demo只读态
   isDemoMode = false,
+  // 查看模式：'nodes' | 'subgraph'
+  viewMode = 'nodes',
+  // 子图相关回调
+  onSubgraphFocus,  // 从子图进入节点视图时调用
+  onSwitchToSubgraphView,  // 从节点视图切换到子图列表时调用
 }) => {
   const canvasRef = useRef(null);
   const [scale, setScale] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
+
+  // P3: 简化视图状态
+  const [isSimplifiedView, setIsSimplifiedView] = useState(true);
 
   // nodeDimensions 的 ref 版本，避免初始化顺序问题
   const nodeDimensionsRef = useRef({});
@@ -96,6 +108,53 @@ const NodeCanvas = ({
     resetCanvas,
     loadTemplateNodes,
   } = useWorkflowStore();
+
+  // P3: 计算简化视图节点和焦点高亮
+  const { visibleNodes, highlightedNodeIds, collapsedPlaceholder } = useMemo(() => {
+    // 识别主流程节点
+    const mainFlowNodeIds = new Set(
+      nodes.filter(n => MAIN_FLOW_TYPES.includes(n.type) || MAIN_FLOW_TYPES.includes(n.agentCode)).map(n => n.id)
+    );
+
+    // 计算焦点高亮节点（选中节点 + 上下游）
+    const highlighted = new Set();
+    if (selectedNodeId) {
+      highlighted.add(selectedNodeId);
+      // 获取上游节点
+      const upstreamIds = traverseConnectedNodes(selectedNodeId, connections, 'upstream');
+      // 获取下游节点
+      const downstreamIds = traverseConnectedNodes(selectedNodeId, connections, 'downstream');
+      upstreamIds.forEach(id => highlighted.add(id));
+      downstreamIds.forEach(id => highlighted.add(id));
+    }
+
+    // 确定可见节点
+    let visible = nodes;
+    let placeholder = null;
+
+    if (isSimplifiedView) {
+      // 简化视图：只显示主流程节点
+      visible = nodes.filter(n => mainFlowNodeIds.has(n.id));
+
+      // 检查是否有被收拢的节点
+      const collapsedNodes = nodes.filter(n => !mainFlowNodeIds.has(n.id));
+      if (collapsedNodes.length > 0) {
+        // 计算收拢节点的位置（在最后一个主流程节点之后）
+        const mainFlowNodes = nodes.filter(n => mainFlowNodeIds.has(n.id));
+        const lastMainNode = mainFlowNodes[mainFlowNodes.length - 1];
+        if (lastMainNode) {
+          placeholder = {
+            id: 'collapsed-placeholder',
+            collapsedCount: collapsedNodes.length,
+            x: lastMainNode.x + 200 + 60, // 200 = node width, 60 = gap
+            y: lastMainNode.y,
+          };
+        }
+      }
+    }
+
+    return { visibleNodes: visible, highlightedNodeIds: highlighted, collapsedPlaceholder: placeholder };
+  }, [nodes, connections, selectedNodeId, isSimplifiedView]);
 
   // 自动滚动到指定节点（运行节点时调用）
   const scrollToNode = useCallback((nodeId) => {
@@ -1013,30 +1072,32 @@ const NodeCanvas = ({
 
   return (
     <div className={`node-canvas-container ${isFullscreen ? 'fullscreen' : ''}`}>
-      {/* 顶部工具栏 */}
-      <CanvasToolbar
-        isRunning={isRunning}
-        isFullscreen={isFullscreen}
-        templates={templates}
-        loadingAgents={loadingAgents}
-        showLibrary={showLibrary}
-        onToggleLibrary={() => !isDemoMode && setShowLibrary(!showLibrary)}
-        onRun={!isDemoMode ? simulateRun : () => {}}
-        onSaveTemplate={() => !isDemoMode && setShowSaveTemplateDialog(true)}
-        onClearCanvas={!isDemoMode ? handleClearCanvas : () => {}}
-        onToggleFullscreen={onToggleFullscreen}
-        onLoadTemplate={!isDemoMode ? loadTemplate : () => {}}
-        // 新增 props
-        projectMode={projectMode}
-        onModeChange={!isDemoMode ? onModeChange : () => {}}
-        runButtonText={runButtonText}
-        runExplanation={runExplanation}
-        hasStaleNodes={hasStaleNodes}
-        isDemoMode={isDemoMode}
-      />
+      {/* 顶部工具栏 - 仅节点模式显示 */}
+      {viewMode === 'nodes' && (
+        <CanvasToolbar
+          isRunning={isRunning}
+          isFullscreen={isFullscreen}
+          templates={templates}
+          loadingAgents={loadingAgents}
+          showLibrary={showLibrary}
+          onToggleLibrary={() => !isDemoMode && setShowLibrary(!showLibrary)}
+          onRun={!isDemoMode ? simulateRun : () => {}}
+          onSaveTemplate={() => !isDemoMode && setShowSaveTemplateDialog(true)}
+          onClearCanvas={!isDemoMode ? handleClearCanvas : () => {}}
+          onToggleFullscreen={onToggleFullscreen}
+          onLoadTemplate={!isDemoMode ? loadTemplate : () => {}}
+          // 新增 props
+          projectMode={projectMode}
+          onModeChange={!isDemoMode ? onModeChange : () => {}}
+          runButtonText={runButtonText}
+          runExplanation={runExplanation}
+          hasStaleNodes={hasStaleNodes}
+          isDemoMode={isDemoMode}
+        />
+      )}
 
-      {/* 全屏模式悬浮工具栏 */}
-      {isFullscreen && (
+      {/* 全屏模式悬浮工具栏 - 仅节点模式显示 */}
+      {isFullscreen && viewMode === 'nodes' && (
         <FullscreenToolbar
           isRunning={isRunning}
           templates={templates}
@@ -1051,123 +1112,185 @@ const NodeCanvas = ({
         />
       )}
 
-      {/* 左侧智能体库 - Demo模式下不显示 */}
-      <AnimatePresence>
-        {showLibrary && !isDemoMode && (
-          <AgentLibrary
-            agents={agentTypes}
-            onDragAgent={handleAddNode}
-            onClose={handleCloseLibrary}
-            loading={loadingAgents}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* 画布主体 */}
-      <div
-        ref={canvasRef}
-        className="canvas-viewport"
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-      >
-        <div
-          className="canvas-world"
-          style={{ transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`, transformOrigin: '0 0' }}
-        >
-          <div className="canvas-grid" />
-
-          {/* 连线 */}
-          <svg className="connections-layer" width="5000" height="5000" viewBox="0 0 5000 5000">
-            {connections.map(conn => (
-              <NodeConnection key={conn.id} connection={conn} nodes={nodes} isRunning={isRunning} portPositions={portPositions} />
-            ))}
-            {isConnecting && connectingFrom && (
-              <DraggingConnectionLine fromNode={nodes.find(n => n.id === connectingFrom.nodeId)} mousePos={connectingMousePos} portPositions={portPositions} />
+      {/* 模式切换：子图模式 vs 节点模式 */}
+      {viewMode === 'subgraph' ? (
+        /* 子图模式 */
+        <SubgraphCanvas
+          projectId={projectId}
+          onSubgraphFocus={onSubgraphFocus}
+        />
+      ) : (
+        /* 正常节点模式 */
+        <>
+          {/* 左侧智能体库 */}
+          <AnimatePresence>
+            {showLibrary && !isDemoMode && (
+              <AgentLibrary
+                agents={agentTypes}
+                onDragAgent={handleAddNode}
+                onClose={handleCloseLibrary}
+                loading={loadingAgents}
+              />
             )}
-          </svg>
+          </AnimatePresence>
 
-          {/* 节点 */}
-          {nodes.map(node => (
-            <RichAgentNode
-              key={node.id}
-              node={node}
-              scale={scale}
-              projectId={projectId}
-              projectVersion={projectVersion}
-              isSelected={selectedNodeId === node.id}
-              isRunning={node.status === 'running'}
-              isDemoMode={isDemoMode}
-              onSelect={() => handleNodeSelect(node)}
-              onDelete={() => !isDemoMode && handleDeleteNode(node.id)}
-              onUpdatePosition={!isDemoMode ? handleUpdateNodePosition : () => {}}
-              onUpdateData={!isDemoMode ? handleUpdateNodeData : () => {}}
-              onStartConnection={!isDemoMode ? startConnection : () => {}}
-              onCompleteConnection={!isDemoMode ? completeConnection : () => {}}
-              onAddConnectedNode={!isDemoMode ? addConnectedNode : () => {}}
-              isConnecting={isDemoMode ? false : isConnecting}
-              connectingFrom={isDemoMode ? null : connectingFrom}
-              availableAgents={Object.values(agentTypes)}
-              onBringToFront={() => setSelectedNodeId(node.id)}
-              onDimensionChange={handleNodeDimensionChange}
-              onAddNode={!isDemoMode ? addConnectedNode : () => {}}
-              onPortPositionChange={handlePortPositionChange}
-              onGenerateVideoNodes={handleGenerateVideoNodes}
-              onGenerateVideo={onGenerateVideo}
-            />
-          ))}
-        </div>
-
-        {/* 空状态引导 */}
-        {nodes.length === 0 && (
-          <div className="canvas-empty-state">
-            <div className="canvas-empty-state-icon">
-              <Workflow size={36} />
-            </div>
-            <div className="canvas-empty-state-title">画布空白</div>
-            <div className="canvas-empty-state-desc">
-              从左侧智能体库拖入节点，<br />或在模板中选择一个预设流程开始
-            </div>
-            <div
-              className="canvas-empty-state-hint"
-              onClick={() => setShowLibrary(true)}
-            >
-              <Plus size={14} />
-              打开智能体库
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* 底部状态栏 */}
-      <CanvasStatusBar scale={scale} nodesCount={nodes.length} connectionsCount={connections.length} />
-
-      {/* 自动跟踪提示 */}
-      <AnimatePresence>
-        {showTrackTip && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            style={{
-              position: 'absolute',
-              bottom: 60,
-              left: '50%',
-              transform: 'translateX(-50%)',
-              background: 'rgba(0,0,0,0.8)',
-              color: '#fff',
-              padding: '8px 16px',
-              borderRadius: 8,
-              fontSize: 14,
-              zIndex: 1000,
-              pointerEvents: 'none'
-            }}
+          {/* 画布主体 */}
+          <div
+            ref={canvasRef}
+            className="canvas-viewport"
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
           >
-            已退出自动跟踪模式，你可以手动滚动画布
-          </motion.div>
-        )}
-      </AnimatePresence>
+            <div
+              className="canvas-world"
+              style={{ transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`, transformOrigin: '0 0' }}
+            >
+              <div className="canvas-grid" />
+
+              {/* 连线 - 简化视图中只显示可见节点之间的连接 */}
+              <svg className="connections-layer" width="5000" height="5000" viewBox="0 0 5000 5000">
+                {connections
+                  .filter(conn => {
+                    if (!isSimplifiedView) return true;
+                    // 简化视图：只显示可见节点之间的连接
+                    const fromVisible = visibleNodes.some(n => n.id === conn.from);
+                    const toVisible = visibleNodes.some(n => n.id === conn.to);
+                    return fromVisible && toVisible;
+                  })
+                  .map(conn => (
+                    <NodeConnection key={conn.id} connection={conn} nodes={visibleNodes} isRunning={isRunning} portPositions={portPositions} />
+                  ))}
+                {isConnecting && connectingFrom && (
+                  <DraggingConnectionLine fromNode={visibleNodes.find(n => n.id === connectingFrom.nodeId)} mousePos={connectingMousePos} portPositions={portPositions} />
+                )}
+              </svg>
+
+              {/* 节点 */}
+              {visibleNodes.map(node => (
+                <RichAgentNode
+                  key={node.id}
+                  node={node}
+                  scale={scale}
+                  projectId={projectId}
+                  projectVersion={projectVersion}
+                  isSelected={selectedNodeId === node.id}
+                  isRunning={node.status === 'running'}
+                  isDemoMode={isDemoMode}
+                  isDimmed={selectedNodeId && !highlightedNodeIds.has(node.id)}
+                  onSelect={() => handleNodeSelect(node)}
+                  onDelete={() => !isDemoMode && handleDeleteNode(node.id)}
+                  onUpdatePosition={!isDemoMode ? handleUpdateNodePosition : () => {}}
+                  onUpdateData={!isDemoMode ? handleUpdateNodeData : () => {}}
+                  onStartConnection={!isDemoMode ? startConnection : () => {}}
+                  onCompleteConnection={!isDemoMode ? completeConnection : () => {}}
+                  onAddConnectedNode={!isDemoMode ? addConnectedNode : () => {}}
+                  isConnecting={isDemoMode ? false : isConnecting}
+                  connectingFrom={isDemoMode ? null : connectingFrom}
+                  availableAgents={Object.values(agentTypes)}
+                  onBringToFront={() => setSelectedNodeId(node.id)}
+                  onDimensionChange={handleNodeDimensionChange}
+                  onAddNode={!isDemoMode ? addConnectedNode : () => {}}
+                  onPortPositionChange={handlePortPositionChange}
+                  onGenerateVideoNodes={handleGenerateVideoNodes}
+                  onGenerateVideo={onGenerateVideo}
+                />
+              ))}
+
+              {/* P3: 简化视图收拢节点占位符 */}
+              {collapsedPlaceholder && (
+                <div
+                  className="collapsed-nodes-placeholder"
+                  style={{
+                    position: 'absolute',
+                    left: collapsedPlaceholder.x,
+                    top: collapsedPlaceholder.y,
+                    transform: 'translateY(-50%)',
+                  }}
+                  onClick={() => setIsSimplifiedView(false)}
+                  title={`展开 ${collapsedPlaceholder.collapsedCount} 个节点`}
+                >
+                  <span className="collapsed-count">⋯</span>
+                  <span className="collapsed-label">{collapsedPlaceholder.collapsedCount} 个节点</span>
+                </div>
+              )}
+            </div>
+
+            {/* 空状态引导 */}
+            {nodes.length === 0 && (
+              <div className="canvas-empty-state">
+                <div className="canvas-empty-state-icon">
+                  <Workflow size={36} />
+                </div>
+                <div className="canvas-empty-state-title">画布空白</div>
+                <div className="canvas-empty-state-desc">
+                  从左侧智能体库拖入节点，<br />或在模板中选择一个预设流程开始
+                </div>
+                <div
+                  className="canvas-empty-state-hint"
+                  onClick={() => setShowLibrary(true)}
+                >
+                  <Plus size={14} />
+                  打开智能体库
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 底部状态栏 */}
+          <CanvasStatusBar scale={scale} nodesCount={nodes.length} connectionsCount={connections.length} />
+
+          {/* P3: 简化视图切换按钮 */}
+          {nodes.length > 0 && (
+            <button
+              className="simplified-view-toggle"
+              onClick={() => setIsSimplifiedView(!isSimplifiedView)}
+              title={isSimplifiedView ? '全部展开' : '简化视图'}
+            >
+              {isSimplifiedView ? '☰ 全部展开' : '◎ 简化视图'}
+            </button>
+          )}
+
+          {/* P0: 切换到子图列表按钮 */}
+          <button
+            className="subgraph-list-toggle"
+            onClick={() => {
+              // 切换到子图列表视图
+              onSwitchToSubgraphView?.();
+            }}
+            title="查看所有子图"
+          >
+            📦 子图列表
+          </button>
+
+          {/* 自动跟踪提示 */}
+          <AnimatePresence>
+            {showTrackTip && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 20 }}
+                style={{
+                  position: 'absolute',
+                  bottom: 60,
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  background: 'rgba(0,0,0,0.8)',
+                  color: '#fff',
+                  padding: '8px 16px',
+                  borderRadius: 8,
+                  fontSize: 14,
+                  zIndex: 1000,
+                  pointerEvents: 'none'
+                }}
+              >
+                已退出自动跟踪模式，你可以手动滚动画布
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </>
+      )}
 
       {/* 确认对话框 */}
       <ConfirmDialog

@@ -918,6 +918,7 @@ const RichAgentNode = ({
   node,
   isSelected,
   isRunning,
+  isDimmed = false,
   onSelect,
   onDelete,
   onUpdatePosition,
@@ -1237,7 +1238,7 @@ const RichAgentNode = ({
   return (
     <motion.div
       ref={nodeRef}
-      className={`rich-agent-node ${isSelected ? 'selected' : ''} ${isDragging ? 'dragging' : ''} ${isResizing ? 'resizing' : ''} ${node.status || 'idle'} ${isRunning ? 'running' : ''} ${node.data?.status === 'stale' ? 'stale' : ''} ${isLocked ? 'locked' : ''}`}
+      className={`rich-agent-node ${isSelected ? 'selected' : ''} ${isDragging ? 'dragging' : ''} ${isResizing ? 'resizing' : ''} ${node.status || 'idle'} ${isRunning ? 'running' : ''} ${node.data?.status === 'stale' ? 'stale' : ''} ${isLocked ? 'locked' : ''} ${isDimmed ? 'dimmed' : ''}`}
       style={{
         left: node.x,
         top: node.y,

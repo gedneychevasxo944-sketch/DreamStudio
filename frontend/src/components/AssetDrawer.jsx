@@ -152,6 +152,19 @@ const AssetDrawer = ({
     }
   };
 
+  // 拖拽事件处理
+  const handleDragStart = (e, asset) => {
+    e.dataTransfer.setData('application/json', JSON.stringify({
+      type: 'asset',
+      assetType: asset.assetType,
+      assetId: asset.nodeId,
+      assetName: asset.nodeName,
+      thumbnailUrl: asset.history[0]?.imageUrl || null,
+      content: asset.currentContent
+    }));
+    e.dataTransfer.effectAllowed = 'copy';
+  };
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -206,7 +219,12 @@ const AssetDrawer = ({
                 // 当前生效资产视图
                 <div className="current-assets-list">
                   {displayAssets.map((asset) => (
-                    <div key={asset.key} className="asset-card current">
+                    <div
+                      key={asset.key}
+                      className="asset-card current"
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, asset)}
+                    >
                       <div className="asset-card-header">
                         <div className="asset-type-icon">
                           {getAssetIcon(asset.assetType)}

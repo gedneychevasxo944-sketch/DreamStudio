@@ -40,6 +40,12 @@
   box-shadow: 0 0 0 2px rgba(234, 179, 8, 0.3), 0 6px 30px rgba(0, 0, 0, 0.4);
 }
 
+/* P3: 焦点高亮暗淡状态 */
+.rich-agent-node.dimmed {
+  opacity: 0.35;
+  filter: grayscale(0.3);
+}
+
 /* 锁定指示器 */
 .lock-indicator {
   position: absolute;

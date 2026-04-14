@@ -800,3 +800,142 @@
   background: rgba(6, 182, 212, 0.25);
   border-color: rgba(6, 182, 212, 0.5);
 }
+
+/* P0 新增：对话层占位符 */
+.conversation-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: var(--text-secondary, #888);
+}
+
+.conversation-placeholder .placeholder-icon {
+  font-size: 64px;
+  opacity: 0.5;
+}
+
+.conversation-placeholder p {
+  font-size: 16px;
+  margin: 0;
+}
+
+/* P0 修复：TopBar 样式 */
+.top-bar {
+  --bg-primary: #1a1a2e;
+  --bg-secondary: #252542;
+  --bg-hover: rgba(255, 255, 255, 0.1);
+  --border-color: rgba(255, 255, 255, 0.1);
+  --text-primary: #fff;
+  --text-secondary: #888;
+  --accent-color: #6366f1;
+  --accent-color-hover: #5558e3;
+}
+
+/* DrillPanel CSS 变量 */
+.drill-panel {
+  --bg-primary: #1a1a2e;
+  --bg-secondary: #252542;
+  --bg-hover: rgba(255, 255, 255, 0.1);
+  --border-color: rgba(255, 255, 255, 0.1);
+  --text-primary: #fff;
+  --text-secondary: #888;
+  --accent-color: #6366f1;
+  --accent-color-hover: #5558e3;
+}
+
+/* Storyboard CSS 变量 */
+.storyboard-view,
+.shot-card,
+.shot-preview,
+.shot-card .shot-thumbnail {
+  --bg-primary: #1a1a2e;
+  --bg-secondary: #252542;
+  --bg-hover: rgba(255, 255, 255, 0.1);
+  --border-color: rgba(255, 255, 255, 0.1);
+  --text-primary: #fff;
+  --text-secondary: #888;
+  --accent-color: #6366f1;
+  --accent-color-hover: #5558e3;
+  --status-generated: #22c55e;
+  --status-adjusted: #f59e0b;
+  --status-pending: #888;
+}
+
+/* 单一资产预览悬停 */
+.single-asset-hover {
+  opacity: 0 !important;
+}
+
+div:hover > .single-asset-hover,
+.single-asset-hover:hover {
+  opacity: 1 !important;
+}
+
+/* 预览区全屏按钮 */
+.preview-fullscreen-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  border: none;
+  border-radius: 6px;
+  color: white;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: 10;
+}
+
+.preview-fullscreen-btn:hover {
+  background: rgba(0, 0, 0, 0.8);
+}
+
+/* 悬停时显示全屏按钮 */
+div:hover > .preview-fullscreen-btn {
+  opacity: 1;
+}
+
+/* 预览区@引用按钮 */
+.preview-reference-btn {
+  position: absolute;
+  top: 8px;
+  right: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: rgba(59, 130, 246, 0.8);
+  backdrop-filter: blur(8px);
+  border: none;
+  border-radius: 6px;
+  color: white;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s ease, background 0.15s ease;
+  z-index: 10;
+}
+
+.preview-reference-btn:hover {
+  background: rgba(59, 130, 246, 1);
+}
+
+/* 悬停时显示@按钮 */
+div:hover > .preview-reference-btn {
+  opacity: 1;
+}
+
+/* 预览区图片hover时显示全屏按钮 */
+div:hover > .preview-fullscreen-btn {
+  opacity: 1;
+}
