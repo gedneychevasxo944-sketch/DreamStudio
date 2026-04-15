@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useMemo } from 'react';
+import { AnimatePresence } from 'framer-motion';
 import {
   X, Save, Play, RotateCcw, Key, MessageSquare, Sparkles, Zap,
   Package, Upload, MessageCircle, Globe, Cpu, Settings2, Eye, EyeOff,

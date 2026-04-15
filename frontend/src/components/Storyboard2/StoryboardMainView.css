@@ -1,0 +1,57 @@
+.storyboard-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--bg-primary, #0f0f1a);
+  box-sizing: border-box;
+}
+
+/* 主内容区：左右布局 */
+.storyboard-content {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* 剧本阶段内容区（全宽） */
+.storyboard-content.script-content {
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* 资产网格面板 */
+.assets-panel {
+  width: 360px;
+  min-width: 300px;
+  max-width: 500px;
+  border-right: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 详情面板 */
+.detail-panel {
+  flex: 1;
+  min-width: 400px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 响应式：小屏幕时隐藏详情面板 */
+@media (max-width: 1200px) {
+  .assets-panel {
+    width: 280px;
+    min-width: 240px;
+  }
+
+  .detail-panel {
+    min-width: 320px;
+  }
+}

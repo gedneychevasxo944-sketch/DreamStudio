@@ -1,12 +1,10 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, PanelLeft, PanelRight, Maximize2, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, PanelLeft, Maximize2, X } from 'lucide-react';
 import Console from './components/Console';
 import ToastContainer from './components/Toast/Toast';
 import BottomToastContainer from './components/Toast/BottomToast';
 import NodeCanvas from './components/NodeCanvas/NodeCanvas';
-import AssetDrawer from './components/AssetDrawer';
-import AssetPanel from './components/AssetPanel/AssetPanel';
 import AssetLibrary from './components/AssetLibrary';
 import NodeWorkspace from './components/NodeWorkspace';
 import Modal from './components/Modal';
@@ -19,17 +17,23 @@ import { StoryboardView } from './components/Storyboard';
 import { DrillPanel, PromptDiffPanel, AssetChangeCard, ParameterDiffPanel, VisualSliderPanel, BatchImpactList } from './components/DrillPanel';
 import { SmartSuggestion } from './components/SmartSuggestion';
 import { SingleAssetView, AssetGridView, ScriptEditorView, SequenceModeView } from './components/RightPreviewPanel';
-import { homePageApi, workSpaceApi, nodeVersionApi, proposalApi } from './services/api';
+import { homePageApi, nodeVersionApi, proposalApi } from './services/api';
 import { AUTH_ERROR_MESSAGES } from './constants/authConstants';
 import { WORKFLOW_LAYOUT, PLAN_LAYOUT } from './constants/layoutConstants';
 import { uiLogger } from './utils/logger';
 import { authStorage } from './utils/authStorage';
 import { eventBus, EVENT_TYPES } from './utils/eventBus';
-import { useProjectStore, useWorkflowStore, useUIStore, useSubgraphStore } from './stores';
+import { useProjectStore, useWorkflowStore, useUIStore, useSubgraphStore, useStageStore } from './stores';
 import { traverseConnectedNodes } from './utils/nodeUtils';
 import { mockModifications } from './mock/mockData';
-import { detectScenarioFromInput, getScenario } from './mock/previewScenarios';
+import { getScenario } from './mock/previewScenarios';
+import { initializeMockData } from './mock/stagesMock';
 import './App.css';
+
+// 新增组件导入
+import StoryboardMainView from './components/Storyboard2/StoryboardMainView';
+import FloatingAssistantButton from './components/FloatingAssistant/FloatingAssistantButton';
+import FloatingAssistantDrawer from './components/FloatingAssistant/FloatingAssistantDrawer';
 
 // P5: 场景按钮样式辅助函数
 const scenarioBtnStyle = (isActive, activeColor) => ({
@@ -67,15 +71,13 @@ function App() {
   // 原有状态（保留）
   // ============================================================================
   const [planningRawInput, setPlanningRawInput] = useState('');
-  const [planningAttachments, setPlanningAttachments] = useState([]);
+  const [, setPlanningAttachments] = useState([]);
   const [sharedMessages, setSharedMessages] = useState([]);
-  const [selectedPlanId, setSelectedPlanId] = useState(null);
-  const [plan, setPlan] = useState(null);
+  const [, setSelectedPlanId] = useState(null);
+  const [, setPlan] = useState(null);
   const [rightPanelVisible, setRightPanelVisible] = useState(false);
-  const [assetDrawerOpen, setAssetDrawerOpen] = useState(false);
   const [assetLibraryOpen, setAssetLibraryOpen] = useState(false);
   const [isDemoMode, setIsDemoMode] = useState(false);
-  const [projectMode, setProjectMode] = useState('factory');
 
   // ============================================================================
   // P1 新增：钻取面板状态
@@ -87,7 +89,7 @@ function App() {
 
   // P1 新增：智能建议状态
   const [showSmartSuggestion, setShowSmartSuggestion] = useState(false);
-  const [smartSuggestionMessage, setSmartSuggestionMessage] = useState('');
+  const [smartSuggestionMessage] = useState('');
 
   // P5 新增：右侧预览面板状态（对话层）
   // 实际项目中这些数据应该从后端获取或从节点执行结果中提取
@@ -99,6 +101,9 @@ function App() {
   const [previewingAsset, setPreviewingAsset] = useState(null);  // P5: 当前预览的资产
   const [previewScenario, setPreviewScenario] = useState(null);  // P5: 当前场景类型
   const [previewFullscreen, setPreviewFullscreen] = useState(false);  // P5: 预览区全屏查看
+
+  // PRD 2.0: 悬浮助手状态
+  const [floatingAssistantOpen, setFloatingAssistantOpen] = useState(false);
 
   // Plan 收到后的回调
   const handlePlanReceived = useCallback((receivedPlan) => {
@@ -146,21 +151,6 @@ function App() {
     }
   };
 
-  // P5: 根据用户输入检测并加载场景
-  const handleInputForPreview = (inputText) => {
-    const scenario = detectScenarioFromInput(inputText);
-    if (scenario) {
-      setPreviewAssets(scenario.assets || []);
-      setPreviewScript(scenario.script || null);
-      setPreviewShots(scenario.shots || []);
-      setPreviewCharacters(scenario.characters || []);
-      setPreviewScenario(scenario.mode);
-      if (scenario.asset) {
-        setPreviewingAsset(scenario.asset);
-      }
-    }
-  };
-
   // Project Store
   const {
     currentProjectId,
@@ -170,8 +160,6 @@ function App() {
     hasUnsavedChanges,
     isSaving,
     saveSuccess,
-    versions,
-    showVersionDropdown,
     setCurrentProjectId,
     setProjectName,
     setCurrentVersion,
@@ -181,8 +169,6 @@ function App() {
     setSaveSuccess,
     setVersions,
     setShowVersionDropdown,
-    removeVersion,
-    resetProject,
     markSaved,
   } = useProjectStore();
 
@@ -191,14 +177,10 @@ function App() {
     nodes: canvasNodes,
     connections: canvasConnections,
     viewport: canvasViewport,
-    pendingChatMessage,
     canvasKey,
-    isRunning,
     setNodes: setCanvasNodes,
     setConnections: setCanvasConnections,
     setViewport: setCanvasViewport,
-    setPendingChatMessage,
-    clearPendingChatMessage,
     incrementCanvasKey,
     resetCanvas,
     loadWorkflow,
@@ -206,34 +188,19 @@ function App() {
 
   // UI Store - 暂时保留，用于兼容
   const {
-    leftWidth,
-    rightWidth,
     leftCollapsed,
-    rightCollapsed,
     isDraggingLeft,
-    isDraggingRight,
     activeModal,
     selectedNodeId,
     isCanvasFullscreen,
     showSkillMarket,
-    showNewProjectConfirm,
-    showDeleteConfirm,
-    versionToDelete,
-    setActiveModal,
     setSelectedNodeId,
-    openModal,
     closeModal,
     toggleLeftCollapse,
-    toggleRightCollapse,
     setIsDraggingLeft,
-    setIsDraggingRight,
-    openDeleteConfirm,
-    closeDeleteConfirm,
     getActualWidths,
     setShowSkillMarket,
-    setShowNewProjectConfirm,
     setLeftWidth,
-    setRightWidth,
   } = useUIStore();
 
   // ============================================================================
@@ -245,11 +212,19 @@ function App() {
     if (layer !== 'node') {
       setRightPanelVisible(false);
     }
-    // 如果切换到故事板层，选中第一个镜头（如果有）
-    if (layer === 'storyboard' && !selectedShotId) {
-      // 从 mock 数据获取
+    // 如果切换到故事板层，初始化 mock 数据
+    if (layer === 'storyboard') {
+      const { stageAssets } = useStageStore.getState();
+      // 检查是否已经初始化过
+      const hasInitialized = Object.values(stageAssets).some(arr => arr.length > 0);
+      if (!hasInitialized) {
+        const { setStageAssets, setStageCompletion } = useStageStore.getState();
+        import('./mock/stagesMock').then(({ initializeMockData }) => {
+          initializeMockData(setStageAssets, setStageCompletion);
+        });
+      }
     }
-  }, [selectedShotId]);
+  }, []);
 
   const handleShotSelect = useCallback((shotId) => {
     setSelectedShotId(shotId);
@@ -257,10 +232,9 @@ function App() {
     setFocusedEntity(`镜头${shotId.replace('shot-', '')}`);
   }, []);
 
-  const handleConversationAdjust = useCallback((shot) => {
+  const handleConversationAdjust = useCallback(() => {
     // 切换到对话层
     setCurrentLayer('conversation');
-    // TODO: 定位到相关对话消息
   }, []);
 
   // P0: 处理子图聚焦（从子图列表进入节点画布）
@@ -403,10 +377,6 @@ function App() {
     };
   }, [canvasNodes, canvasConnections, selectedNode]);
 
-  // 项目名称编辑
-  const [isEditingName, setIsEditingName] = useState(false);
-  const [tempProjectName, setTempProjectName] = useState('');
-
   // 脏状态检测
   useEffect(() => {
     if (savedProjectState) {
@@ -479,7 +449,11 @@ function App() {
       { id: 'ds2-node-2', name: '霓虹灯光', type: 'visual' },
       { id: 'ds2-node-3', name: '雨天特效', type: 'technical' },
       { id: 'ds2-node-4', name: '最终合成', type: 'videoGen' },
-    ], []);
+    ], [
+      { id: 'c1', from: 'ds2-node-1', to: 'ds2-node-2' },
+      { id: 'c2', from: 'ds2-node-3', to: 'ds2-node-2' },
+      { id: 'c3', from: 'ds2-node-2', to: 'ds2-node-4' },
+    ]);
 
     // 道具类
     const prop1 = getOrCreateSubgraphByAssetId('demo-prop-1', 'prop', '服务器终端');
@@ -678,6 +652,11 @@ function App() {
     setHasUnsavedChanges(false);
     setIsDemoMode(false);
 
+    // 初始化 mock 数据（PRD 2.0 开发阶段）
+    const { setStageAssets, setStageCompletion } = useStageStore.getState();
+    const { initializeMockData } = await import('./mock/stagesMock');
+    initializeMockData(setStageAssets, setStageCompletion);
+
     if (demoId) {
       setIsDemoMode(true);
       setProjectName('Demo演示');
@@ -736,9 +715,10 @@ function App() {
       }
     }
 
-    // 进入工作空间，默认显示对话层
+    // 进入工作空间，默认显示故事板层（PRD 2.0）
     setCurrentView('workspace');
-    setCurrentLayer('conversation');
+    setCurrentLayer('storyboard');
+
     if (shouldTriggerSystem && userInput) {
       setPlanningRawInput(userInput);
       setPlanningAttachments([]);
@@ -751,73 +731,6 @@ function App() {
     setCanvasViewport, loadVersions, setVersions, setCurrentVersion
   ]);
 
-  // 方案数据到节点配置的转换
-  const planToNodesAndConnections = (plan, userInput) => {
-    if (!plan || plan.mode === 'blank') {
-      return { nodes: [], connections: [] };
-    }
-
-    if (plan.nodes && plan.edges) {
-      const nodeMap = new Map();
-      let currentX = PLAN_LAYOUT.START_X;
-
-      const positionedNodes = plan.nodes.map(node => {
-        const fullNode = {
-          id: node.id,
-          name: node.name,
-          type: node.id,
-          color: node.color,
-          icon: node.icon,
-          inputs: [{ id: 'input', label: '输入', type: 'any' }],
-          outputs: [{ id: 'output', label: '输出', type: 'any' }],
-          status: 'idle',
-          x: currentX,
-          y: PLAN_LAYOUT.START_Y
-        };
-        nodeMap.set(node.id, fullNode);
-        currentX += PLAN_LAYOUT.NODE_WIDTH + PLAN_LAYOUT.GAP;
-        return fullNode;
-      });
-
-      const connections = plan.edges.map((edge, idx) => ({
-        id: `c${idx + 1}`,
-        from: edge.from,
-        fromPort: 'output',
-        to: edge.to,
-        toPort: 'input',
-        type: 'data-flow'
-      }));
-
-      return { nodes: positionedNodes, connections };
-    }
-
-    return { nodes: [], connections: [] };
-  };
-
-  // 确认方案
-  const handleConfirmPlan = useCallback(() => {
-    if (!plan) return;
-    uiLogger.debug('[App] Plan confirmed:', plan);
-    const { nodes, connections } = planToNodesAndConnections(plan, planningRawInput);
-    if (nodes.length > 0) {
-      incrementCanvasKey();
-      loadWorkflow(nodes, connections);
-    }
-    if (plan.mode) {
-      setProjectMode(plan.mode === 'director' ? 'director' : 'factory');
-    }
-    setCurrentView('workspace');
-    setCurrentLayer('node');
-  }, [plan, planningRawInput, incrementCanvasKey, loadWorkflow]);
-
-  // 自己搭建
-  const handleBuildOwn = useCallback(() => {
-    incrementCanvasKey();
-    resetCanvas();
-    setCurrentView('workspace');
-    setCurrentLayer('node');
-  }, [incrementCanvasKey, resetCanvas]);
-
   // 取消规划
   const handleCancelPlanning = useCallback(() => {
     setCurrentView('home');
@@ -826,125 +739,11 @@ function App() {
     setSharedMessages([]);
   }, []);
 
-  // 新建项目
-  const createNewProject = useCallback(async () => {
-    resetCanvas();
-    setShowNewProjectConfirm(false);
-
-    try {
-      const createResponse = await homePageApi.createProject('未命名项目', null, {});
-      if (createResponse.data) {
-        setCurrentProjectId(createResponse.data.id);
-        setProjectName(createResponse.data.title || '未命名项目');
-        setVersions([]);
-        setCurrentVersion(null);
-      }
-    } catch (error) {
-      uiLogger.error('[App] Failed to create project:', error);
-      const authErrors = ['用户不存在', '用户未登录', '登录已过期', '认证失败', '没有访问权限'];
-      if (authErrors.some(e => error.message && error.message.includes(e))) {
-        authStorage.clearAuth();
-        sessionStorage.setItem('authError', '登录已失效，请重新登录');
-        alert('登录已失效，请重新登录');
-        window.location.href = '/';
-        return;
-      }
-      alert('创建项目失败: ' + error.message);
-    }
-  }, [resetCanvas, setShowNewProjectConfirm, setCurrentProjectId, setProjectName, setVersions, setCurrentVersion]);
-
-  const handleNewProjectClick = useCallback(() => {
-    if (hasUnsavedChanges) {
-      setShowNewProjectConfirm(true);
-    } else {
-      createNewProject();
-    }
-  }, [hasUnsavedChanges, setShowNewProjectConfirm, createNewProject]);
-
-  const saveAndCreateNewProject = useCallback(async () => {
-    await handleSaveProject();
-    await createNewProject();
-  }, [handleSaveProject, createNewProject]);
-
-  // 项目名称编辑
-  const startEditingName = () => {
-    setTempProjectName(projectName);
-    setIsEditingName(true);
-  };
-
-  const saveProjectName = () => {
-    if (tempProjectName.trim()) {
-      setProjectName(tempProjectName.trim());
-    }
-    setIsEditingName(false);
-  };
-
-  const cancelEditingName = () => {
-    setIsEditingName(false);
-    setTempProjectName('');
-  };
-
-  // 版本切换
-  const handleSwitchVersion = useCallback(async (version) => {
-    try {
-      incrementCanvasKey();
-      setCanvasNodes([]);
-      setCanvasConnections([]);
-
-      const response = version.isDefault
-        ? await homePageApi.getProject(currentProjectId)
-        : await homePageApi.getVersion(currentProjectId, version.versionNumber);
-
-      if (response.data && response.data.config) {
-        const config = typeof response.data.config === 'string' ? JSON.parse(response.data.config) : response.data.config;
-        setCanvasNodes(config.nodes || []);
-        setCanvasConnections(config.connections || []);
-        setCanvasViewport(config.viewport || { x: 0, y: 0, zoom: 1 });
-      }
-
-      if (response.data && response.data.title) {
-        setProjectName(response.data.title);
-      }
-
-      setCurrentVersion(version);
-      setShowVersionDropdown(false);
-    } catch (error) {
-      uiLogger.error('[App] Failed to switch version:', error);
-      alert('切换版本失败: ' + error.message);
-    }
-  }, [
-    currentProjectId, incrementCanvasKey, setCanvasNodes, setCanvasConnections,
-    setCanvasViewport, setProjectName, setCurrentVersion, setShowVersionDropdown
-  ]);
-
-  // 删除版本
-  const confirmDeleteVersion = useCallback(async () => {
-    if (versionToDelete && currentProjectId) {
-      try {
-        await workSpaceApi.deleteVersion(currentProjectId, versionToDelete.id);
-        removeVersion(versionToDelete.id);
-        if (currentVersion?.id === versionToDelete.id && versions.length > 1) {
-          const remainingVersions = versions.filter(v => v.id !== versionToDelete.id);
-          setCurrentVersion(remainingVersions[0]);
-        }
-      } catch (error) {
-        uiLogger.error('[App] Failed to delete version:', error);
-        alert('删除版本失败: ' + error.message);
-      }
-    }
-    closeDeleteConfirm();
-  }, [versionToDelete, currentProjectId, removeVersion, currentVersion, versions, setCurrentVersion, closeDeleteConfirm]);
-
   // 拖拽调整左右面板
   const startDragLeft = useCallback((e) => {
     e.preventDefault();
     setIsDraggingLeft(true);
   }, [setIsDraggingLeft]);
-
-  const startDragRight = useCallback((e) => {
-    e.preventDefault();
-    setIsDraggingRight(true);
-  }, [setIsDraggingRight]);
 
   useEffect(() => {
     const handleMouseMove = (e) => {
@@ -957,18 +756,14 @@ function App() {
       if (isDraggingLeft) {
         const newLeftWidth = Math.max(15, Math.min(45, (x / containerWidth) * 100));
         setLeftWidth(newLeftWidth);
-      } else if (isDraggingRight) {
-        const newRightWidth = Math.max(10, Math.min(35, ((containerWidth - x) / containerWidth) * 100));
-        setRightWidth(newRightWidth);
       }
     };
 
     const handleMouseUp = () => {
       setIsDraggingLeft(false);
-      setIsDraggingRight(false);
     };
 
-    if (isDraggingLeft || isDraggingRight) {
+    if (isDraggingLeft) {
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
       document.body.style.cursor = 'col-resize';
@@ -981,7 +776,7 @@ function App() {
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
     };
-  }, [isDraggingLeft, isDraggingRight, setLeftWidth, setRightWidth, setIsDraggingLeft, setIsDraggingRight]);
+  }, [isDraggingLeft, setLeftWidth, setIsDraggingLeft]);
 
   // 节点选择
   const handleNodeSelect = useCallback((node) => {
@@ -993,50 +788,7 @@ function App() {
   }, [setSelectedNodeId]);
 
   // 计算实际宽度
-  const { actualLeftWidth, actualRightWidth, centerWidth } = getActualWidths();
-
-  // 运行相关
-  const computeRunButtonState = useCallback(() => {
-    if (canvasNodes.length === 0) {
-      return { runButtonText: '运行', runExplanation: '', hasStaleNodes: false, suggestedRange: [] };
-    }
-    const staleNodes = canvasNodes.filter(n => n.data?.status === 'stale');
-    const hasStale = staleNodes.length > 0;
-    if (selectedNode) {
-      const currentVer = selectedNode.data?.currentVersion || 1;
-      const baseVer = selectedNode.data?.baseVersion;
-      if (baseVer && currentVer > baseVer) {
-        const downstreamNames = downstreamNodes.map(n => n.name).join(' → ');
-        return {
-          runButtonText: '从当前节点重新运行',
-          runExplanation: `建议运行范围：${selectedNode.name} → ${downstreamNames || '无下游节点'}\n原因：${selectedNode.name}已从v${baseVer}修订为v${currentVer}`,
-          hasStaleNodes: hasStale,
-          suggestedRange: downstreamNodes.map(n => n.id)
-        };
-      }
-    }
-    if (hasStale) {
-      const staleNames = staleNodes.map(n => n.name).join('、');
-      return {
-        runButtonText: '继续运行受影响节点',
-        runExplanation: `建议运行范围：${staleNames}\n原因：依赖节点已修改，这些节点需要更新`,
-        hasStaleNodes: true,
-        suggestedRange: staleNodes.map(n => n.id)
-      };
-    }
-    const firstNodeName = canvasNodes[0]?.name || '首节点';
-    const lastNodeName = canvasNodes[canvasNodes.length - 1]?.name || '末节点';
-    return {
-      runButtonText: '从头运行',
-      runExplanation: `建议运行范围：${firstNodeName} → ${lastNodeName}\n原因：首次运行整个流程`,
-      hasStaleNodes: false,
-      suggestedRange: canvasNodes.map(n => n.id)
-    };
-  }, [canvasNodes, canvasConnections, selectedNode]);
-
-  const handleRun = (runType = 'restart') => {
-    uiLogger.debug('[App] Running workflow with type:', runType);
-  };
+  const { actualLeftWidth, centerWidth } = getActualWidths();
 
   const handleRerunFromNode = (nodeId) => {
     uiLogger.debug('[App] Rerun from node:', nodeId);
@@ -1075,28 +827,6 @@ function App() {
     if (downstreamNodes.length > 0) {
       setSelectedNodeId(downstreamNodes[0].id);
     }
-  };
-
-  const handleViewImpact = () => {
-    if (selectedNode) {
-      handleViewFullImpact(selectedNode.id);
-    } else {
-      alert('请先选择一个节点');
-    }
-  };
-
-  const handleModeChange = (mode) => {
-    setProjectMode(mode);
-  };
-
-  // 资产抽屉
-  const handleOpenAssetDrawer = () => {
-    setAssetDrawerOpen(true);
-  };
-
-  const handleLocateNode = (nodeId) => {
-    uiLogger.debug('[App] Locate node:', nodeId);
-    setAssetDrawerOpen(false);
   };
 
   // 版本恢复
@@ -1182,11 +912,6 @@ function App() {
     }
   };
 
-  const handleExport = () => {
-    uiLogger.debug('[App] Export project');
-    alert('导出功能开发中...');
-  };
-
   // ============================================================================
   // 渲染
   // ============================================================================
@@ -1217,7 +942,7 @@ function App() {
           {/* 主内容区 */}
           <main
             ref={containerRef}
-            className={`workspace-main ${isCanvasFullscreen ? 'canvas-fullscreen' : ''} ${isDraggingLeft || isDraggingRight ? 'dragging' : ''}`}
+            className={`workspace-main ${isCanvasFullscreen ? 'canvas-fullscreen' : ''} ${isDraggingLeft ? 'dragging' : ''}`}
           >
             {/* 左侧面板 - 仅对话层和节点层显示 */}
             {currentLayer !== 'storyboard' && (
@@ -1269,24 +994,20 @@ function App() {
             {/* 中间区域 - 根据 currentLayer 切换 */}
             <section
               className="panel-center"
-              style={{ flex: `1 1 ${currentLayer === 'storyboard' ? 100 : centerWidth}vw` }}
+              style={{ flex: currentLayer === 'storyboard' ? '1' : `1 1 ${centerWidth}vw` }}
             >
               <AnimatePresence mode="wait">
-                {/* P0 新增：故事板层 */}
+                {/* PRD 2.0: 故事板主界面 */}
                 {currentLayer === 'storyboard' && (
                   <motion.div
-                    key="storyboard-view"
+                    key="storyboard-main-view"
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -20 }}
                     transition={{ duration: 0.3, ease: 'easeInOut' }}
-                    style={{ height: '100%' }}
+                    style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}
                   >
-                    <StoryboardView
-                      selectedShotId={selectedShotId}
-                      onShotSelect={handleShotSelect}
-                      onConversationAdjust={handleConversationAdjust}
-                    />
+                    <StoryboardMainView />
                   </motion.div>
                 )}
 
@@ -1298,7 +1019,7 @@ function App() {
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -20 }}
                     transition={{ duration: 0.3, ease: 'easeInOut' }}
-                    style={{ height: '100%' }}
+                    style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}
                   >
                     <NodeCanvas
                       key={canvasKey}
@@ -1306,8 +1027,6 @@ function App() {
                       onToggleFullscreen={() => useUIStore.getState().toggleCanvasFullscreen()}
                       projectId={currentProjectId}
                       projectVersion={currentVersion?.version}
-                      projectMode={projectMode}
-                      onModeChange={handleModeChange}
                       runButtonText={isDemoMode ? 'Demo模式不可运行' : runButtonText}
                       runExplanation={isDemoMode ? 'Demo模式为只读展示' : runExplanation}
                       hasStaleNodes={hasStaleNodes}
@@ -1642,100 +1361,90 @@ function App() {
               </AnimatePresence>
             </section>
 
-            {/* 右侧面板 - 仅节点层显示 */}
-            {currentLayer === 'node' && !isCanvasFullscreen && !rightCollapsed && (
-              <div
-                className="resizer right-resizer"
-                onMouseDown={startDragRight}
-              />
-            )}
-
-            {currentLayer === 'node' && rightCollapsed && !isCanvasFullscreen && (
-              <button
-                className="floating-toggle right"
-                onClick={toggleRightCollapse}
-                title="展开右侧面板"
+            {/* 节点工作区浮层 */}
+            {currentLayer === 'node' && rightPanelVisible && selectedNode && !isCanvasFullscreen && (
+              <motion.div
+                className="node-workspace-overlay"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                transition={{ duration: 0.2 }}
               >
-                <PanelRight size={18} />
-              </button>
-            )}
-
-            {/* 右侧面板 */}
-            {currentLayer === 'node' && (
-              <AnimatePresence mode="wait">
-                {rightPanelVisible && selectedNode && (
-                  <motion.aside
-                    key="node-workspace"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 20 }}
-                    transition={{ duration: 0.3, ease: 'easeInOut' }}
-                    className={`panel-right ${rightCollapsed ? 'collapsed' : ''} ${isCanvasFullscreen ? 'hidden' : ''}`}
-                    style={{ flex: `0 0 ${actualRightWidth}vw` }}
-                  >
-                    <button
-                      className="collapse-btn right"
-                      onClick={() => setRightPanelVisible(false)}
-                      title="收起"
-                    >
-                      <ChevronRight size={16} />
-                    </button>
-                    <div className="panel-content">
-                      <NodeWorkspace
-                        selectedNode={selectedNode}
-                        projectId={currentProjectId}
-                        onNodeUpdate={(nodeId, data) => {
-                          const { updateNodeData } = useWorkflowStore.getState();
-                          updateNodeData(nodeId, data);
-                        }}
-                        onGenerateVideo={(nodeId, promptIdx) => {
-                          const event = new CustomEvent('generateVideo', {
-                            detail: { sourceNodeId: nodeId, count: 0, promptId: promptIdx },
-                            bubbles: true
-                          });
-                          document.dispatchEvent(event);
-                        }}
-                        onApplyProposal={handleApplyProposal}
-                        onRegenerateProposal={handleRegenerateProposal}
-                        onRejectProposal={handleRejectProposal}
-                        onRerunFromNode={handleRerunFromNode}
-                        onViewFullImpact={handleViewFullImpact}
-                        onRestoreVersion={handleRestoreVersion}
-                        downstreamNodes={downstreamNodes}
-                        upstreamNodes={upstreamNodes}
-                      />
-                    </div>
-                  </motion.aside>
-                )}
-              </AnimatePresence>
+                <button
+                  className="node-workspace-close"
+                  onClick={() => setRightPanelVisible(false)}
+                  title="关闭"
+                >
+                  <ChevronRight size={16} />
+                </button>
+                <NodeWorkspace
+                  selectedNode={selectedNode}
+                  projectId={currentProjectId}
+                  onNodeUpdate={(nodeId, data) => {
+                    const { updateNodeData } = useWorkflowStore.getState();
+                    updateNodeData(nodeId, data);
+                  }}
+                  onGenerateVideo={(nodeId, promptIdx) => {
+                    const event = new CustomEvent('generateVideo', {
+                      detail: { sourceNodeId: nodeId, count: 0, promptId: promptIdx },
+                      bubbles: true
+                    });
+                    document.dispatchEvent(event);
+                  }}
+                  onApplyProposal={handleApplyProposal}
+                  onRegenerateProposal={handleRegenerateProposal}
+                  onRejectProposal={handleRejectProposal}
+                  onRerunFromNode={handleRerunFromNode}
+                  onViewFullImpact={handleViewFullImpact}
+                  onRestoreVersion={handleRestoreVersion}
+                  downstreamNodes={downstreamNodes}
+                  upstreamNodes={upstreamNodes}
+                />
+              </motion.div>
             )}
           </main>
 
-          {/* 资产抽屉 */}
-          <AssetDrawer
-            isOpen={assetDrawerOpen}
-            onClose={() => setAssetDrawerOpen(false)}
-            projectId={currentProjectId}
-            nodes={canvasNodes}
-            onLocateNode={handleLocateNode}
-            onRestoreVersion={handleRestoreVersion}
-          />
-
-          {/* P5: 资产库侧边栏 - 可收起，直接集成在编辑区旁边 */}
-          {(currentLayer === 'storyboard' || currentLayer === 'conversation') && (
-            <AssetLibrary
-              isOpen={assetLibraryOpen}
-              onClose={() => setAssetLibraryOpen(false)}
-              title="资产库"
-              width={320}
-              currentEditingContext={selectedShotId ? `镜头${selectedShotId.replace('shot-', '')}` : null}
-              onAssetSelect={(asset) => {
-                console.log('[App] 资产选中:', asset);
-              }}
-              onAssetDrag={(asset) => {
-                console.log('[App] 资产拖拽:', asset);
-              }}
-            />
+          {/* 资产库浮层 */}
+          {assetLibraryOpen && (
+            <>
+              <motion.div
+                className="asset-library-overlay"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setAssetLibraryOpen(false)}
+              />
+              <AssetLibrary
+                isOpen={assetLibraryOpen}
+                onClose={() => setAssetLibraryOpen(false)}
+                title="资产库"
+                currentEditingContext={selectedShotId ? `镜头${selectedShotId.replace('shot-', '')}` : null}
+                onAssetSelect={(asset) => {
+                  console.log('[App] 资产选中:', asset);
+                }}
+                onAssetDrag={(asset) => {
+                  console.log('[App] 资产拖拽:', asset);
+                }}
+                onJump={(layer, id) => {
+                  console.log('[App] 跳转:', layer, id);
+                  // 关闭资产库
+                  setAssetLibraryOpen(false);
+                  // 根据层级跳转
+                  if (layer === 'conversation') {
+                    setCurrentLayer('conversation');
+                    setFocusedEntity({ type: 'conversation', id });
+                  } else if (layer === 'storyboard') {
+                    setCurrentLayer('storyboard');
+                    setFocusedEntity({ type: 'storyboard', id });
+                  } else if (layer === 'workflow') {
+                    // 工作流：先显示概览，这里暂时直接跳到节点层
+                    // TODO: 实现工作流概览浮层
+                    setCurrentLayer('node');
+                    setFocusedEntity({ type: 'workflow', id });
+                  }
+                }}
+              />
+            </>
           )}
 
           {/* 模态框 */}
@@ -1775,6 +1484,19 @@ function App() {
         message={smartSuggestionMessage || '检测到多次调整，是否切换到故事板批量处理？'}
         onOpenStoryboard={handleOpenStoryboardFromSuggestion}
         onDismiss={() => setShowSmartSuggestion(false)}
+      />
+
+      {/* PRD 2.0: 悬浮助手 */}
+      <FloatingAssistantButton
+        onClick={() => setFloatingAssistantOpen(true)}
+      />
+      <FloatingAssistantDrawer
+        isOpen={floatingAssistantOpen}
+        onClose={() => setFloatingAssistantOpen(false)}
+        onMinimize={() => setFloatingAssistantOpen(false)}
+        ref={chatRef}
+        messages={sharedMessages}
+        onMessagesChange={setSharedMessages}
       />
     </div>
   );

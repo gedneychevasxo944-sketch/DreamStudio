@@ -1,0 +1,189 @@
+.asset-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-tertiary, #252538);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  border-radius: 10px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.asset-card:hover {
+  border-color: var(--border-medium, rgba(255, 255, 255, 0.15));
+}
+
+.asset-card.selected {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+}
+
+/* 缩略图区域 */
+.asset-preview {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  background: var(--bg-secondary, #1a1a2e);
+  overflow: hidden;
+}
+
+.asset-thumbnail {
+  width: 100%;
+  height: 100%;
+}
+
+.asset-thumbnail img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.asset-thumbnail.placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #2a2a3e 0%, #1a1a2e 100%);
+}
+
+.placeholder-icon {
+  font-size: 32px;
+  opacity: 0.5;
+}
+
+/* 视频指示器 */
+.video-indicator {
+  position: absolute;
+  bottom: 6px;
+  left: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: rgba(0, 0, 0, 0.7);
+  border-radius: 50%;
+  color: #ffffff;
+}
+
+/* 选中态遮罩 */
+.selected-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(59, 130, 246, 0.3);
+}
+
+.selected-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: #3b82f6;
+  border-radius: 50%;
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: bold;
+}
+
+/* 状态徽章 */
+.status-badge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.status-modified {
+  background: rgba(234, 179, 8, 0.9);
+  color: #000;
+}
+
+.status-running {
+  background: rgba(59, 130, 246, 0.9);
+  color: #ffffff;
+}
+
+.status-error {
+  background: rgba(239, 68, 68, 0.9);
+  color: #ffffff;
+}
+
+.pulse-dot {
+  width: 6px;
+  height: 6px;
+  background: #ffffff;
+  border-radius: 50%;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.8);
+  }
+}
+
+/* 菜单按钮 */
+.menu-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: rgba(0, 0, 0, 0.5);
+  border: none;
+  border-radius: 4px;
+  color: #ffffff;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.asset-card:hover .menu-btn {
+  opacity: 1;
+}
+
+.menu-btn:hover {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+/* 资产信息 */
+.asset-info {
+  padding: 10px 12px;
+}
+
+.asset-name {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary, #ffffff);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.asset-description {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-secondary, #8b8b9e);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

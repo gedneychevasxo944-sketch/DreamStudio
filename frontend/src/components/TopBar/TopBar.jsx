@@ -108,7 +108,7 @@ const TopBar = ({
         {focusedEntity && (
           <div className="focus-indicator">
             <span className="focus-label">当前焦点：</span>
-            <span className="focus-value">{focusedEntity}</span>
+            <span className="focus-value">{focusedEntity.type} {focusedEntity.id}</span>
           </div>
         )}
 

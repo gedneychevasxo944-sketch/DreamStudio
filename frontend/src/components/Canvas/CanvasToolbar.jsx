@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Play, Loader2, Save, Trash2, Maximize2, Minimize2, ChevronDown, AlertCircle } from 'lucide-react';
 import PipelineTemplates from '../NodeCanvas/PipelineTemplates';
 
@@ -10,16 +10,12 @@ const CanvasToolbar = ({
   isFullscreen,
   templates,
   loadingAgents,
-  showLibrary,
   onToggleLibrary,
   onRun,
   onSaveTemplate,
   onClearCanvas,
   onToggleFullscreen,
   onLoadTemplate,
-  // 新增：模式和运行相关
-  projectMode = 'factory',
-  onModeChange,
   runButtonText = '运行',
   runExplanation = '',
   hasStaleNodes = false,
@@ -75,28 +71,8 @@ const CanvasToolbar = ({
 
   return (
     <div className="canvas-toolbar">
-      {/* 左侧：模式切换 */}
+      {/* 左侧：添加智能体 */}
       <div className="toolbar-left">
-        <div className="mode-switcher-inline">
-          <span className="mode-label">模式</span>
-          <div className="mode-tabs-inline">
-            <button
-              className={`mode-tab-inline ${projectMode === 'factory' ? 'active' : ''}`}
-              onClick={() => onModeChange?.('factory')}
-            >
-              <span className="mode-dot"></span>
-              工厂
-            </button>
-            <button
-              className={`mode-tab-inline ${projectMode === 'director' ? 'active' : ''}`}
-              onClick={() => onModeChange?.('director')}
-            >
-              <span className="mode-dot"></span>
-              导演
-            </button>
-          </div>
-        </div>
-
         <button
           className="toolbar-btn"
           onClick={onToggleLibrary}

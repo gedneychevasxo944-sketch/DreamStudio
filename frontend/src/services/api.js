@@ -766,28 +766,6 @@ export const nodeVersionApi = {
 };
 
 /**
- * 资产 API
- */
-export const assetApi = {
-  // 获取节点资产
-  getNodeAssets: (projectId, nodeId, currentOnly = false) => {
-    return request(`/v1/projects/${projectId}/nodes/${nodeId}/assets?currentOnly=${currentOnly}`);
-  },
-
-  // 获取项目全部资产
-  getProjectAssets: (projectId, currentOnly = false) => {
-    return request(`/v1/projects/${projectId}/assets?currentOnly=${currentOnly}`);
-  },
-
-  // 激活资产
-  activateAsset: (projectId, assetId) => {
-    return request(`/v1/projects/${projectId}/assets/${assetId}/activate`, {
-      method: 'POST',
-    });
-  },
-};
-
-/**
  * 提案 API
  */
 export const proposalApi = {
@@ -830,6 +808,5 @@ export default {
   workflowApi,
   teamApi,
   nodeVersionApi,
-  assetApi,
   proposalApi,
 };

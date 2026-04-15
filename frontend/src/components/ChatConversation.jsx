@@ -438,7 +438,6 @@ const ChatConversation = forwardRef(({
   onRejectProposal,
   onDrillDown,
   inputMode = 'textarea',
-  disableAutoScroll = false
 }, ref) => {
   const [inputValue, setInputValue] = useState('');
   const [modalMessage, setModalMessage] = useState(null);
@@ -614,7 +613,6 @@ const ChatConversation = forwardRef(({
 
   useEffect(() => {
     effectGenerationRef.current += 1;
-    const currentGeneration = effectGenerationRef.current;
 
     return () => {
       // StrictMode 下 cleanup 先于 remount 运行，不关闭 SSE

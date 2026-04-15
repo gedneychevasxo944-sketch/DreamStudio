@@ -1,13 +1,14 @@
 .app-container {
-  min-height: 100vh;
+  height: 100vh;
   width: 100%;
+  overflow: hidden;
   background: var(--bg-primary);
 }
 
 .workspace {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100%;
   overflow: hidden;
 }
 
@@ -511,28 +512,34 @@
   display: flex;
   flex: 1;
   overflow: hidden;
+  min-height: 0;
+  align-items: stretch;
 }
 
 .panel-left,
 .panel-center,
 .panel-right {
-  height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
   transition: flex 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
 .panel-left {
+  width: 320px;
   border-right: 1px solid var(--glass-border);
   background: var(--bg-secondary);
   position: relative;
-  display: flex;
-  flex-direction: column;
+  flex-shrink: 0;
 }
 
 .panel-center {
   background: var(--bg-primary);
   position: relative;
+  flex: 1;
+  min-width: 0;
 }
 
 .panel-right {
@@ -701,6 +708,44 @@
 .workspace-main.dragging .panel-right,
 .workspace-main.dragging .panel-center {
   transition: none;
+}
+
+/* 节点工作区浮层 */
+.node-workspace-overlay {
+  position: fixed;
+  right: 0;
+  top: 115px;
+  bottom: 0;
+  width: 420px;
+  background: var(--bg-secondary);
+  border-left: 1px solid var(--glass-border);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.3);
+}
+
+.node-workspace-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  z-index: 101;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.node-workspace-close:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
 }
 
 /* 新建项目确认弹窗 */
@@ -938,4 +983,12 @@ div:hover > .preview-reference-btn {
 /* 预览区图片hover时显示全屏按钮 */
 div:hover > .preview-fullscreen-btn {
   opacity: 1;
+}
+
+/* 资产库遮罩层 */
+.asset-library-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 9998;
 }

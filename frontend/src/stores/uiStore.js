@@ -34,6 +34,9 @@ export const useUIStore = create((set, get) => ({
   // P5: 右侧预览面板状态
   rightPreviewVisible: true,  // 对话层右侧预览面板显示状态
 
+  // 悬浮助手状态
+  floatingAssistantOpen: false,
+
   // Actions - 视图
   setCurrentView: (view) => set({ currentView: view }),
 
@@ -82,6 +85,11 @@ export const useUIStore = create((set, get) => ({
   setRightPreviewVisible: (visible) => set({ rightPreviewVisible: visible }),
 
   toggleRightPreview: () => set((state) => ({ rightPreviewVisible: !state.rightPreviewVisible })),
+
+  // Actions - 悬浮助手
+  setFloatingAssistantOpen: (open) => set({ floatingAssistantOpen: open }),
+
+  toggleFloatingAssistant: () => set((state) => ({ floatingAssistantOpen: !state.floatingAssistantOpen })),
 
   // 打开删除确认
   openDeleteConfirm: (version) => set({ showDeleteConfirm: true, versionToDelete: version }),

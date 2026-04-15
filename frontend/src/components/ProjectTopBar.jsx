@@ -16,7 +16,7 @@ const ProjectTopBar = ({
   onVersionSelect,
   onVersionDelete,
   onToggleVersionDropdown,
-  onOpenAssetDrawer, // 新增：打开资产抽屉
+  onOpenAssetLibrary, // 打开资产库
   onExport,
   onOpenSettings,
   // 项目名称编辑
@@ -145,7 +145,7 @@ const ProjectTopBar = ({
             <Package size={14} />
             <span>监控台</span>
           </button>
-          <button className="nav-btn" onClick={onOpenAssetDrawer}>
+          <button className="nav-btn" onClick={onOpenAssetLibrary}>
             <Archive size={14} />
             <span>资产库</span>
           </button>
@@ -182,7 +182,7 @@ const ProjectTopBar = ({
         {/* 资产按钮 - 触发资产抽屉 */}
         <button
           className="header-action-btn asset-btn"
-          onClick={onOpenAssetDrawer}
+          onClick={onOpenAssetLibrary}
           title="打开资产库"
         >
           <Archive size={16} />

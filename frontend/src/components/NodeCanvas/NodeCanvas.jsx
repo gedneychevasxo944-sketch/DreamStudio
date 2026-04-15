@@ -24,9 +24,6 @@ const NodeCanvas = ({
   onToggleFullscreen,
   projectId,
   projectVersion,
-  // 模式和运行相关 props
-  projectMode = 'factory',
-  onModeChange,
   runButtonText = '运行',
   runExplanation = '',
   hasStaleNodes = false,
@@ -1086,9 +1083,6 @@ const NodeCanvas = ({
           onClearCanvas={!isDemoMode ? handleClearCanvas : () => {}}
           onToggleFullscreen={onToggleFullscreen}
           onLoadTemplate={!isDemoMode ? loadTemplate : () => {}}
-          // 新增 props
-          projectMode={projectMode}
-          onModeChange={!isDemoMode ? onModeChange : () => {}}
           runButtonText={runButtonText}
           runExplanation={runExplanation}
           hasStaleNodes={hasStaleNodes}

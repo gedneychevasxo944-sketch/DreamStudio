@@ -1,0 +1,130 @@
+.stage-navigation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  height: 48px;
+  background: var(--bg-panel, #1a1a2e);
+  border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+}
+
+.stage-tabs {
+  display: flex;
+  gap: 4px;
+  height: 100%;
+}
+
+.stage-tab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px;
+  height: 100%;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary, #8b8b9e);
+  font-size: 13px;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.stage-tab:hover {
+  color: var(--text-primary, #ffffff);
+}
+
+.stage-tab.active {
+  color: var(--text-primary, #ffffff);
+}
+
+.stage-tab.completed .stage-indicator {
+  color: #22c55e;
+}
+
+.stage-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  font-size: 11px;
+}
+
+.stage-number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  background: var(--bg-tertiary, rgba(255, 255, 255, 0.08));
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.active-dot {
+  width: 8px;
+  height: 8px;
+  background: #3b82f6;
+  border-radius: 50%;
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.6);
+}
+
+.check-icon {
+  color: #22c55e;
+}
+
+.stage-label {
+  font-weight: 500;
+}
+
+.stage-underline {
+  position: absolute;
+  bottom: 0;
+  left: 8px;
+  right: 8px;
+  height: 2px;
+  background: #3b82f6;
+  border-radius: 1px;
+}
+
+/* AI 生成按钮 */
+.stage-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.ai-generate-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  border-radius: 6px;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ai-generate-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.ai-icon {
+  font-size: 14px;
+}
+
+/* 响应式：小屏幕时隐藏文字只显示图标 */
+@media (max-width: 1200px) {
+  .stage-label {
+    display: none;
+  }
+
+  .stage-tab {
+    padding: 0 10px;
+  }
+}
