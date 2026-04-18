@@ -1,8 +1,8 @@
 import { useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Sparkles } from 'lucide-react';
+import { Plus, Sparkles, Upload } from 'lucide-react';
 import AssetCard from './AssetCard';
-import { useStageStore, STAGE_CONFIG } from '../../stores/stageStore';
+import { useStageStore, STAGE_CONFIG, STAGES } from '../../stores/stageStore';
 import './AssetGrid.css';
 
 /**
@@ -15,6 +15,8 @@ import './AssetGrid.css';
  * - onSelect: (asset) => void - 选择回调
  * - onContextMenu: (e, asset) => void - 右键菜单回调
  * - onAddNew: () => void - 添加新资产回调
+ * - onUpload: () => void - 上传资产回调
+ * - onBatchGenerate: () => void - 批量生成回调
  */
 const AssetGrid = ({
   assets = [],
@@ -23,7 +25,11 @@ const AssetGrid = ({
   onSelect,
   onContextMenu,
   onAddNew,
+  onUpload,
+  onBatchGenerate,
 }) => {
+  // 根据阶段确定上传按钮可见性
+  const showUpload = stage && [STAGES.CHARACTER, STAGES.SCENE, STAGES.PROP].includes(stage);
   const config = STAGE_CONFIG[stage];
 
   // 处理资产选择
@@ -96,10 +102,18 @@ const AssetGrid = ({
             {assets.length} 个{config?.label || '资产'}
           </span>
         </div>
-        <button className="header-action-btn">
-          <Sparkles size={14} />
-          <span>AI 批量生成</span>
-        </button>
+        <div className="header-actions">
+          {showUpload && onUpload && (
+            <button className="header-action-btn" onClick={onUpload}>
+              <Upload size={14} />
+              <span>上传</span>
+            </button>
+          )}
+          <button className="header-action-btn" onClick={onBatchGenerate}>
+            <Sparkles size={14} />
+            <span>AI 批量生成</span>
+          </button>
+        </div>
       </div>
 
       {/* 网格内容 */}

@@ -1,0 +1,60 @@
+/* DreamStudio 2.0 - 深色主题 (Night Theme) */
+
+[data-theme="night"] {
+  /* 背景渐变 */
+  --gradient-bg: linear-gradient(180deg, #0F0F12 0%, #18181B 100%);
+
+  /* 玻璃效果 */
+  --glass-bg: rgba(26, 26, 31, 0.85);
+  --glass-border: rgba(255, 255, 255, 0.1);
+
+  /* 导航栏 */
+  --navbar-bg: rgba(26, 26, 31, 0.9);
+  --navbar-border: #3F3F46;
+
+  /* 卡片 */
+  --card-bg: #1A1A1F;
+  --card-border: #3F3F46;
+
+  /* 输入框 */
+  --input-bg: #1A1A1F;
+  --input-border: #3F3F46;
+  --input-focus: #818CF8;
+
+  /* 按钮主色 */
+  --btn-primary-bg: #818CF8;
+  --btn-primary-text: #0F0F12;
+  --btn-primary-hover: #6366F1;
+
+  /* 按钮次色 */
+  --btn-secondary-bg: transparent;
+  --btn-secondary-border: #3F3F46;
+  --btn-secondary-text: #FAFAFA;
+  --btn-secondary-hover: #27272A;
+
+  /* 浮窗 */
+  --floating-bg: #1A1A1F;
+  --floating-border: #3F3F46;
+  --floating-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+
+  /* 对话框遮罩 */
+  --modal-backdrop: rgba(0, 0, 0, 0.7);
+
+  /* 滚动条 */
+  --scrollbar-track: #27272A;
+  --scrollbar-thumb: #52525B;
+  --scrollbar-thumb-hover: #71717A;
+
+  /* 选中态 */
+  --selection-bg: rgba(129, 140, 248, 0.3);
+
+  /* 禁用态 */
+  --disabled-bg: #27272A;
+  --disabled-text: #71717A;
+}
+
+/* 深色主题下 body 样式 */
+[data-theme="night"] {
+  background-color: #0F0F12;
+  color: #FAFAFA;
+}

@@ -50,7 +50,7 @@ const AssetDetailPanel = ({
     case STAGES.STORYBOARD:
       return <StoryboardEditor asset={asset} onUpdate={onUpdate} onDelete={onDelete} onGenerate={onGenerate} />;
     case STAGES.VIDEO:
-      return <VideoEditor asset={asset} onUpdate={onUpdate} />;
+      return <VideoEditor asset={asset} onUpdate={onUpdate} onGenerate={onGenerate} />;
     default:
       return <DefaultEditor asset={asset} />;
   }
@@ -920,7 +920,7 @@ const StoryboardEditor = ({ asset, onUpdate, onDelete, onGenerate }) => {
 };
 
 // ============ 视频编辑器 ============
-const VideoEditor = ({ asset, onUpdate }) => {
+const VideoEditor = ({ asset, onUpdate, onGenerate }) => {
   return (
     <div className="detail-panel-content video-editor">
       <div className="panel-header">
@@ -941,7 +941,7 @@ const VideoEditor = ({ asset, onUpdate }) => {
             <div className="video-placeholder">
               <Film size={64} />
               <p>暂无视频</p>
-              <button className="btn-primary">
+              <button className="btn-primary" onClick={onGenerate}>
                 <Play size={14} />
                 生成视频
               </button>

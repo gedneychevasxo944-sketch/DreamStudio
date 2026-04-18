@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { createPortal } from 'react-dom';
 import ReactMarkdown from 'react-markdown';
-import { Send, Bot, User, Copy, X, ExternalLink, Check, Sparkles, ChevronUp, ChevronDown, ZoomIn, GitBranch, Plus, ArrowRight, Trash2 } from 'lucide-react';
+import { Send, Bot, User, Copy, X, ExternalLink, Check, Sparkles, ChevronUp, ChevronDown, ZoomIn, GitBranch, Plus, ArrowRight, Trash2, Upload } from 'lucide-react';
 import { chatApi } from '../services/api';
 import { formatTimestamp } from '../utils/dateUtils';
 import { chatLogger } from '../utils/logger';
@@ -446,6 +446,8 @@ const ChatConversation = forwardRef(({
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
   const sseConnectionRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const [attachments, setAttachments] = useState([]);
   const [internalMessages, setInternalMessages] = useState([]);
   const hasExternalMessages = typeof onMessagesChange === 'function';
   const effectiveMessages = hasExternalMessages ? messages : internalMessages;
@@ -463,6 +465,43 @@ const ChatConversation = forwardRef(({
 
   const showToast = useCallback((message) => {
     setToast(message);
+  }, []);
+
+  // T061: 处理文件上传
+  const handleFileSelect = useCallback((e) => {
+    const files = Array.from(e.target.files);
+    if (files.length === 0) return;
+
+    // 限制文件类型和大小
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/webm', 'text/plain', 'application/pdf'];
+
+    const validFiles = files.filter(file => {
+      if (file.size > maxSize) {
+        showToast(`${file.name} 超过 10MB 限制`);
+        return false;
+      }
+      if (!allowedTypes.includes(file.type)) {
+        showToast(`${file.name} 文件类型不支持`);
+        return false;
+      }
+      return true;
+    });
+
+    if (validFiles.length > 0) {
+      setAttachments(prev => [...prev, ...validFiles]);
+      showToast(`已添加 ${validFiles.length} 个附件`);
+    }
+
+    // 清空 input 以允许重复选择同一文件
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  }, [showToast]);
+
+  // T061: 移除附件
+  const handleRemoveAttachment = useCallback((index) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index));
   }, []);
 
   const sendChatMessage = useCallback((messageContent) => {
@@ -662,7 +701,40 @@ const ChatConversation = forwardRef(({
       </div>
 
       <div className="cc-input-area">
+        {/* T061: 附件展示 */}
+        {attachments.length > 0 && (
+          <div className="cc-attachments">
+            {attachments.map((file, index) => (
+              <div key={index} className="cc-attachment-item">
+                <span className="cc-attachment-name">{file.name}</span>
+                <button
+                  className="cc-attachment-remove"
+                  onClick={() => handleRemoveAttachment(index)}
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="cc-input-wrapper">
+          {/* T061: 文件上传按钮 */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileSelect}
+            accept="image/*,video/*,text/plain,application/pdf"
+            multiple
+            style={{ display: 'none' }}
+          />
+          <button
+            className="cc-upload-btn"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={!isEditable}
+            title="添加附件"
+          >
+            <Upload size={16} />
+          </button>
           {inputMode === 'textarea' ? (
             <textarea
               className="cc-input"

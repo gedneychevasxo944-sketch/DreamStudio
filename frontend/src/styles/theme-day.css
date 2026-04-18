@@ -1,0 +1,60 @@
+/* DreamStudio 2.0 - 浅色主题 (Day Theme) */
+
+[data-theme="day"] {
+  /* 背景渐变 */
+  --gradient-bg: linear-gradient(180deg, #FAFAFA 0%, #F4F4F5 100%);
+
+  /* 玻璃效果 */
+  --glass-bg: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(255, 255, 255, 0.3);
+
+  /* 导航栏 */
+  --navbar-bg: rgba(255, 255, 255, 0.9);
+  --navbar-border: #E4E4E7;
+
+  /* 卡片 */
+  --card-bg: #FFFFFF;
+  --card-border: #E4E4E7;
+
+  /* 输入框 */
+  --input-bg: #FFFFFF;
+  --input-border: #E4E4E7;
+  --input-focus: #6366F1;
+
+  /* 按钮主色 */
+  --btn-primary-bg: #6366F1;
+  --btn-primary-text: #FFFFFF;
+  --btn-primary-hover: #4F46E5;
+
+  /* 按钮次色 */
+  --btn-secondary-bg: transparent;
+  --btn-secondary-border: #E4E4E7;
+  --btn-secondary-text: #18181B;
+  --btn-secondary-hover: #F4F4F5;
+
+  /* 浮窗 */
+  --floating-bg: #FFFFFF;
+  --floating-border: #E4E4E7;
+  --floating-shadow: 0 10px 40px rgba(0, 0, 0, 0.12);
+
+  /* 对话框遮罩 */
+  --modal-backdrop: rgba(0, 0, 0, 0.5);
+
+  /* 滚动条 */
+  --scrollbar-track: #F4F4F5;
+  --scrollbar-thumb: #D4D4D8;
+  --scrollbar-thumb-hover: #A1A1AA;
+
+  /* 选中态 */
+  --selection-bg: rgba(99, 102, 241, 0.2);
+
+  /* 禁用态 */
+  --disabled-bg: #F4F4F5;
+  --disabled-text: #A1A1AA;
+}
+
+/* 确保浅色主题默认生效 */
+:root {
+  background-color: #FAFAFA;
+  color: #18181B;
+}

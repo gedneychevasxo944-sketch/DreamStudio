@@ -1,0 +1,191 @@
+/* DreamStudio 2.0 CSS Variables - 主题变量系统 */
+
+:root {
+  /* 主题模式 - 默认为浅色 */
+  --theme-mode: 'day';
+
+  /* ========== 色彩系统 ========== */
+
+  /* 主色 */
+  --color-primary: #6366F1;
+  --color-primary-hover: #4F46E5;
+  --color-primary-light: #818CF8;
+
+  /* 辅助色 */
+  --color-secondary: #8B5CF6;
+  --color-secondary-hover: #7C3AED;
+
+  /* 强调色 */
+  --color-accent: #06B6D4;
+  --color-accent-hover: #0891B2;
+
+  /* 语义色 */
+  --color-success: #10B981;
+  --color-warning: #F59E0B;
+  --color-error: #EF4444;
+
+  /* ========== 表面色 ========== */
+
+  /* 背景色 */
+  --color-bg: #FAFAFA;
+  --color-bg-secondary: #F4F4F5;
+
+  /* 卡片/面板 */
+  --color-surface: #FFFFFF;
+  --color-surface-hover: #F4F4F5;
+
+  /* 边框 */
+  --color-border: #E4E4E7;
+  --color-border-light: #F4F4F5;
+
+  /* 分隔线 */
+  --color-divider: #F4F4F5;
+
+  /* ========== 文字色 ========== */
+
+  --color-text-primary: #18181B;
+  --color-text-secondary: #71717A;
+  --color-text-placeholder: #A1A1AA;
+  --color-text-disabled: #D4D4D8;
+
+  /* ========== 阶段颜色 ========== */
+
+  --color-stage-script: #3B82F6;
+  --color-stage-character: #EC4899;
+  --color-stage-scene: #10B981;
+  --color-stage-prop: #F59E0B;
+  --color-stage-storyboard: #8B5CF6;
+  --color-stage-video: #EF4444;
+
+  /* ========== 阴影 ========== */
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+  --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.1);
+  --shadow-glow: 0 0 20px rgba(99, 102, 241, 0.3);
+
+  /* ========== 圆角 ========== */
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 24px;
+  --radius-full: 9999px;
+
+  /* ========== 间距 ========== */
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* ========== 字体 ========== */
+
+  --font-family: 'Inter', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-family-mono: 'JetBrains Mono', monospace;
+
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-base: 14px;
+  --font-size-md: 15px;
+  --font-size-lg: 18px;
+  --font-size-xl: 22px;
+  --font-size-2xl: 28px;
+  --font-size-3xl: 36px;
+
+  --font-weight-light: 300;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  --line-height-tight: 1.2;
+  --line-height-snug: 1.3;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.6;
+  --line-height-loose: 1.75;
+
+  /* ========== 动画 ========== */
+
+  --duration-instant: 0ms;
+  --duration-fast: 100ms;
+  --duration-normal: 150ms;
+  --duration-slow: 200ms;
+  --duration-slower: 300ms;
+
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+
+  /* ========== 布局 ========== */
+
+  --navbar-height: 56px;
+  --sidebar-width: 240px;
+  --panel-width: 400px;
+
+  /* ========== z-index 层级 ========== */
+
+  --z-base: 0;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-fixed: 300;
+  --z-modal-backdrop: 400;
+  --z-modal: 500;
+  --z-popover: 600;
+  --z-tooltip: 700;
+  --z-floating: 800;
+}
+
+/* 深色主题 */
+[data-theme="night"] {
+  --color-primary: #818CF8;
+  --color-primary-hover: #6366F1;
+  --color-secondary: #A78BFA;
+  --color-secondary-hover: #8B5CF6;
+  --color-accent: #22D3EE;
+  --color-accent-hover: #06B6D4;
+
+  --color-success: #34D399;
+  --color-warning: #FBBF24;
+  --color-error: #F87171;
+
+  --color-bg: #0F0F12;
+  --color-bg-secondary: #18181B;
+
+  --color-surface: #1A1A1F;
+  --color-surface-hover: #27272A;
+
+  --color-border: #3F3F46;
+  --color-border-light: #27272A;
+
+  --color-divider: #27272A;
+
+  --color-text-primary: #FAFAFA;
+  --color-text-secondary: #A1A1AA;
+  --color-text-placeholder: #71717A;
+  --color-text-disabled: #52525B;
+
+  /* 深色主题阶段颜色 */
+  --color-stage-script: #60A5FA;
+  --color-stage-character: #F472B6;
+  --color-stage-scene: #34D399;
+  --color-stage-prop: #FBBF24;
+  --color-stage-storyboard: #A78BFA;
+  --color-stage-video: #F87171;
+
+  /* 深色主题阴影 */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.5);
+  --shadow-glow: 0 0 20px rgba(129, 140, 248, 0.3);
+}

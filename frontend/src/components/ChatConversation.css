@@ -414,6 +414,83 @@
   cursor: not-allowed;
 }
 
+/* T061: 上传按钮 */
+.cc-upload-btn {
+  position: absolute;
+  right: 44px;
+  bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--glass-border);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.cc-upload-btn:hover:not(:disabled) {
+  background: var(--bg-quaternary);
+  color: var(--text-primary);
+}
+
+.cc-upload-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* T061: 附件展示 */
+.cc-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 8px;
+  background: var(--bg-tertiary);
+  border-radius: 8px;
+  margin-bottom: 6px;
+}
+
+.cc-attachment-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background: var(--bg-quaternary);
+  border: 1px solid var(--glass-border);
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.cc-attachment-name {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cc-attachment-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.cc-attachment-remove:hover {
+  background: var(--danger);
+  color: white;
+}
+
 /* 弹窗 */
 .cc-modal-overlay {
   position: fixed;

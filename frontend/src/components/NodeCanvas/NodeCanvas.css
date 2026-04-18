@@ -132,6 +132,25 @@
   color: var(--accent-blue);
 }
 
+.toolbar-btn.storyboard-btn {
+  background: rgba(102, 126, 234, 0.15);
+  border-color: rgba(102, 126, 234, 0.3);
+  color: #667eea;
+}
+
+.toolbar-btn.storyboard-btn:hover {
+  background: rgba(102, 126, 234, 0.25);
+  border-color: rgba(102, 126, 234, 0.5);
+  color: #818cf8;
+}
+
+.toolbar-divider {
+  width: 1px;
+  height: 24px;
+  background: var(--border-subtle);
+  margin: 0 4px;
+}
+
 /* 模式切换器 */
 .mode-switcher-inline {
   display: flex;

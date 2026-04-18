@@ -23,6 +23,9 @@ export const EVENT_TYPES = {
   WORKFLOW_SYNCED: 'workflowSynced',
   WORKFLOW_MODIFIED: 'workflowModified',
 
+  // 模板更新通知 (T078)
+  TEMPLATE_UPDATED: 'templateUpdated',
+
   // 故事板更新
   STORYBOARD_UPDATED: 'storyboardUpdated',
 

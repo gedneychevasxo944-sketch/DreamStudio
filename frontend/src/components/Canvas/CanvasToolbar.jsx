@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Play, Loader2, Save, Trash2, Maximize2, Minimize2, ChevronDown, AlertCircle } from 'lucide-react';
+import { Plus, Play, Loader2, Save, Trash2, Maximize2, Minimize2, ChevronDown, AlertCircle, LayoutGrid } from 'lucide-react';
 import PipelineTemplates from '../NodeCanvas/PipelineTemplates';
 
 /**
@@ -16,6 +16,7 @@ const CanvasToolbar = ({
   onClearCanvas,
   onToggleFullscreen,
   onLoadTemplate,
+  onReturnToStoryboard,
   runButtonText = '运行',
   runExplanation = '',
   hasStaleNodes = false,
@@ -71,8 +72,17 @@ const CanvasToolbar = ({
 
   return (
     <div className="canvas-toolbar">
-      {/* 左侧：添加智能体 */}
+      {/* 左侧：添加智能体 + 返回故事板 */}
       <div className="toolbar-left">
+        <button
+          className="toolbar-btn storyboard-btn"
+          onClick={onReturnToStoryboard}
+          title="返回故事板"
+        >
+          <LayoutGrid size={16} />
+          <span>返回故事板</span>
+        </button>
+        <div className="toolbar-divider" />
         <button
           className="toolbar-btn"
           onClick={onToggleLibrary}

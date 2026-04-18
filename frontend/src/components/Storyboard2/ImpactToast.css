@@ -1,0 +1,120 @@
+/* ImpactToast - 资产修改影响提示样式 */
+
+.impact-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--card-bg);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
+  z-index: var(--z-toast, 9000);
+  max-width: 500px;
+  min-width: 320px;
+}
+
+.impact-toast .toast-icon {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(245, 158, 11, 0.1);
+  border-radius: var(--radius-md);
+  color: var(--accent-yellow, #f59e0b);
+}
+
+.impact-toast .toast-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.impact-toast .toast-message {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+  line-height: 1.4;
+}
+
+.impact-toast .impacted-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.impact-toast .impacted-label {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.impact-toast .impacted-item {
+  padding: 2px 8px;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+.impact-toast .impacted-more {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.impact-toast .toast-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.impact-toast .toast-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.impact-toast .toast-btn.regenerate {
+  background: var(--gradient-primary, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
+  color: white;
+}
+
+.impact-toast .toast-btn.regenerate:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+.impact-toast .toast-btn.dismiss {
+  color: var(--text-secondary);
+}
+
+.impact-toast .toast-btn.dismiss:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.impact-toast .toast-btn.close {
+  color: var(--text-muted);
+  padding: var(--space-1);
+}
+
+.impact-toast .toast-btn.close:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}

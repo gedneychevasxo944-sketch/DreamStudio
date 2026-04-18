@@ -13,7 +13,7 @@ import { useWorkflowStore, useSubgraphStore, calculateNodePositions } from '../.
 import { getDefaultNodeWidth, generateThinkingContent, generateResultContent, traverseConnectedNodes } from '../../utils/nodeUtils';
 import { CANVAS, TEMPLATE_LAYOUT } from '../../constants/layoutConstants';
 import { canvasLogger } from '../../utils/logger';
-import { CanvasToolbar, CanvasStatusBar, FullscreenToolbar, SaveTemplateDialog } from '../Canvas';
+import { CanvasToolbar, CanvasStatusBar, FullscreenToolbar, SaveTemplateDialog, ResultDialog } from '../Canvas';
 import './NodeCanvas.css';
 
 // 主流程节点类型（简化视图中显示的节点）
@@ -38,6 +38,8 @@ const NodeCanvas = ({
   // 子图相关回调
   onSubgraphFocus,  // 从子图进入节点视图时调用
   onSwitchToSubgraphView,  // 从节点视图切换到子图列表时调用
+  // 返回故事板
+  onReturnToStoryboard,
 }) => {
   const canvasRef = useRef(null);
   const [scale, setScale] = useState(1);
@@ -85,6 +87,13 @@ const NodeCanvas = ({
     message: '',
     onConfirm: null,
     onCancel: null
+  });
+
+  // T044: 运行结果对话框状态
+  const [resultDialog, setResultDialog] = useState({
+    isOpen: false,
+    result: null,
+    nodeId: null,
   });
 
   // 从 workflowStore 获取状态和方法
@@ -1067,6 +1076,23 @@ const NodeCanvas = ({
     }
   }, [templateName, templateDescribe, nodes, connections]);
 
+  // T044: 处理运行结果操作
+  const handleResultAction = useCallback((action, nodeId) => {
+    const node = nodes.find(n => n.id === nodeId);
+    if (!node) return;
+
+    if (action === 'replace') {
+      // TODO: 替换当前选中的资产
+      toast.success('已替换当前资产', { position: 'bottom' });
+    } else if (action === 'createNew') {
+      // TODO: 创建为新资产并添加到故事板
+      toast.success('已创建为新资产', { position: 'bottom' });
+    }
+
+    // 关闭对话框
+    setResultDialog({ isOpen: false, result: null, nodeId: null });
+  }, [nodes]);
+
   return (
     <div className={`node-canvas-container ${isFullscreen ? 'fullscreen' : ''}`}>
       {/* 顶部工具栏 - 仅节点模式显示 */}
@@ -1083,6 +1109,7 @@ const NodeCanvas = ({
           onClearCanvas={!isDemoMode ? handleClearCanvas : () => {}}
           onToggleFullscreen={onToggleFullscreen}
           onLoadTemplate={!isDemoMode ? loadTemplate : () => {}}
+          onReturnToStoryboard={onReturnToStoryboard}
           runButtonText={runButtonText}
           runExplanation={runExplanation}
           hasStaleNodes={hasStaleNodes}
@@ -1304,6 +1331,15 @@ const NodeCanvas = ({
         onTemplateDescribeChange={setTemplateDescribe}
         onSave={handleSaveTemplate}
         onClose={() => setShowSaveTemplateDialog(false)}
+      />
+
+      {/* T044: 运行结果对话框 */}
+      <ResultDialog
+        isOpen={resultDialog.isOpen}
+        result={resultDialog.result}
+        onReplace={() => handleResultAction('replace', resultDialog.nodeId)}
+        onCreateNew={() => handleResultAction('createNew', resultDialog.nodeId)}
+        onCancel={() => setResultDialog({ isOpen: false, result: null, nodeId: null })}
       />
     </div>
   );

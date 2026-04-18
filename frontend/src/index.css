@@ -1,5 +1,10 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
+/* DreamStudio 2.0 Theme System */
+@import './styles/theme-night.css';
+@import './styles/theme-day.css';
+
+/* 基础变量 - 兼容现有代码 */
 :root {
   --bg-primary: #0a0a0f;
   --bg-secondary: #12121a;

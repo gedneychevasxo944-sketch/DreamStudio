@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { traverseConnectedNodes } from '../utils/nodeUtils';
 import { storeLogger } from '../utils/logger';
+import { eventBus, EVENT_TYPES } from '../utils/eventBus';
 export { calculateNodePositions, calculateTemplateNodePositions } from '../utils/nodeUtils';
 
 export const useWorkflowStore = create((set, get) => ({
@@ -299,6 +300,86 @@ export const useWorkflowStore = create((set, get) => ({
   hasCanvasChanges: () => {
     const state = get();
     return state.nodes.length > 0 || state.connections.length > 0;
+  },
+
+  // T077: 发布为模板
+  // 返回创建好的模板对象（包含 id, name, description, graph 等）
+  publishAsTemplate: (name, description, tags = []) => {
+    const state = get();
+
+    // 构建模板数据
+    const template = {
+      id: `template-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      name: name || '未命名模板',
+      description: description || '',
+      tags,
+      // 存储工作流的节点和连接
+      graph: {
+        nodes: state.nodes.map(n => ({
+          id: n.id,
+          type: n.type,
+          position: n.position,
+          data: n.data,
+        })),
+        connections: state.connections,
+      },
+      // 模板版本
+      version: 1,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      // 使用该模板的资产 ID 列表
+      linkedAssets: [],
+      // 作者信息（可扩展）
+      author: 'current_user', // TODO: 从 authStore 获取
+    };
+
+    // TODO: 实际保存到后端
+    storeLogger.info('[workflowStore] Published template:', template.id, template.name);
+
+    return template;
+  },
+
+  // T077/T078: 更新模板
+  // 更新模板内容并通知关联资产
+  updateTemplate: (templateId, updates) => {
+    const state = get();
+
+    // 获取关联的资产列表
+    const linkedAssets = updates.linkedAssets || [];
+
+    // TODO: 实际更新到后端
+
+    // T078: 通知关联资产用户模板已更新
+    if (linkedAssets.length > 0) {
+      eventBus.emit(EVENT_TYPES.TEMPLATE_UPDATED, {
+        templateId,
+        templateName: updates.name,
+        linkedAssets,
+        message: `模板 "${updates.name || templateId}" 已更新，需要同步`,
+      });
+    }
+
+    storeLogger.info('[workflowStore] Updated template:', templateId, updates);
+
+    // 返回影响范围
+    return {
+      templateId,
+      linkedAssets,
+      message: `模板已更新，共影响 ${linkedAssets.length} 个资产`,
+    };
+  },
+
+  // T077: 获取模板详情
+  getTemplateDetails: (templateId) => {
+    // TODO: 从后端获取模板详情
+    storeLogger.info('[workflowStore] Getting template details:', templateId);
+    return null; // TODO: 返回实际模板数据
+  },
+
+  // T077: 加载模板到画布
+  loadTemplateToCanvas: (templateId) => {
+    // TODO: 获取模板数据并加载
+    storeLogger.info('[workflowStore] Loading template to canvas:', templateId);
   },
 }));
 

@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, PanelLeft, Maximize2, X } from 'lucide-react';
 import Console from './components/Console';
-import ToastContainer from './components/Toast/Toast';
+import ToastContainer, { toast } from './components/Toast/Toast';
 import BottomToastContainer from './components/Toast/BottomToast';
 import NodeCanvas from './components/NodeCanvas/NodeCanvas';
 import AssetLibrary from './components/AssetLibrary';
@@ -16,36 +16,21 @@ import { TopBar } from './components/TopBar';
 import { StoryboardView } from './components/Storyboard';
 import { DrillPanel, PromptDiffPanel, AssetChangeCard, ParameterDiffPanel, VisualSliderPanel, BatchImpactList } from './components/DrillPanel';
 import { SmartSuggestion } from './components/SmartSuggestion';
-import { SingleAssetView, AssetGridView, ScriptEditorView, SequenceModeView } from './components/RightPreviewPanel';
 import { homePageApi, nodeVersionApi, proposalApi } from './services/api';
 import { AUTH_ERROR_MESSAGES } from './constants/authConstants';
 import { WORKFLOW_LAYOUT, PLAN_LAYOUT } from './constants/layoutConstants';
 import { uiLogger } from './utils/logger';
 import { authStorage } from './utils/authStorage';
 import { eventBus, EVENT_TYPES } from './utils/eventBus';
-import { useProjectStore, useWorkflowStore, useUIStore, useSubgraphStore, useStageStore } from './stores';
+import { useProjectStore, useWorkflowStore, useUIStore, useSubgraphStore, useStageStore, useChatStore, STAGES } from './stores';
 import { traverseConnectedNodes } from './utils/nodeUtils';
 import { mockModifications } from './mock/mockData';
-import { getScenario } from './mock/previewScenarios';
 import { initializeMockData } from './mock/stagesMock';
 import './App.css';
 
 // 新增组件导入
 import StoryboardMainView from './components/Storyboard2/StoryboardMainView';
-import FloatingAssistantButton from './components/FloatingAssistant/FloatingAssistantButton';
-import FloatingAssistantDrawer from './components/FloatingAssistant/FloatingAssistantDrawer';
-
-// P5: 场景按钮样式辅助函数
-const scenarioBtnStyle = (isActive, activeColor) => ({
-  padding: '6px 12px',
-  background: isActive ? `${activeColor}20` : 'rgba(255,255,255,0.05)',
-  border: `1px solid ${isActive ? activeColor + '50' : 'rgba(255,255,255,0.1)'}`,
-  borderRadius: '6px',
-  color: isActive ? activeColor : 'var(--text-secondary)',
-  fontSize: '11px',
-  cursor: 'pointer',
-  transition: 'all 0.15s ease',
-});
+import FloatingAssistant from './components/FloatingAssistant/FloatingAssistant';
 
 function App() {
   const containerRef = useRef(null);
@@ -53,12 +38,12 @@ function App() {
   const chatRef = useRef(null);
 
   // ============================================================================
-  // P0 新增：三层架构状态
+  // P0 新增：两层架构状态
   // ============================================================================
   // currentView: 'home' | 'workspace'
-  // currentLayer: 'conversation' | 'storyboard' | 'node' (仅在 workspace 下有效)
+  // currentLayer: 'storyboard' | 'node' (仅在 workspace 下有效)
   const [currentView, setCurrentView] = useState('home');
-  const [currentLayer, setCurrentLayer] = useState('conversation');
+  const [currentLayer, setCurrentLayer] = useState('storyboard');
   const [focusedEntity, setFocusedEntity] = useState(null); // 当前焦点实体
 
   // 节点层查看模式：'nodes' | 'subgraph'
@@ -91,19 +76,7 @@ function App() {
   const [showSmartSuggestion, setShowSmartSuggestion] = useState(false);
   const [smartSuggestionMessage] = useState('');
 
-  // P5 新增：右侧预览面板状态（对话层）
-  // 实际项目中这些数据应该从后端获取或从节点执行结果中提取
-  const [previewAssets, setPreviewAssets] = useState([]);
-  const [previewScript, setPreviewScript] = useState(null);
-  const [previewShots, setPreviewShots] = useState([]);
-  const [previewCharacters, setPreviewCharacters] = useState([]);  // P5: 角色列表
-  const [previewPanelVisible, setPreviewPanelVisible] = useState(false);  // P5: 预览面板默认隐藏
-  const [previewingAsset, setPreviewingAsset] = useState(null);  // P5: 当前预览的资产
-  const [previewScenario, setPreviewScenario] = useState(null);  // P5: 当前场景类型
-  const [previewFullscreen, setPreviewFullscreen] = useState(false);  // P5: 预览区全屏查看
-
-  // PRD 2.0: 悬浮助手状态
-  const [floatingAssistantOpen, setFloatingAssistantOpen] = useState(false);
+  // PRD 2.0: 悬浮助手状态 - 现在由 FloatingAssistant 组件内部管理
 
   // Plan 收到后的回调
   const handlePlanReceived = useCallback((receivedPlan) => {
@@ -112,44 +85,6 @@ function App() {
       setSelectedPlanId(receivedPlan.id);
     }
   }, []);
-
-  // P5: 加载预览场景（用于开发和测试）
-  const loadPreviewScenario = (scenarioName) => {
-    const scenario = getScenario(scenarioName);
-    if (scenario) {
-      setPreviewAssets(scenario.assets || []);
-      setPreviewScript(scenario.script || null);
-      setPreviewShots(scenario.shots || []);
-      setPreviewCharacters(scenario.characters || []);
-      setPreviewScenario(scenario.mode);
-      // 如果场景有单一资产，直接预览
-      if (scenario.asset) {
-        setPreviewingAsset(scenario.asset);
-      }
-      // 显示预览面板
-      setPreviewPanelVisible(true);
-
-      // P0: 为每个资产生成子图（带节点数据）
-      const { getOrCreateSubgraphByAssetId, setSubgraphContent } = useSubgraphStore.getState();
-
-      // 处理资产列表
-      (scenario.assets || []).forEach(asset => {
-        const subgraph = getOrCreateSubgraphByAssetId(asset.id, asset.type, asset.name);
-        // 如果资产有子图节点数据，设置到子图
-        if (asset.subgraphNodes && subgraph) {
-          setSubgraphContent(subgraph.id, asset.subgraphNodes, []);
-        }
-      });
-
-      // 如果场景有单一资产，也为其创建子图
-      if (scenario.asset) {
-        const subgraph = getOrCreateSubgraphByAssetId(scenario.asset.id, scenario.asset.type, scenario.asset.name);
-        if (scenario.subgraphNodes && subgraph) {
-          setSubgraphContent(subgraph.id, scenario.subgraphNodes, []);
-        }
-      }
-    }
-  };
 
   // Project Store
   const {
@@ -207,11 +142,29 @@ function App() {
   // P0 新增：层切换处理
   // ============================================================================
   const handleLayerChange = useCallback((layer) => {
+    const { switchContext } = useChatStore.getState();
+    const prevLayer = currentLayer;
+
     setCurrentLayer(layer);
     // 如果切换到非节点层，清除选中节点
     if (layer !== 'node') {
       setRightPanelVisible(false);
     }
+
+    // T040: 切换层时更新对话助手上下文
+    if (layer === 'storyboard') {
+      // 切换到故事板层 → 项目级上下文
+      switchContext('project', null, projectName);
+    } else if (layer === 'node') {
+      // 切换到节点层 → 工作流级上下文（等待节点选择）
+      switchContext('workflow', null, '工作流');
+    }
+
+    // 如果之前在节点层，清除选中节点
+    if (prevLayer === 'node') {
+      setSelectedNodeId(null);
+    }
+
     // 如果切换到故事板层，初始化 mock 数据
     if (layer === 'storyboard') {
       const { stageAssets } = useStageStore.getState();
@@ -224,17 +177,34 @@ function App() {
         });
       }
     }
+  }, [currentLayer, projectName]);
+
+  // 处理悬浮助手开关
+  const handleToggleAssistant = useCallback(() => {
+    useChatStore.getState().toggleFloating();
+  }, []);
+
+  // 处理导出
+  const handleExport = useCallback(() => {
+    const currentStage = useStageStore.getState().currentStage;
+    if (currentStage === STAGES.VIDEO) {
+      // 视频阶段 - 触发导出
+      toast?.info?.('正在导出视频...');
+      // 通过事件通知 StoryboardMainView
+      document.dispatchEvent(new CustomEvent('exportVideos'));
+    } else if (currentStage === STAGES.STORYBOARD) {
+      // 分镜阶段 - 导出分镜数据
+      toast?.info?.('正在导出分镜...');
+      document.dispatchEvent(new CustomEvent('exportStoryboard'));
+    } else {
+      toast?.warning?.('当前阶段不支持导出');
+    }
   }, []);
 
   const handleShotSelect = useCallback((shotId) => {
     setSelectedShotId(shotId);
     // 设置焦点实体
-    setFocusedEntity(`镜头${shotId.replace('shot-', '')}`);
-  }, []);
-
-  const handleConversationAdjust = useCallback(() => {
-    // 切换到对话层
-    setCurrentLayer('conversation');
+    setFocusedEntity({ type: 'shot', id: shotId });
   }, []);
 
   // P0: 处理子图聚焦（从子图列表进入节点画布）
@@ -256,14 +226,6 @@ function App() {
     setDrillPanelData(modification);
     setDrillPanelTitle(getDrillPanelTitle(modification));
     setDrillPanelOpen(true);
-  }, []);
-
-  // P5: 继续对话 - 将资产引用注入到对话输入框
-  const handleContinueConversation = useCallback((asset) => {
-    if (!asset || !chatRef.current) return;
-    const reference = `[@${asset.type}:${asset.name}]`;
-    chatRef.current.injectMessage(reference);
-    setPreviewPanelVisible(false);
   }, []);
 
   // P1: 获取钻取面板标题
@@ -495,19 +457,6 @@ function App() {
       eventBus.off(EVENT_TYPES.ASSET_GENERATED, handleAssetGenerated);
     };
   }, []);
-
-  // ESC 键关闭预览全屏
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape' && previewFullscreen) {
-        setPreviewFullscreen(false);
-      }
-    };
-    if (previewFullscreen) {
-      document.addEventListener('keydown', handleKeyDown);
-      return () => document.removeEventListener('keydown', handleKeyDown);
-    }
-  }, [previewFullscreen]);
 
   // 点击版本下拉框外部关闭
   useEffect(() => {
@@ -783,9 +732,26 @@ function App() {
     setSelectedNodeId(node.id);
     if (node) {
       setRightPanelVisible(true);
-      setFocusedEntity(node.name);
+      setFocusedEntity({ type: 'node', id: node.id, name: node.name });
+      // T040: 在画布层时，更新对话助手上下文为节点级别
+      if (currentLayer === 'node') {
+        const { switchContext } = useChatStore.getState();
+        switchContext('node', node.id, node.name);
+      }
     }
-  }, [setSelectedNodeId]);
+  }, [setSelectedNodeId, currentLayer]);
+
+  // 节点取消选择 - 仅在画布层且当前有选中的节点时重置上下文
+  const handleNodeDeselect = useCallback(() => {
+    const prevSelectedNodeId = selectedNodeId;
+    setSelectedNodeId(null);
+    setRightPanelVisible(false);
+    // T040: 在画布层时，如果之前有选中节点，重置对话助手上下文为工作流级别
+    if (currentLayer === 'node' && prevSelectedNodeId) {
+      const { switchContext } = useChatStore.getState();
+      switchContext('workflow', null, '工作流');
+    }
+  }, [selectedNodeId, currentLayer]);
 
   // 计算实际宽度
   const { actualLeftWidth, centerWidth } = getActualWidths();
@@ -916,7 +882,7 @@ function App() {
   // 渲染
   // ============================================================================
   return (
-    <div className="app-container">
+    <div className={`app-container ${currentView === 'home' ? 'home-view' : ''}`}>
       {/* 首页 */}
       {currentView === 'home' && (
         <HomePage onEnter={handleHomePageEnter} />
@@ -934,6 +900,8 @@ function App() {
             onGoHome={handleCancelPlanning}
             onSave={handleSaveProject}
             onOpenAssetLibrary={() => setAssetLibraryOpen(true)}
+            onToggleAssistant={handleToggleAssistant}
+            onExport={handleExport}
             isSaving={isSaving}
             saveSuccess={saveSuccess}
             hasUnsavedChanges={hasUnsavedChanges}
@@ -944,53 +912,6 @@ function App() {
             ref={containerRef}
             className={`workspace-main ${isCanvasFullscreen ? 'canvas-fullscreen' : ''} ${isDraggingLeft ? 'dragging' : ''}`}
           >
-            {/* 左侧面板 - 仅对话层和节点层显示 */}
-            {currentLayer !== 'storyboard' && (
-              <>
-                <aside
-                  className={`panel-left ${leftCollapsed ? 'collapsed' : ''} ${isCanvasFullscreen ? 'hidden' : ''}`}
-                  style={{ flex: `0 0 ${actualLeftWidth}vw` }}
-                >
-                  <div className="panel-content">
-                    <Console
-                      ref={chatRef}
-                      onLoadWorkflow={handleLoadWorkflow}
-                      pendingChatMessage={planningRawInput}
-                      onPendingChatMessageSent={() => {}}
-                      messages={sharedMessages}
-                      onMessagesChange={setSharedMessages}
-                      onPlanReceived={handlePlanReceived}
-                      onDrillDown={handleDrillDown}
-                    />
-                  </div>
-                  <button
-                    className="collapse-btn left"
-                    onClick={toggleLeftCollapse}
-                    title={leftCollapsed ? '展开' : '收起'}
-                  >
-                    {leftCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
-                  </button>
-                </aside>
-
-                {leftCollapsed && !isCanvasFullscreen && (
-                  <button
-                    className="floating-toggle left"
-                    onClick={toggleLeftCollapse}
-                    title="展开左侧面板"
-                  >
-                    <PanelLeft size={18} />
-                  </button>
-                )}
-
-                {!isCanvasFullscreen && !leftCollapsed && (
-                  <div
-                    className="resizer left-resizer"
-                    onMouseDown={startDragLeft}
-                  />
-                )}
-              </>
-            )}
-
             {/* 中间区域 - 根据 currentLayer 切换 */}
             <section
               className="panel-center"
@@ -1037,326 +958,9 @@ function App() {
                       viewMode={nodeViewMode}
                       onSubgraphFocus={handleSubgraphFocus}
                       onSwitchToSubgraphView={() => setNodeViewMode('subgraph')}
+                      onReturnToStoryboard={() => handleLayerChange('storyboard')}
                     />
                   </motion.div>
-                )}
-
-                {/* 对话层 - 中间内容区（100%宽度）+ 右侧浮层抽屉 */}
-                {currentLayer === 'conversation' && (
-                  <>
-                    {/* 中间内容区 - 100%宽度 */}
-                    <div
-                      className="conversation-content-area"
-                      style={{
-                        flex: 1,
-                        height: '100%',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        overflow: 'hidden',
-                      }}
-                    >
-                      {/* 场景选择器（开发测试用） */}
-                      <div style={{
-                        display: 'flex',
-                        gap: '8px',
-                        padding: '12px 16px',
-                        borderBottom: '1px solid var(--border-subtle)',
-                        background: 'var(--bg-toolbar)',
-                      }}>
-                        <span style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginRight: '8px' }}>
-                          预览场景：
-                        </span>
-                        <button
-                          onClick={() => loadPreviewScenario('single_asset')}
-                          style={scenarioBtnStyle(previewScenario === 'single_asset', '#3b82f6')}
-                        >
-                          📦 单一资产
-                        </button>
-                        <button
-                          onClick={() => loadPreviewScenario('asset_grid')}
-                          style={scenarioBtnStyle(previewScenario === 'asset_grid', '#06b6d4')}
-                        >
-                          📚 多资产
-                        </button>
-                        <button
-                          onClick={() => loadPreviewScenario('script_editor')}
-                          style={scenarioBtnStyle(previewScenario === 'script_editor', '#818cf8')}
-                        >
-                          📝 剧本
-                        </button>
-                        <button
-                          onClick={() => loadPreviewScenario('sequence')}
-                          style={scenarioBtnStyle(previewScenario === 'sequence', '#f59e0b')}
-                        >
-                          🎬 序列
-                        </button>
-                      </div>
-
-                      {/* 主内容区 - 根据场景显示不同视图 */}
-                      <div style={{ flex: 1, overflow: 'auto', padding: '16px', minHeight: 0 }}>
-
-                        {/* 单一资产预览 - hover显示点击提示 + 全屏 + @引用按钮 */}
-                        {previewScenario === 'single_asset' && previewAssets.length === 1 && (
-                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '16px' }}>
-                            <div
-                              style={{
-                                position: 'relative',
-                                width: '100%',
-                                maxWidth: '600px',
-                                aspectRatio: '16/10',
-                                borderRadius: '12px',
-                                overflow: 'hidden',
-                                boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-                                cursor: 'pointer',
-                              }}
-                              onClick={() => {
-                                setPreviewingAsset(previewAssets[0]);
-                                setPreviewPanelVisible(true);
-                              }}
-                            >
-                              <img
-                                src={previewAssets[0].thumbnail}
-                                alt={previewAssets[0].name}
-                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                              />
-                              {/* 全屏按钮 */}
-                              <button
-                                className="preview-fullscreen-btn"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setPreviewFullscreen(true);
-                                }}
-                                title="全屏查看"
-                              >
-                                <Maximize2 size={14} />
-                              </button>
-                              {/* @引用按钮 */}
-                              <button
-                                className="preview-reference-btn"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const asset = previewAssets[0];
-                                  const reference = `[@${asset.type}:${asset.name}]`;
-                                  chatRef.current?.injectMessage(reference);
-                                }}
-                                title="引用到输入框"
-                              >
-                                @
-                              </button>
-                            </div>
-                            <p style={{ fontSize: '14px', color: 'var(--text-secondary)', margin: 0 }}>
-                              {previewAssets[0].name}
-                            </p>
-                          </div>
-                        )}
-
-                        {/* 预览区全屏查看遮罩 */}
-                        {previewFullscreen && previewAssets[0] && (
-                          <div
-                            style={{
-                              position: 'fixed',
-                              inset: 0,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              background: 'rgba(0, 0, 0, 0.95)',
-                              zIndex: 10000,
-                              cursor: 'pointer',
-                            }}
-                            onClick={() => setPreviewFullscreen(false)}
-                          >
-                            <button
-                              style={{
-                                position: 'absolute',
-                                top: 20,
-                                right: 20,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                width: 40,
-                                height: 40,
-                                background: 'rgba(255, 255, 255, 0.1)',
-                                border: 'none',
-                                borderRadius: '50%',
-                                color: 'white',
-                                cursor: 'pointer',
-                              }}
-                              onClick={() => setPreviewFullscreen(false)}
-                            >
-                              <X size={20} />
-                            </button>
-                            <img
-                              src={previewAssets[0].thumbnail}
-                              alt={previewAssets[0].name}
-                              style={{
-                                maxWidth: '90vw',
-                                maxHeight: '90vh',
-                                objectFit: 'contain',
-                                borderRadius: 8,
-                                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
-                                cursor: 'default',
-                              }}
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                          </div>
-                        )}
-
-                        {/* 多资产网格 */}
-                        {previewScenario === 'asset_grid' && (
-                          <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-                            <AssetGridView
-                              assets={previewAssets}
-                              onAssetClick={(asset) => {
-                                setPreviewingAsset(asset);
-                                setPreviewPanelVisible(true);
-                              }}
-                              onReference={(asset) => {
-                                const reference = `[@${asset.type}:${asset.name}]`;
-                                chatRef.current?.injectMessage(reference);
-                              }}
-                              onSwitchToSequence={() => setPreviewScenario('sequence')}
-                            />
-                          </div>
-                        )}
-
-                        {/* 剧本编辑器 */}
-                        {previewScenario === 'script_editor' && (
-                          <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
-                            <ScriptEditorView
-                              script={previewScript}
-                              onGenerateStoryboard={() => setPreviewScenario('sequence')}
-                            />
-                          </div>
-                        )}
-
-                        {/* 序列模式 */}
-                        {previewScenario === 'sequence' && (
-                          <SequenceModeView
-                            shots={previewShots}
-                            characters={previewCharacters}
-                            script={previewScript}
-                            onShotClick={(shot) => {
-                              // 创建临时资产对象用于预览
-                              setPreviewingAsset({
-                                id: shot.id,
-                                name: shot.label,
-                                type: shot.type === 'video' ? 'video' : 'image',
-                                thumbnail: shot.thumbnail,
-                              });
-                              setPreviewPanelVisible(true);
-                            }}
-                            onSwitchToAsset={() => setPreviewScenario('asset_grid')}
-                          />
-                        )}
-
-                        {/* 空状态 */}
-                        {!previewScenario && (
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-                            <div style={{ textAlign: 'center' }}>
-                              <div style={{ fontSize: '64px', marginBottom: '16px' }}>🎬</div>
-                              <p style={{ color: 'var(--text-secondary)', marginBottom: '8px' }}>还没有生成任何内容</p>
-                              <p style={{ fontSize: '12px', color: 'var(--text-disabled)' }}>在左侧对话中描述你的创意，这里将自动展示</p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* P5: 右侧浮层抽屉 */}
-                    <AnimatePresence>
-                      {previewPanelVisible && previewingAsset && (
-                        <>
-                          {/* 遮罩层 */}
-                          <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            style={{
-                              position: 'fixed',
-                              inset: 0,
-                              background: 'rgba(0, 0, 0, 0.5)',
-                              zIndex: 998,
-                            }}
-                            onClick={() => setPreviewPanelVisible(false)}
-                          />
-
-                          {/* 右侧抽屉 */}
-                          <motion.aside
-                            initial={{ x: 400 }}
-                            animate={{ x: 0 }}
-                            exit={{ x: 400 }}
-                            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                            style={{
-                              position: 'fixed',
-                              right: 0,
-                              top: 0,
-                              bottom: 0,
-                              width: '400px',
-                              background: 'var(--bg-panel)',
-                              borderLeft: '1px solid var(--border-subtle)',
-                              zIndex: 999,
-                              display: 'flex',
-                              flexDirection: 'column',
-                              boxShadow: '-8px 0 32px rgba(0, 0, 0, 0.5)',
-                            }}
-                          >
-                            {/* 抽屉头部 */}
-                            <div style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              padding: '12px 16px',
-                              borderBottom: '1px solid var(--border-subtle)',
-                              background: 'var(--bg-toolbar)',
-                            }}>
-                              <button
-                                onClick={() => setPreviewPanelVisible(false)}
-                                style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: '4px',
-                                  padding: '6px 10px',
-                                  background: 'transparent',
-                                  border: 'none',
-                                  borderRadius: '6px',
-                                  color: 'var(--text-secondary)',
-                                  fontSize: '12px',
-                                  cursor: 'pointer',
-                                }}
-                              >
-                                ← 返回
-                              </button>
-                              <button
-                                onClick={() => setPreviewPanelVisible(false)}
-                                style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  width: '32px',
-                                  height: '32px',
-                                  background: 'transparent',
-                                  border: 'none',
-                                  borderRadius: '6px',
-                                  color: 'var(--text-secondary)',
-                                  cursor: 'pointer',
-                                }}
-                              >
-                                ✕
-                              </button>
-                            </div>
-
-                            {/* 抽屉内容 */}
-                            <div style={{ flex: 1, overflow: 'auto', padding: '16px' }}>
-                              <SingleAssetView
-                                asset={previewingAsset}
-                                onContinueConversation={handleContinueConversation}
-                              />
-                            </div>
-                          </motion.aside>
-                        </>
-                      )}
-                    </AnimatePresence>
-                  </>
                 )}
               </AnimatePresence>
             </section>
@@ -1430,10 +1034,7 @@ function App() {
                   // 关闭资产库
                   setAssetLibraryOpen(false);
                   // 根据层级跳转
-                  if (layer === 'conversation') {
-                    setCurrentLayer('conversation');
-                    setFocusedEntity({ type: 'conversation', id });
-                  } else if (layer === 'storyboard') {
+                  if (layer === 'storyboard') {
                     setCurrentLayer('storyboard');
                     setFocusedEntity({ type: 'storyboard', id });
                   } else if (layer === 'workflow') {
@@ -1462,6 +1063,9 @@ function App() {
               onInstallSkill={(skill) => uiLogger.info('[Skill] 安装Skill:', skill)}
             />
           )}
+
+          {/* PRD 2.0: 悬浮助手 - 只在 workspace 显示 */}
+          <FloatingAssistant />
         </div>
       )}
       <ToastContainer />
@@ -1484,19 +1088,6 @@ function App() {
         message={smartSuggestionMessage || '检测到多次调整，是否切换到故事板批量处理？'}
         onOpenStoryboard={handleOpenStoryboardFromSuggestion}
         onDismiss={() => setShowSmartSuggestion(false)}
-      />
-
-      {/* PRD 2.0: 悬浮助手 */}
-      <FloatingAssistantButton
-        onClick={() => setFloatingAssistantOpen(true)}
-      />
-      <FloatingAssistantDrawer
-        isOpen={floatingAssistantOpen}
-        onClose={() => setFloatingAssistantOpen(false)}
-        onMinimize={() => setFloatingAssistantOpen(false)}
-        ref={chatRef}
-        messages={sharedMessages}
-        onMessagesChange={setSharedMessages}
       />
     </div>
   );
