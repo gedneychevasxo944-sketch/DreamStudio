@@ -149,7 +149,6 @@ function UploadModal({
     setScriptText('');
     setMode('upload');
     setEnableAI(true);
-    setParseProgress(0);
   };
 
   // 拖拽上传

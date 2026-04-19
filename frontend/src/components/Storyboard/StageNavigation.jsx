@@ -57,7 +57,6 @@ const StageNavigation = () => {
           const isActive = stage === currentStage;
           const isCompleted = stageCompletion[stage];
           const config = STAGE_CONFIG[stage];
-          const isPast = STAGE_ORDER.indexOf(currentStage) > index;
 
           return (
             <button

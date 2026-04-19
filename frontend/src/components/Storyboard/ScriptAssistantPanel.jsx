@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { X, Check, Trash2 } from 'lucide-react';
 import ChatConversation, { UserMessage, SimpleAssistantMessage } from '../ChatConversation';

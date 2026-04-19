@@ -18,7 +18,7 @@ const AssetCard = ({
   onClick,
   onContextMenu,
 }) => {
-  const { type, name, thumbnail, status, description, prompt, videoUrl } = asset;
+  const { type, name, thumbnail, status, description, videoUrl } = asset;
 
   // 获取资产类型图标
   const getTypeIcon = () => {

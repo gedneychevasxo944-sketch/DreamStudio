@@ -1,8 +1,8 @@
-import { useMemo, useCallback } from 'react';
+import { useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, Sparkles, Upload } from 'lucide-react';
 import AssetCard from './AssetCard';
-import { useStageStore, STAGE_CONFIG, STAGES } from '../../stores/stageStore';
+import { STAGE_CONFIG, STAGES } from '../../stores/stageStore';
 import './AssetGrid.css';
 
 /**

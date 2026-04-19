@@ -25,31 +25,32 @@ const AssetDetailPanel = ({
   onGenerate,
   onAIDialog,
 }) => {
+  const { currentStage } = useStageStore();
+
   // 没选中资产时返回 null，不渲染详情面板
   if (!asset) {
     return null;
   }
 
-  const { currentStage, stageAssets } = useStageStore();
-
   // 根据阶段渲染不同的编辑器
+  // 使用 key={asset.id} 确保切换资产时重新挂载编辑器，以同步新资产的数据
   switch (currentStage) {
     case STAGES.SCRIPT:
-      return <ScriptEditor asset={asset} onUpdate={onUpdate} />;
+      return <ScriptEditor key={asset.id} asset={asset} onUpdate={onUpdate} />;
     case STAGES.CHARACTER:
-      return <CharacterEditor asset={asset} onUpdate={onUpdate} onDelete={onDelete} onGenerate={onGenerate} onAIDialog={onAIDialog} />;
+      return <CharacterEditor key={asset.id} asset={asset} onUpdate={onUpdate} onDelete={onDelete} onGenerate={onGenerate} onAIDialog={onAIDialog} />;
     case STAGES.SCENE:
-      return <SceneEditor asset={asset} onUpdate={onUpdate} onDelete={onDelete} onGenerate={onGenerate} onAIDialog={onAIDialog} />;
+      return <SceneEditor key={asset.id} asset={asset} onUpdate={onUpdate} onDelete={onDelete} onGenerate={onGenerate} onAIDialog={onAIDialog} />;
     case STAGES.PROP:
-      return <PropEditor asset={asset} onUpdate={onUpdate} onDelete={onDelete} onGenerate={onGenerate} onAIDialog={onAIDialog} />;
+      return <PropEditor key={asset.id} asset={asset} onUpdate={onUpdate} onDelete={onDelete} onGenerate={onGenerate} onAIDialog={onAIDialog} />;
     case STAGES.STORYBOARD:
-      return <StoryboardEditor asset={asset} onUpdate={onUpdate} onDelete={onDelete} onGenerate={onGenerate} onAIDialog={onAIDialog} />;
+      return <StoryboardEditor key={asset.id} asset={asset} onUpdate={onUpdate} onDelete={onDelete} onGenerate={onGenerate} onAIDialog={onAIDialog} />;
     case STAGES.VIDEO:
-      return <VideoEditor asset={asset} onUpdate={onUpdate} onGenerate={onGenerate} onAIDialog={onAIDialog} />;
+      return <VideoEditor key={asset.id} asset={asset} onUpdate={onUpdate} onGenerate={onGenerate} onAIDialog={onAIDialog} />;
     case STAGES.CLIP:
-      return <ClipEditor asset={asset} onUpdate={onUpdate} onDelete={onDelete} />;
+      return <ClipEditor key={asset.id} asset={asset} onUpdate={onUpdate} onDelete={onDelete} />;
     default:
-      return <DefaultEditor asset={asset} />;
+      return <DefaultEditor key={asset.id} asset={asset} />;
   }
 };
 
@@ -107,76 +108,6 @@ const ScriptEditor = ({ asset, onUpdate }) => {
     setExpandedScenes(['scene-1']);
     setSelectedPath({ actId: 'act-1', sceneId: 'scene-1', paraId: 'para-1' });
     setCurrentContent('在一个雷雨交加的夜晚...\n\n主角出现了...');
-  };
-
-  // 自动生成完整剧本
-  const handleGenerateFull = () => {
-    // 模拟 AI 生成完整剧本
-    const fullScript = `在一个雷雨交加的夜晚，零独自走在霓虹闪烁的街道上。
-
-第一幕：数据中心
-
-场景 1：数据中心内部
-
-段落 1：开场
-红发女黑客"零"正在一台终端前快速敲击键盘。她的动作干净利落，眼神专注而锐利。服务器的蓝光映照在她的脸上，勾勒出冷峻的轮廓。
-
-段落 2：紧张时刻
-突然，警报响起。"检测到入侵者！"零的嘴角微微上扬，手指在键盘上飞舞得更快了。
-
-场景 2：走廊
-
-段落 3：追逐
-就在零即将完成入侵时，安保人员A出现在走廊尽头。零迅速藏身于服务器之间。
-
-第二幕：逃脱
-
-场景 3：霓虹雨夜
-
-段落 4：成功脱身
-零利用提前设置好的干扰器成功摆脱追踪，带着数据消失在雨夜中。`;
-
-    setContent(fullScript);
-    setCurrentContent(fullScript);
-
-    // 同时生成目录结构
-    const generated = {
-      acts: [
-        {
-          id: 'act-1',
-          name: '第一集',
-          scenes: [
-            {
-              id: 'scene-1',
-              name: '数据中心内部',
-              paragraphs: [
-                { id: 'para-1', label: '开场', content: '红发女黑客"零"正在一台终端前快速敲击键盘...' },
-                { id: 'para-2', label: '紧张时刻', content: '突然，警报响起...' }
-              ]
-            },
-            {
-              id: 'scene-2',
-              name: '走廊',
-              paragraphs: [
-                { id: 'para-3', label: '追逐', content: '就在零即将完成入侵时...' }
-              ]
-            },
-            {
-              id: 'scene-3',
-              name: '霓虹雨夜',
-              paragraphs: [
-                { id: 'para-4', label: '成功脱身', content: '零利用提前设置好的干扰器...' }
-              ]
-            }
-          ]
-        }
-      ]
-    };
-    setScriptData(generated);
-    setHasGeneratedToc(true);
-    setExpandedActs(['act-1']);
-    setExpandedScenes(['scene-1', 'scene-2', 'scene-3']);
-    setSelectedPath({ actId: 'act-1', sceneId: 'scene-1', paraId: 'para-1' });
   };
 
   // 切换集数展开/折叠
@@ -603,45 +534,25 @@ const STYLE_OPTIONS = [
 const StoryboardEditor = ({ asset, onUpdate, onDelete, onGenerate, onAIDialog }) => {
   const { stageAssets: allAssets } = useStageStore();
 
-  // 分镜编辑状态
+  // 分镜编辑状态 - 初始化自 asset，仅在 asset.id 变化时重新创建（通过 key）
   const [style, setStyle] = useState(asset.style || 'realistic');
   const [cameraMovement, setCameraMovement] = useState(asset.cameraMovement || 'static');
   const [shotType, setShotType] = useState(asset.shotType || 'medium');
   const [duration, setDuration] = useState(asset.duration || 5);
   const [prompt, setPrompt] = useState(asset.prompt || '');
-  const [scriptParagraph, setScriptParagraph] = useState(asset.scriptParagraph || '');
+  const [scriptParagraph, _setScriptParagraph] = useState(asset.scriptParagraph || '');
 
   // 关联资产选择状态
-  const [selectedCharacterIds, setSelectedCharacterIds] = useState(asset.characterIds || []);
-  const [selectedSceneId, setSelectedSceneId] = useState(asset.sceneId || '');
-  const [selectedPropIds, setSelectedPropIds] = useState(asset.propsIds || []);
+  const [selectedCharacterIds, _setSelectedCharacterIds] = useState(asset.characterIds || []);
+  const [selectedSceneId, _setSelectedSceneId] = useState(asset.sceneId || '');
+  const [selectedPropIds, _setSelectedPropIds] = useState(asset.propsIds || []);
 
   // 预览帧状态 (首帧/关键帧/尾帧)
-  const [frames, setFrames] = useState({
+  const [frames, _setFrames] = useState({
     first: asset.frames?.first || null,
     key: asset.frames?.key || null,
     last: asset.frames?.last || null,
   });
-
-  // 当 asset 变化时更新本地状态
-  useEffect(() => {
-    if (asset) {
-      setStyle(asset.style || 'realistic');
-      setCameraMovement(asset.cameraMovement || 'static');
-      setShotType(asset.shotType || 'medium');
-      setDuration(asset.duration || 5);
-      setPrompt(asset.prompt || '');
-      setScriptParagraph(asset.scriptParagraph || '');
-      setSelectedCharacterIds(asset.characterIds || []);
-      setSelectedSceneId(asset.sceneId || '');
-      setSelectedPropIds(asset.propsIds || []);
-      setFrames({
-        first: asset.frames?.first || null,
-        key: asset.frames?.key || null,
-        last: asset.frames?.last || null,
-      });
-    }
-  }, [asset]);
 
   // 处理保存
   const handleSave = useCallback(() => {
@@ -684,15 +595,6 @@ const StoryboardEditor = ({ asset, onUpdate, onDelete, onGenerate, onAIDialog })
     const prop = availableProps.find(p => p.id === id);
     return prop?.name || '';
   }).filter(Boolean).join('、');
-
-  // 合并资产行组件
-  const AssetRow = ({ label, icon, names, assetType, onClick }) => (
-    <div className="asset-row" onClick={onClick} title={names || '点击选择'}>
-      <span className="asset-row-icon">{icon}</span>
-      <span className="asset-row-label">{label}</span>
-      <span className="asset-row-names">{names || '未选择'}</span>
-    </div>
-  );
 
   // 生成状态文本
   const getStatusBadge = (status) => {
@@ -758,9 +660,21 @@ const StoryboardEditor = ({ asset, onUpdate, onDelete, onGenerate, onAIDialog })
 
         {/* 资产行：角色/场景/道具 */}
         <div className="asset-rows-container">
-          <AssetRow label="角色" icon="👤" names={getCharacterNames()} assetType="character" />
-          <AssetRow label="场景" icon="🏞️" names={getSceneName()} assetType="scene" />
-          <AssetRow label="道具" icon="🎭" names={getPropNames()} assetType="prop" />
+          <div className="asset-row" title={getCharacterNames() || '点击选择'}>
+            <span className="asset-row-icon">👤</span>
+            <span className="asset-row-label">角色</span>
+            <span className="asset-row-names">{getCharacterNames() || '未选择'}</span>
+          </div>
+          <div className="asset-row" title={getSceneName() || '点击选择'}>
+            <span className="asset-row-icon">🏞</span>
+            <span className="asset-row-label">场景</span>
+            <span className="asset-row-names">{getSceneName() || '未选择'}</span>
+          </div>
+          <div className="asset-row" title={getPropNames() || '点击选择'}>
+            <span className="asset-row-icon">🎭</span>
+            <span className="asset-row-label">道具</span>
+            <span className="asset-row-names">{getPropNames() || '未选择'}</span>
+          </div>
         </div>
 
         {/* 4列参数配置 */}
@@ -879,24 +793,10 @@ const VideoEditor = ({ asset, onUpdate, onGenerate, onAIDialog }) => {
   const [prompt, setPrompt] = useState(asset.prompt || '');
 
   // 关联资产ID
-  const [scriptParagraph, setScriptParagraph] = useState(asset.scriptParagraph || '');
-  const [characterIds, setCharacterIds] = useState(asset.characterIds || []);
-  const [sceneId, setSceneId] = useState(asset.sceneId || '');
-  const [propIds, setPropIds] = useState(asset.propIds || []);
-
-  // 当 asset 变化时更新本地状态
-  useEffect(() => {
-    if (asset) {
-      setAspectRatio(asset.aspectRatio || '16:9');
-      setDuration(asset.duration || 5);
-      setQuality(asset.quality || 'medium');
-      setPrompt(asset.prompt || '');
-      setScriptParagraph(asset.scriptParagraph || '');
-      setCharacterIds(asset.characterIds || []);
-      setSceneId(asset.sceneId || '');
-      setPropIds(asset.propIds || []);
-    }
-  }, [asset]);
+  const [scriptParagraph, _setScriptParagraph] = useState(asset.scriptParagraph || '');
+  const [characterIds, _setCharacterIds] = useState(asset.characterIds || []);
+  const [sceneId, _setSceneId] = useState(asset.sceneId || '');
+  const [propIds, _setPropIds] = useState(asset.propIds || []);
 
   // 获取所有可用资产
   const availableCharacters = allAssets[STAGES.CHARACTER] || [];
@@ -918,15 +818,6 @@ const VideoEditor = ({ asset, onUpdate, onGenerate, onAIDialog }) => {
     const prop = availableProps.find(p => p.id === id);
     return prop?.name || '';
   }).filter(Boolean).join('、');
-
-  // 合并资产行组件
-  const AssetRow = ({ label, icon, names }) => (
-    <div className="asset-row">
-      <span className="asset-row-icon">{icon}</span>
-      <span className="asset-row-label">{label}</span>
-      <span className={`asset-row-names ${!names ? 'empty' : ''}`}>{names || '未选择'}</span>
-    </div>
-  );
 
   // 处理保存参数
   const handleSave = useCallback(() => {
@@ -985,9 +876,21 @@ const VideoEditor = ({ asset, onUpdate, onGenerate, onAIDialog }) => {
 
         {/* 资产行：角色/场景/道具 */}
         <div className="asset-rows-container">
-          <AssetRow label="角色" icon="👤" names={getCharacterNames()} />
-          <AssetRow label="场景" icon="🏞️" names={getSceneName()} />
-          <AssetRow label="道具" icon="🎭" names={getPropNames()} />
+          <div className="asset-row">
+            <span className="asset-row-icon">👤</span>
+            <span className="asset-row-label">角色</span>
+            <span className={`asset-row-names ${!getCharacterNames() ? 'empty' : ''}`}>{getCharacterNames() || '未选择'}</span>
+          </div>
+          <div className="asset-row">
+            <span className="asset-row-icon">🏞</span>
+            <span className="asset-row-label">场景</span>
+            <span className={`asset-row-names ${!getSceneName() ? 'empty' : ''}`}>{getSceneName() || '未选择'}</span>
+          </div>
+          <div className="asset-row">
+            <span className="asset-row-icon">🎭</span>
+            <span className="asset-row-label">道具</span>
+            <span className={`asset-row-names ${!getPropNames() ? 'empty' : ''}`}>{getPropNames() || '未选择'}</span>
+          </div>
         </div>
 
         {/* 视频参数 - 3列 */}
@@ -1064,23 +967,13 @@ const VideoEditor = ({ asset, onUpdate, onGenerate, onAIDialog }) => {
 
 // ============ 剪辑编辑器 ============
 const ClipEditor = ({ asset, onUpdate, onDelete }) => {
-  const { stageAssets } = useStageStore();
-
-  // 裁剪状态
+  // 裁剪状态 - 初始化自 asset
   const [startTime, setStartTime] = useState(asset.startTime || 0);
   const [endTime, setEndTime] = useState(asset.endTime || 5);
 
   // 获取总时长
   const totalDuration = asset.duration || 5;
   const clipDuration = endTime - startTime;
-
-  // 当 asset 变化时更新本地状态
-  useEffect(() => {
-    if (asset) {
-      setStartTime(asset.startTime || 0);
-      setEndTime(asset.endTime || asset.duration || 5);
-    }
-  }, [asset]);
 
   // 处理保存
   const handleSave = useCallback(() => {

@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { X, Sparkles, Send, Bot, User, Check, Trash2, Image } from 'lucide-react';
 import ChatConversation, { UserMessage, SimpleAssistantMessage } from '../ChatConversation';
 import { useProjectStore } from '../../stores/projectStore';
@@ -18,7 +18,6 @@ const AssetAIAssistantPanel = ({
   onClose,
   asset,
   onGenerate,
-  onSave,
   messages: externalMessages,
   onMessagesChange,
 }) => {
@@ -29,43 +28,6 @@ const AssetAIAssistantPanel = ({
   // 如果外部提供了 messages，使用外部的；否则使用内部的
   const messages = externalMessages !== undefined ? externalMessages : internalMessages;
   const setMessages = onMessagesChange || setInternalMessages;
-
-  // 当 asset 变化时，重置对话（仅当使用内部状态时）
-  useEffect(() => {
-    if (asset && !externalMessages) {
-      setInternalMessages([]);
-    }
-  }, [asset?.id, externalMessages]);
-
-  // 发送消息
-  const handleSend = useCallback((content) => {
-    if (!content.trim()) return;
-
-    const userMessage = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: content.trim(),
-      timestamp: new Date().toLocaleTimeString(),
-    };
-
-    setMessages(prev => [...prev, userMessage]);
-
-    // 模拟 AI 回复
-    setTimeout(() => {
-      const aiResponse = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: `根据您的描述，我建议优化后的 Prompt 如下：
-
-**${asset?.type === 'character' ? '角色' : asset?.type === 'scene' ? '场景' : '道具'} Prompt:**
-${asset?.prompt || asset?.description || '一个神秘的对象'}
-
-这个 Prompt 包含了关键特征描述，可以生成更具表现力的图片。`,
-        timestamp: new Date().toLocaleTimeString(),
-      };
-      setMessages(prev => [...prev, aiResponse]);
-    }, 1500);
-  }, [asset]);
 
   // 根据阶段类型获取标题
   const getTitle = () => {

@@ -1,5 +1,5 @@
-import { useCallback, useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useCallback, useState, useEffect, useRef, useMemo } from 'react';
+import { AnimatePresence } from 'framer-motion';
 import { Sparkles, FileText, Plus, Film, Trash2, Play, Download, Pause, Scissors } from 'lucide-react';
 import { toast } from '../Toast/Toast';
 import StageNavigation from './StageNavigation';
@@ -16,40 +16,12 @@ import { useChatStore } from '../../stores/chatStore';
 import { ASSISTANT_AGENT_ID } from '../../constants/ComponentType';
 import './StoryboardMainView.css';
 
-// 剧本助手专用 agent ID（固定为 3）
-const SCRIPT_AGENT_ID = 3;
-
-// 格式化时间显示 (秒 -> MM:SS)
-const formatTime = (seconds) => {
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-};
-
-// 格式化时间码显示 (秒 -> HH:MM:SS:FF)
-const formatTimecode = (seconds, fps = 30) => {
-  const hours = Math.floor(seconds / 3600);
-  const mins = Math.floor((seconds % 3600) / 60);
-  const secs = Math.floor(seconds % 60);
-  const frames = Math.floor((seconds % 1) * fps);
-  return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}:${frames.toString().padStart(2, '0')}`;
-};
-
-// 解析时间码为秒
-const parseTimecode = (timecode) => {
-  const parts = timecode.split(':').map(Number);
-  if (parts.length === 4) {
-    const [h, m, s, f] = parts;
-    return h * 3600 + m * 60 + s + f / 30;
-  } else if (parts.length === 3) {
-    const [h, m, s] = parts;
-    return h * 3600 + m * 60 + s;
-  } else if (parts.length === 2) {
-    const [m, s] = parts;
-    return m * 60 + s;
-  }
-  return null;
-};
+// Stage components
+import ScriptStageView from './stages/ScriptStageView';
+import AssetStageView from './stages/AssetStageView';
+import StoryboardStageView from './stages/StoryboardStageView';
+import VideoStageView from './stages/VideoStageView';
+import ClipStageView from './stages/ClipStageView';
 
 /**
  * StoryboardMainView - 故事板主视图
@@ -64,7 +36,6 @@ const StoryboardMainView = () => {
 
   // T072: 资产修改影响提示状态
   const [impactToast, setImpactToast] = useState(null);
-  const [pendingAssetUpdate, setPendingAssetUpdate] = useState(null);
 
   // T058: 上传弹窗状态
   const [uploadModal, setUploadModal] = useState({ isOpen: false, accept: 'image' });
@@ -87,7 +58,6 @@ const StoryboardMainView = () => {
     stageAssets,
     selectedAssetIds,
     setCurrentStage,
-    setStageAssets,
     selectAsset,
     addStageAsset,
     updateStageAsset,
@@ -99,7 +69,7 @@ const StoryboardMainView = () => {
   } = useStageStore();
 
   // 获取当前阶段的资产
-  const currentAssets = stageAssets[currentStage] || [];
+  const currentAssets = useMemo(() => stageAssets[currentStage] || [], [stageAssets, currentStage]);
   const selectedAsset = getSelectedAsset();
 
   // 检查项目是否为空
@@ -111,15 +81,17 @@ const StoryboardMainView = () => {
   const [clipZoom, setClipZoom] = useState(1);
   const [clipAssets, setClipAssets] = useState([]);
   const [draggedClipId, setDraggedClipId] = useState(null);
-  const [trimState, setTrimState] = useState({ clipId: null, edge: null, startX: 0 });
+  const [, setTrimState] = useState({ clipId: null, edge: null, startX: 0 });
   const clipVideoRef = useRef(null);
+  const clipInitRef = useRef(false);
 
   // 获取 chatStore 的 context 切换函数
   const { switchContext } = useChatStore();
 
   // T057: 初始化剪辑资产（从VIDEO阶段导入或使用模拟数据）
   useEffect(() => {
-    if (currentStage === STAGES.CLIP) {
+    if (currentStage === STAGES.CLIP && !clipInitRef.current) {
+      clipInitRef.current = true;
       const videoAssets = stageAssets[STAGES.VIDEO] || [];
       if (videoAssets.length > 0) {
         // 从视频阶段导入
@@ -134,7 +106,7 @@ const StoryboardMainView = () => {
           clipEndTime: v.duration || 5,
         }));
         setClipAssets(imported);
-      } else if (clipAssets.length === 0) {
+      } else {
         // 使用模拟数据
         setClipAssets([
           { id: 'clip-1', name: '开场镜头', order: 1, duration: 5, startTime: 0, endTime: 5, clipStartTime: 0, clipEndTime: 5, thumbnail: 'https://picsum.photos/seed/clip1/320/180', videoUrl: 'https://www.w3schools.com/html/mov_bbb.mp4' },
@@ -408,7 +380,7 @@ const StoryboardMainView = () => {
           deleteStageAsset(currentStage, asset.id);
         }
         break;
-      case 'duplicate':
+      case 'duplicate': {
         const newAsset = {
           ...asset,
           id: `${currentStage}-${Date.now()}`,
@@ -417,6 +389,7 @@ const StoryboardMainView = () => {
         addStageAsset(currentStage, newAsset);
         toast?.success?.(`已复制 "${asset.name}"`);
         break;
+      }
       case 'generate':
         handleGenerate(asset.id, 'image');
         break;
@@ -505,31 +478,6 @@ const StoryboardMainView = () => {
     }
   }, [currentStage, addStageAsset, selectAsset, updateStageAsset]);
 
-  // T058/T062: 处理 AI 生成主题
-  const handleAIGenerate = useCallback((topic) => {
-    console.log('AI 生成主题:', topic);
-
-    // 创建新资产
-    const newAsset = {
-      id: `${currentStage}-${Date.now()}`,
-      type: currentStage,
-      name: topic.substring(0, 20), // 截取前20字符作为名称
-      description: '',
-      prompt: topic,
-      thumbnail: null,
-      // T062: AI 处理相关字段
-      aiProcessed: true,
-      aiDescription: `AI 根据 "${topic}" 生成的资产`,
-    };
-
-    // 添加到阶段资产
-    addStageAsset(currentStage, newAsset);
-    selectAsset(newAsset.id);
-
-    toast?.info?.(`正在生成 "${topic}"...`);
-    setUploadModal({ isOpen: false, accept: 'image' });
-  }, [currentStage, addStageAsset, selectAsset]);
-
   // T072: 处理重新生成受影响分镜
   const handleRegenerateImpacted = useCallback(() => {
     if (!impactToast) return;
@@ -556,7 +504,6 @@ const StoryboardMainView = () => {
       // 模拟解析结果
       await new Promise(resolve => setTimeout(resolve, 1500));
 
-      const scriptContent = currentAssets[0]?.content || '';
       // 简单的关键词匹配模拟解析
       const mockParseResult = {
         characters: [
@@ -582,7 +529,7 @@ const StoryboardMainView = () => {
     } finally {
       setIsParsing(false);
     }
-  }, [currentAssets]);
+  }, []);
 
   // T050: 处理解析结果确认导入
   const handleParseConfirm = useCallback((importData) => {
@@ -645,45 +592,6 @@ const StoryboardMainView = () => {
     }
   }, [stageAssets, addStageAsset]);
 
-  // T055: 处理阶段导航的 AI 生成按钮
-  const handleStageAIGenerate = useCallback((stage) => {
-    console.log('StageNavigation AI 生成:', stage);
-
-    switch (stage) {
-      case STAGES.SCRIPT:
-        // 剧本阶段：提示功能开发中，或调用剧本生成接口
-        toast?.info?.('剧本生成功能开发中，敬请期待');
-        break;
-      case STAGES.CHARACTER:
-      case STAGES.SCENE:
-      case STAGES.PROP:
-        // 这三个阶段都是 AI 解析生成
-        handleAIParse();
-        break;
-      case STAGES.STORYBOARD:
-        // 分镜阶段
-        handleAIGenerateStoryboard();
-        break;
-      case STAGES.VIDEO:
-        // 视频阶段：为所有分镜生成视频
-        toast?.info?.('正在生成视频...');
-        // 模拟视频生成
-        const storyboards = stageAssets[STAGES.STORYBOARD] || [];
-        storyboards.forEach((sb, i) => {
-          setTimeout(() => {
-            updateStageAsset(STAGES.VIDEO, sb.id, {
-              videoUrl: `https://example.com/video/${sb.id}.mp4`,
-              status: 'synced',
-            });
-          }, i * 500);
-        });
-        toast?.success?.(`已触发 ${storyboards.length} 个视频生成`);
-        break;
-      default:
-        toast?.warning?.('该阶段暂不支持 AI 生成');
-    }
-  }, [handleAIParse, handleAIGenerateStoryboard, stageAssets, updateStageAsset]);
-
   // T057: 剪辑阶段辅助函数
   const totalDuration = clipAssets.reduce((sum, clip) => sum + (clip.endTime - clip.startTime), 0) || 1;
 
@@ -718,7 +626,6 @@ const StoryboardMainView = () => {
       if (acc + clipDur > splitTime && splitTime > acc) {
         const splitPoint = splitTime - acc;
         const clipStart = clip.startTime;
-        const clipEnd = clip.endTime;
         const newClip1 = { ...clip, id: `${clip.id}-a`, endTime: clipStart + splitPoint };
         const newClip2 = { ...clip, id: `${clip.id}-b`, startTime: clipStart + splitPoint, name: clip.name + ' (2)' };
         const newClips = [...clipAssets.slice(0, i), newClip1, newClip2, ...clipAssets.slice(i + 1)];
@@ -787,18 +694,13 @@ const StoryboardMainView = () => {
     const clickRatio = clickX / rect.width;
     const splitOffset = (clip.endTime - clip.startTime) * clickRatio;
     const splitTime = clip.startTime + splitOffset;
-    let offset = 0;
-    for (let i = 0; i < clipAssets.length; i++) {
-      if (clipAssets[i].id === clip.id) {
-        const timelineSplitTime = offset + splitOffset;
-        const newClip1 = { ...clip, id: `${clip.id}-a`, endTime: splitTime };
-        const newClip2 = { ...clip, id: `${clip.id}-b`, startTime: splitTime, name: clip.name + ' (2)', thumbnail: clip.thumbnail };
-        const newClips = [...clipAssets.slice(0, i), newClip1, newClip2, ...clipAssets.slice(i + 1)];
-        setClipAssets(newClips);
-        toast?.success?.(`在 ${splitTime.toFixed(1)}s 处切割`);
-        return;
-      }
-      offset += clipAssets[i].endTime - clipAssets[i].startTime;
+    const clipIndex = clipAssets.findIndex(c => c.id === clip.id);
+    if (clipIndex !== -1) {
+      const newClip1 = { ...clip, id: `${clip.id}-a`, endTime: splitTime };
+      const newClip2 = { ...clip, id: `${clip.id}-b`, startTime: splitTime, name: clip.name + ' (2)', thumbnail: clip.thumbnail };
+      const newClips = [...clipAssets.slice(0, clipIndex), newClip1, newClip2, ...clipAssets.slice(clipIndex + 1)];
+      setClipAssets(newClips);
+      toast?.success?.(`在 ${splitTime.toFixed(1)}s 处切割`);
     }
   };
 
@@ -903,454 +805,122 @@ const StoryboardMainView = () => {
     );
   }
 
-  // 剧本阶段特殊处理
-  if (currentStage === STAGES.SCRIPT) {
-    const scriptAsset = currentAssets[0];
-    const isScriptEmpty = !scriptAsset?.content;
+  // 渲染阶段内容
+  const renderStageContent = () => {
+    switch (currentStage) {
+      case STAGES.SCRIPT:
+        return (
+          <ScriptStageView
+            scriptAsset={currentAssets[0]}
+            scriptAssistantOpen={scriptAssistantOpen}
+            onOpenScriptAssistant={() => setScriptAssistantOpen(true)}
+            onCloseScriptAssistant={() => setScriptAssistantOpen(false)}
+            onUpdateAsset={handleUpdateAsset}
+            onAIParse={handleAIParse}
+            isParsing={isParsing}
+            showScriptParser={showScriptParser}
+            parseResult={parseResult}
+            onParseConfirm={handleParseConfirm}
+            onParseCancel={() => setShowScriptParser(false)}
+            onParseRetry={handleParseRetry}
+          />
+        );
 
-    // 剧本助手面板回调
-    const handleScriptAccept = (content) => {
-      handleUpdateAsset(scriptAsset?.id || 'script-main', { content });
-      setScriptAssistantOpen(false);
-    };
-
-    const handleScriptReject = () => {
-      // 拒绝后可以继续对话，不需要关闭面板
-    };
-
-    return (
-      <div className="storyboard-main">
-        <StageNavigation />
-        <div className="script-stage-layout">
-          {/* 左侧主区域 70% */}
-          <div className="script-main-area">
-            {/* 剧本引导提示 - 仅内容为空时显示 */}
-            {isScriptEmpty && (
-              <motion.div
-                className="script-guidance"
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-              >
-                <div className="guidance-icon">💡</div>
-                <div className="guidance-text">
-                  <strong>开始创作你的剧本</strong>
-                  <p>在下方编辑剧本，或让AI帮你生成 / 提取素材</p>
-                </div>
-              </motion.div>
-            )}
-
-            <AssetDetailPanel
-              asset={currentAssets[0] || {
-                id: 'script-main',
-                type: STAGES.SCRIPT,
-                name: '剧本',
-                content: '',
-              }}
-              onUpdate={handleUpdateAsset}
-            />
-
-            {/* 底部按钮栏 */}
-            <div className="script-bottom-actions">
-              <div className="left-actions">
-                <button
-                  className="action-btn"
-                  onClick={() => setScriptAssistantOpen(true)}
-                  disabled={isScriptEmpty}
-                >
-                  <FileText size={16} className="icon" />
-                  生成目录
-                </button>
-                <button
-                  className="action-btn"
-                  onClick={handleAIParse}
-                  disabled={isScriptEmpty || isParsing}
-                >
-                  <Sparkles size={16} className="icon" />
-                  {isParsing ? '提取中...' : 'AI提取素材'}
-                </button>
-              </div>
-              <div className="right-actions">
-                <button
-                  className="action-btn primary"
-                  onClick={() => setScriptAssistantOpen(true)}
-                >
-                  <Sparkles size={16} className="icon" />
-                  AI生成剧本
-                </button>
-                <button
-                  className="action-btn"
-                  onClick={() => handleUpdateAsset(scriptAsset?.id, { content: scriptAsset?.content })}
-                  disabled={!scriptAsset?.content}
-                >
-                  保存
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* 右侧助手面板 30% */}
-          <AnimatePresence>
-            {scriptAssistantOpen && (
-              <div className="script-assistant-area">
-                <ScriptAssistantPanel
-                  isOpen={scriptAssistantOpen}
-                  onClose={() => setScriptAssistantOpen(false)}
-                  onAccept={handleScriptAccept}
-                  onReject={handleScriptReject}
-                  scriptContent={scriptAsset?.content || ''}
-                  agentId={SCRIPT_AGENT_ID}
-                />
-              </div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* T050: 剧本解析结果弹窗 */}
-        <ScriptParser
-          isOpen={showScriptParser}
-          parseResult={parseResult}
-          onConfirm={handleParseConfirm}
-          onCancel={() => setShowScriptParser(false)}
-          onRetry={handleParseRetry}
-        />
-      </div>
-    );
-  }
-
-  // T054: 分镜阶段特殊处理 - 显示 AI 生成分镜按钮
-  if (currentStage === STAGES.STORYBOARD) {
-    return (
-      <div className="storyboard-main">
-        <StageNavigation />
-        <div className="storyboard-content storyboard-stage-content">
-          {/* AI 生成分镜按钮 */}
-          <div className="stage-action-bar">
-            <motion.button
-              className="ai-generate-btn"
-              onClick={handleAIGenerateStoryboard}
-              disabled={isParsing}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <Sparkles size={16} />
-              {isParsing ? '生成中...' : 'AI 生成分镜'}
-            </motion.button>
-          </div>
-
-          <div className="storyboard-split-view">
-            {/* 左侧：资产网格 */}
-            <aside className="assets-panel">
-              <AssetGrid
-                assets={currentAssets}
-                stage={currentStage}
-                selectedId={selectedAssetIds[currentStage]}
-                onSelect={handleSelectAsset}
-                onContextMenu={handleContextMenu}
-                onAddNew={handleAddNew}
-                onUpload={handleOpenUpload}
-                onBatchGenerate={handleBatchGenerate}
-              />
-            </aside>
-
-            {/* 右侧：详情面板 - 仅当选中资产时渲染 */}
-            {selectedAsset && (
-              <section className="detail-panel">
-                <AssetDetailPanel
-                  asset={selectedAsset}
-                  onUpdate={handleUpdateAsset}
-                  onDelete={handleDeleteAsset}
-                  onGenerate={handleGenerate}
-                  onAIDialog={handleAIDialog}
-                />
-              </section>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // T057: 视频阶段特殊处理 - 显示导出按钮
-  if (currentStage === STAGES.VIDEO) {
-    return (
-      <div className="storyboard-main">
-        <StageNavigation />
-        <div className="storyboard-content storyboard-stage-content">
-          {/* 导出按钮 */}
-          <div className="stage-action-bar">
-            <motion.button
-              className="export-btn"
-              onClick={handleExportVideos}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              导出所有视频
-            </motion.button>
-          </div>
-
-          <div className="storyboard-split-view">
-            {/* 左侧：资产网格 */}
-            <aside className="assets-panel">
-              <AssetGrid
-                assets={currentAssets}
-                stage={currentStage}
-                selectedId={selectedAssetIds[currentStage]}
-                onSelect={handleSelectAsset}
-                onContextMenu={handleContextMenu}
-                onAddNew={handleAddNew}
-                onUpload={handleOpenUpload}
-                onBatchGenerate={handleBatchGenerate}
-              />
-            </aside>
-
-            {/* 右侧：详情面板 - 仅当选中资产时渲染 */}
-            {selectedAsset && (
-              <section className="detail-panel">
-                <AssetDetailPanel
-                  asset={selectedAsset}
-                  onUpdate={handleUpdateAsset}
-                  onDelete={handleDeleteAsset}
-                  onGenerate={handleGenerate}
-                  onAIDialog={handleAIDialog}
-                />
-              </section>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // T057: 剪辑阶段布局 - 上方预览 + 下方时间线+片段列表
-  if (currentStage === STAGES.CLIP) {
-    const playheadPosition = (clipCurrentTime / totalDuration) * 100;
-    const zoomedDuration = totalDuration * clipZoom;
-    const timelineScale = zoomedDuration > 0 ? (800 / zoomedDuration) : 0;
-
-    return (
-      <div className="storyboard-main">
-        <StageNavigation />
-        <div className="storyboard-content storyboard-stage-content">
-          <div className="clip-stage-layout">
-            {/* 顶部工具栏 */}
-            <div className="clip-toolbar">
-              <div className="clip-toolbar-left">
-                <span className="clip-title">视频剪辑</span>
-              </div>
-              <div className="clip-toolbar-center">
-                <button className="clip-tool-btn" onClick={togglePlay} title={clipIsPlaying ? '暂停' : '播放'}>
-                  {clipIsPlaying ? <Pause size={18} /> : <Play size={18} />}
-                </button>
-                <button className="clip-tool-btn" onClick={handleSplitAtPlayhead} title="切割">
-                  <Scissors size={18} />
-                </button>
-                <div className="clip-time-display">
-                  {formatTime(clipCurrentTime)} / {formatTime(totalDuration)}
-                </div>
-              </div>
-              <div className="clip-toolbar-right">
-                <button className="clip-tool-btn" onClick={() => setClipZoom(Math.max(0.5, clipZoom - 0.25))} title="缩小">
-                  -
-                </button>
-                <span className="clip-zoom-label">{Math.round(clipZoom * 100)}%</span>
-                <button className="clip-tool-btn" onClick={() => setClipZoom(clipZoom + 0.25)} title="放大">
-                  +
-                </button>
-              </div>
-            </div>
-
-            {/* 内容区域 */}
-            <div className="clip-content-area">
-              {/* 视频预览区 */}
-              <div className="clip-preview-area">
-                <div className="clip-video-wrapper">
-                  <video
-                    ref={clipVideoRef}
-                    src={clipAssets[currentClipIndex]?.videoUrl || 'https://www.w3schools.com/html/mov_bbb.mp4'}
-                    onTimeUpdate={handleTimeUpdate}
-                    onEnded={() => setClipIsPlaying(false)}
-                    onClick={togglePlay}
-                  />
-                  {/* 播放头指示器 */}
-                  <div
-                    className="clip-playhead-indicator"
-                    style={{ left: `${playheadPosition}%` }}
-                  />
-                </div>
-              </div>
-
-              {/* 底部区域 */}
-              <div className="clip-bottom-area">
-                {/* 时间线 */}
-                <div className="clip-timeline-area">
-                  {/* 时间刻度 */}
-                  <div className="clip-timeline-scale">
-                    {Array.from({ length: Math.ceil(zoomedDuration) + 1 }, (_, i) => (
-                      <div key={i} className="clip-time-mark" style={{ left: `${i * timelineScale}px` }}>
-                        <span className="clip-time-label">{formatTime(i)}</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* 播放头 */}
-                  <div
-                    className="clip-timeline-playhead"
-                    style={{ left: `${clipCurrentTime * timelineScale}px` }}
-                  />
-
-                  {/* 片段轨道 */}
-                  <div className="clip-timeline-track">
-                    {clipAssets.map((clip, index) => {
-                      const clipDuration = clip.endTime - clip.startTime;
-                      const clipWidth = clipDuration * timelineScale;
-                      let offset = 0;
-                      for (let i = 0; i < index; i++) {
-                        offset += (clipAssets[i].endTime - clipAssets[i].startTime) * timelineScale;
-                      }
-                      return (
-                        <div
-                          key={clip.id}
-                          className={`clip-timeline-clip ${selectedAssetIds[currentStage] === clip.id ? 'selected' : ''}`}
-                          style={{ left: `${offset}px`, width: `${clipWidth}px` }}
-                          draggable
-                          onDragStart={(e) => handleDragStart(e, clip.id)}
-                          onDragEnd={handleDragEnd}
-                          onDrop={(e) => handleDrop(e, index)}
-                          onDragOver={(e) => e.preventDefault()}
-                          onClick={() => handleClipSelect(clip.id)}
-                          onDoubleClick={(e) => handleClipDoubleClick(e, clip)}
-                        >
-                          {/* 左侧裁剪手柄 */}
-                          <div
-                            className="clip-trim-handle clip-trim-left"
-                            onMouseDown={(e) => handleTrimDrag(e, clip.id, 'left')}
-                          />
-                          {/* 片段内容 */}
-                          <div className="clip-timeline-clip-content">
-                            <span className="clip-timeline-clip-name">{clip.name}</span>
-                          </div>
-                          {/* 右侧裁剪手柄 */}
-                          <div
-                            className="clip-trim-handle clip-trim-right"
-                            onMouseDown={(e) => handleTrimDrag(e, clip.id, 'right')}
-                          />
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* 片段资产面板 */}
-                <div className="clip-assets-panel">
-                  <div className="clip-assets-header">
-                    <span>片段列表 ({clipAssets.length})</span>
-                  </div>
-                  <div className="clip-assets-list">
-                    {clipAssets.map((clip) => (
-                      <div
-                        key={clip.id}
-                        className={`clip-asset-item ${selectedAssetIds[currentStage] === clip.id ? 'selected' : ''}`}
-                        onClick={() => handleClipSelect(clip.id)}
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, clip.id)}
-                        onDragEnd={handleDragEnd}
-                        onDrop={(e) => handleDrop(e, clipAssets.indexOf(clip))}
-                        onDragOver={(e) => e.preventDefault()}
-                      >
-                        <div className="clip-asset-thumb">
-                          {clip.thumbnail ? (
-                            <img src={clip.thumbnail} alt={clip.name} />
-                          ) : (
-                            <Film size={24} />
-                          )}
-                        </div>
-                        <div className="clip-asset-info">
-                          <span className="clip-asset-name">{clip.name}</span>
-                          <span className="clip-asset-duration">{formatTime(clip.endTime - clip.startTime)}</span>
-                        </div>
-                        <button
-                          className="clip-asset-delete"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteClip(clip.id);
-                          }}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // 角色/场景/道具阶段布局 - 和剧本阶段一样用 70:30 布局
-  const renderAssetStageContent = () => (
-    <div className="asset-stage-layout">
-      {/* 左侧主区域 */}
-      <div className="asset-main-area">
-        {/* 资产网格 */}
-        <aside className="assets-panel">
-          <AssetGrid
+      case STAGES.STORYBOARD:
+        return (
+          <StoryboardStageView
             assets={currentAssets}
-            stage={currentStage}
-            selectedId={selectedAssetIds[currentStage]}
-            onSelect={handleSelectAsset}
+            selectedAsset={selectedAsset}
+            selectedAssetId={selectedAssetIds[currentStage]}
+            onSelectAsset={handleSelectAsset}
             onContextMenu={handleContextMenu}
+            onUpdateAsset={handleUpdateAsset}
+            onDeleteAsset={handleDeleteAsset}
+            onGenerate={handleGenerate}
+            onAIDialog={handleAIDialog}
+            onAddNew={handleAddNew}
+            onUpload={handleOpenUpload}
+            onBatchGenerate={handleBatchGenerate}
+            onAIGenerate={handleAIGenerateStoryboard}
+            isParsing={isParsing}
+          />
+        );
+
+      case STAGES.VIDEO:
+        return (
+          <VideoStageView
+            assets={currentAssets}
+            selectedAsset={selectedAsset}
+            selectedAssetId={selectedAssetIds[currentStage]}
+            onSelectAsset={handleSelectAsset}
+            onContextMenu={handleContextMenu}
+            onUpdateAsset={handleUpdateAsset}
+            onDeleteAsset={handleDeleteAsset}
+            onGenerate={handleGenerate}
+            onAIDialog={handleAIDialog}
+            onAddNew={handleAddNew}
+            onUpload={handleOpenUpload}
+            onBatchGenerate={handleBatchGenerate}
+            onExportVideos={handleExportVideos}
+          />
+        );
+
+      case STAGES.CLIP:
+        return (
+          <ClipStageView
+            clipAssets={clipAssets}
+            selectedClipId={selectedAssetIds[currentStage]}
+            clipCurrentTime={clipCurrentTime}
+            clipIsPlaying={clipIsPlaying}
+            clipZoom={clipZoom}
+            videoRef={clipVideoRef}
+            currentClipIndex={currentClipIndex}
+            onClipSelect={handleClipSelect}
+            onClipDoubleClick={handleClipDoubleClick}
+            onTogglePlay={togglePlay}
+            onTimeUpdate={handleTimeUpdate}
+            onSplitAtPlayhead={handleSplitAtPlayhead}
+            onDeleteClip={handleDeleteClip}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            onDrop={handleDrop}
+            onTrimDrag={handleTrimDrag}
+            onZoomIn={() => setClipZoom(clipZoom + 0.25)}
+            onZoomOut={() => setClipZoom(Math.max(0.5, clipZoom - 0.25))}
+            onSeek={seekTo}
+          />
+        );
+
+      case STAGES.CHARACTER:
+      case STAGES.SCENE:
+      case STAGES.PROP:
+        return (
+          <AssetStageView
+            stage={currentStage}
+            assets={currentAssets}
+            selectedAsset={selectedAsset}
+            aiDialog={aiDialogs[currentStage]}
+            onSelectAsset={handleSelectAsset}
+            onUpdateAsset={handleUpdateAsset}
+            onDeleteAsset={handleDeleteAsset}
+            onGenerate={handleGenerate}
+            onAIDialog={handleAIDialog}
+            onAIMessagesChange={handleAIMessagesChange}
+            onCloseAIDialog={handleCloseAIDialog}
             onAddNew={handleAddNew}
             onUpload={handleOpenUpload}
           />
-        </aside>
+        );
 
-        {/* 详情面板 */}
-        <section className="detail-panel">
-          {selectedAsset && (
-            <AssetDetailPanel
-              asset={selectedAsset}
-              onUpdate={handleUpdateAsset}
-              onDelete={handleDeleteAsset}
-              onGenerate={handleGenerate}
-              onAIDialog={handleAIDialog}
-            />
-          )}
-        </section>
-      </div>
-
-      {/* 右侧 AI 对话面板 */}
-      <AnimatePresence>
-        {aiDialogs[currentStage]?.isOpen && (
-          <div className="asset-ai-assistant-area">
-            <AssetAIDialog
-              isOpen={aiDialogs[currentStage].isOpen}
-              asset={aiDialogs[currentStage].asset}
-              messages={aiDialogs[currentStage].messages}
-              onMessagesChange={handleAIMessagesChange}
-              onClose={handleCloseAIDialog}
-              onGenerate={(assetId) => {
-                handleGenerate(assetId);
-                handleCloseAIDialog();
-              }}
-              onSave={(assetId) => {
-                toast?.success?.('Prompt 已保存');
-                handleCloseAIDialog();
-              }}
-            />
-          </div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
+      default:
+        return null;
+    }
+  };
 
   return (
     <div className="storyboard-main">
       <StageNavigation />
-      {renderAssetStageContent()}
+      {renderStageContent()}
 
       {/* T072: 资产修改影响提示 */}
       {impactToast && (

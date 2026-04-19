@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, X, ChevronRight, User, MapPin, Package, Sparkles, Loader2 } from 'lucide-react';
-import { useStageStore, STAGES } from '../../stores';
 import './ScriptParser.css';
 
 /**

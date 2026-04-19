@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, PanelLeft, Maximize2, X } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import Console from './components/Console';
 import ToastContainer, { toast } from './components/Toast/Toast';
 import BottomToastContainer from './components/Toast/BottomToast';
@@ -17,7 +17,7 @@ import { DrillPanel, PromptDiffPanel, AssetChangeCard, ParameterDiffPanel, Visua
 import { SmartSuggestion } from './components/SmartSuggestion';
 import { homePageApi, nodeVersionApi, proposalApi } from './services/api';
 import { AUTH_ERROR_MESSAGES } from './constants/authConstants';
-import { WORKFLOW_LAYOUT, PLAN_LAYOUT } from './constants/layoutConstants';
+import { WORKFLOW_LAYOUT } from './constants/layoutConstants';
 import { uiLogger } from './utils/logger';
 import { authStorage } from './utils/authStorage';
 import { eventBus, EVENT_TYPES } from './utils/eventBus';
