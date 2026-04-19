@@ -185,9 +185,9 @@
 
 ### 实现
 
-- [ ] T070a [P] [P2] 在 `data-model.md` Asset 接口中添加 `referencedBy` 字段
-- [ ] T070b [P] [P2] 在 `stageStore.js` 中实现 `addAsset` 时自动建立引用关系
-- [ ] T070c [P] [P2] 在 `stageStore.js` 中实现 `getImpactedAssets(assetId)` 函数
+- [x] T070a [P] [P2] 在 `data-model.md` Asset 接口中添加 `referencedBy` 字段
+- [x] T070b [P] [P2] 在 `stageStore.js` 中实现 `addAsset` 时自动建立引用关系
+- [x] T070c [P] [P2] 在 `stageStore.js` 中实现 `getImpactedAssets(assetId)` 函数
 - [x] T071 [P] [P2] 创建影响提示条组件 `ImpactToast.jsx`
 - [x] T072 [US2] 在 `AssetDetailPanel.jsx` 中触发影响提示显示
 - [x] T073 [US2] 在影响提示中实现"重新生成"和"忽略"按钮

@@ -199,12 +199,64 @@ export const useStageStore = create((set, get) => ({
     },
   }),
 
-  addStageAsset: (stage, asset) => set((state) => ({
-    stageAssets: {
-      ...state.stageAssets,
-      [stage]: [...(state.stageAssets[stage] || []), asset]
+  addStageAsset: (stage, asset) => set((state) => {
+    const newAssets = [...(state.stageAssets[stage] || []), asset];
+    const newStageAssets = { ...state.stageAssets, [stage]: newAssets };
+
+    // T070b: 自动建立引用关系
+    // 当添加引用其他资产的资产（如分镜）时，更新被引用资产的 referencedBy
+    if (stage === STAGES.STORYBOARD && asset.characterIds) {
+      // 更新被分镜引用的角色的 referencedBy
+      const updateReferences = (assets, reference) => {
+        return assets.map(a => {
+          if (reference.assetIds.includes(a.id)) {
+            const existingRefs = a.referencedBy || [];
+            const alreadyRefed = existingRefs.some(r => r.assetId === reference.assetId);
+            if (!alreadyRefed) {
+              return {
+                ...a,
+                referencedBy: [...existingRefs, {
+                  assetId: reference.assetId,
+                  stage: reference.stage,
+                  context: reference.context,
+                }],
+              };
+            }
+          }
+          return a;
+        });
+      };
+
+      const reference = {
+        assetId: asset.id,
+        stage,
+        context: '被分镜引用',
+        assetIds: [
+          ...(asset.characterIds || []),
+          asset.sceneId,
+          ...(asset.propsIds || []),
+        ].filter(Boolean),
+      };
+
+      // 更新角色
+      newStageAssets[STAGES.CHARACTER] = updateReferences(
+        state.stageAssets[STAGES.CHARACTER] || [],
+        reference
+      );
+      // 更新场景
+      newStageAssets[STAGES.SCENE] = updateReferences(
+        state.stageAssets[STAGES.SCENE] || [],
+        reference
+      );
+      // 更新道具
+      newStageAssets[STAGES.PROP] = updateReferences(
+        state.stageAssets[STAGES.PROP] || [],
+        reference
+      );
     }
-  })),
+
+    return { stageAssets: newStageAssets };
+  }),
 
   updateStageAsset: (stage, assetId, updates) => set((state) => ({
     stageAssets: {
@@ -363,6 +415,30 @@ export const useStageStore = create((set, get) => ({
         [STAGES.PROP]: newAssets[STAGES.PROP].length > 0 ? true : state.stageCompletion[STAGES.PROP],
       },
     });
+  },
+
+  // T070c: 获取引用了指定资产的所有资产
+  // 通过查询各资产的 referencedBy 字段找到引用关系
+  // 返回：[{id, name, type, context}]
+  getImpactedAssets: (assetId) => {
+    const state = get();
+    const results = [];
+
+    Object.entries(state.stageAssets).forEach(([stage, assets]) => {
+      assets.forEach(asset => {
+        const refs = asset.referencedBy || [];
+        if (refs.some(ref => ref.assetId === assetId)) {
+          results.push({
+            id: asset.id,
+            name: asset.name || asset.label,
+            type: STAGE_LABELS[stage] || stage,
+            context: refs.find(ref => ref.assetId === assetId)?.context,
+          });
+        }
+      });
+    });
+
+    return results;
   },
 
   // T070: 获取使用某资产的受影响的分镜列表

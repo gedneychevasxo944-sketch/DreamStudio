@@ -173,6 +173,14 @@ export const useProjectStore = create((set, get) => ({
   removeVersion: (versionId) => set((state) => ({
     versions: state.versions.filter(v => v.id !== versionId)
   })),
+
+  // 切换版本
+  switchVersion: (versionId) => {
+    const version = get().versions.find(v => v.id === versionId);
+    if (version) {
+      set({ currentVersion: version });
+    }
+  },
 }));
 
 export default useProjectStore;
