@@ -16,7 +16,6 @@ import './AssetGrid.css';
  * - onContextMenu: (e, asset) => void - 右键菜单回调
  * - onAddNew: () => void - 添加新资产回调
  * - onUpload: () => void - 上传资产回调
- * - onBatchGenerate: () => void - 批量生成回调
  */
 const AssetGrid = ({
   assets = [],
@@ -26,7 +25,6 @@ const AssetGrid = ({
   onContextMenu,
   onAddNew,
   onUpload,
-  onBatchGenerate,
 }) => {
   // 根据阶段确定上传按钮可见性
   const showUpload = stage && [STAGES.CHARACTER, STAGES.SCENE, STAGES.PROP].includes(stage);
@@ -109,16 +107,6 @@ const AssetGrid = ({
               <span>上传</span>
             </button>
           )}
-          {/* AI 批量生成：仅在没有资产时启用 */}
-          <button
-            className="header-action-btn"
-            onClick={onBatchGenerate}
-            disabled={assets.length > 0}
-            title={assets.length > 0 ? '请先删除现有资产再使用批量生成' : '从剧本提取角色生成'}
-          >
-            <Sparkles size={14} />
-            <span>AI 批量生成</span>
-          </button>
         </div>
       </div>
 

@@ -8,6 +8,7 @@ export const STAGES = {
   PROP: 'prop',               // 道具
   STORYBOARD: 'storyboard',   // 分镜
   VIDEO: 'video',             // 视频
+  CLIP: 'clip',               // 剪辑
 };
 
 export const STAGE_ORDER = [
@@ -17,6 +18,7 @@ export const STAGE_ORDER = [
   STAGES.PROP,
   STAGES.STORYBOARD,
   STAGES.VIDEO,
+  STAGES.CLIP,
 ];
 
 export const STAGE_LABELS = {
@@ -26,6 +28,7 @@ export const STAGE_LABELS = {
   [STAGES.PROP]: '道具',
   [STAGES.STORYBOARD]: '分镜',
   [STAGES.VIDEO]: '视频',
+  [STAGES.CLIP]: '剪辑',
 };
 
 export const STAGE_ICONS = {
@@ -35,6 +38,7 @@ export const STAGE_ICONS = {
   [STAGES.PROP]: '🎭',
   [STAGES.STORYBOARD]: '🎬',
   [STAGES.VIDEO]: '🎥',
+  [STAGES.CLIP]: '✂️',
 };
 
 // 阶段颜色（用于 UI 展示）
@@ -45,6 +49,7 @@ export const STAGE_COLORS = {
   [STAGES.PROP]: { day: '#F59E0B', night: '#FBBF24' },
   [STAGES.STORYBOARD]: { day: '#8B5CF6', night: '#A78BFA' },
   [STAGES.VIDEO]: { day: '#EF4444', night: '#F87171' },
+  [STAGES.CLIP]: { day: '#06B6D4', night: '#22D3EE' },
 };
 
 // 阶段配置
@@ -83,6 +88,12 @@ export const STAGE_CONFIG = {
     label: '视频',
     icon: '🎥',
     assetType: 'video',
+    hasGrid: true,
+  },
+  [STAGES.CLIP]: {
+    label: '剪辑',
+    icon: '✂️',
+    assetType: 'clip',
     hasGrid: true,
   },
 };
@@ -124,6 +135,7 @@ export const useStageStore = create((set, get) => ({
     [STAGES.PROP]: [],
     [STAGES.STORYBOARD]: [],
     [STAGES.VIDEO]: [],
+    [STAGES.CLIP]: [],
   },
 
   // 选中的资产ID - 按阶段独立存储
@@ -134,6 +146,7 @@ export const useStageStore = create((set, get) => ({
     [STAGES.PROP]: null,
     [STAGES.STORYBOARD]: null,
     [STAGES.VIDEO]: null,
+    [STAGES.CLIP]: null,
   },
 
   // 阶段完成状态（用于显示✓）
@@ -144,6 +157,7 @@ export const useStageStore = create((set, get) => ({
     [STAGES.PROP]: false,
     [STAGES.STORYBOARD]: false,
     [STAGES.VIDEO]: false,
+    [STAGES.CLIP]: false,
   },
 
   // Actions
@@ -155,6 +169,7 @@ export const useStageStore = create((set, get) => ({
 
   // 重置所有阶段资产（用于新项目）
   resetAllStageAssets: () => set({
+    currentStage: STAGES.SCRIPT,
     stageAssets: {
       [STAGES.SCRIPT]: [],
       [STAGES.CHARACTER]: [],
@@ -162,6 +177,7 @@ export const useStageStore = create((set, get) => ({
       [STAGES.PROP]: [],
       [STAGES.STORYBOARD]: [],
       [STAGES.VIDEO]: [],
+      [STAGES.CLIP]: [],
     },
     selectedAssetIds: {
       [STAGES.SCRIPT]: null,
@@ -170,6 +186,7 @@ export const useStageStore = create((set, get) => ({
       [STAGES.PROP]: null,
       [STAGES.STORYBOARD]: null,
       [STAGES.VIDEO]: null,
+      [STAGES.CLIP]: null,
     },
     stageCompletion: {
       [STAGES.SCRIPT]: false,
@@ -178,6 +195,7 @@ export const useStageStore = create((set, get) => ({
       [STAGES.PROP]: false,
       [STAGES.STORYBOARD]: false,
       [STAGES.VIDEO]: false,
+      [STAGES.CLIP]: false,
     },
   }),
 
@@ -252,6 +270,7 @@ export const useStageStore = create((set, get) => ({
       [STAGES.PROP]: [],
       [STAGES.STORYBOARD]: [],
       [STAGES.VIDEO]: [],
+      [STAGES.CLIP]: [],
     },
     selectedAssetIds: {
       [STAGES.SCRIPT]: null,
@@ -260,6 +279,7 @@ export const useStageStore = create((set, get) => ({
       [STAGES.PROP]: null,
       [STAGES.STORYBOARD]: null,
       [STAGES.VIDEO]: null,
+      [STAGES.CLIP]: null,
     },
     stageCompletion: {
       [STAGES.SCRIPT]: false,
@@ -268,6 +288,7 @@ export const useStageStore = create((set, get) => ({
       [STAGES.PROP]: false,
       [STAGES.STORYBOARD]: false,
       [STAGES.VIDEO]: false,
+      [STAGES.CLIP]: false,
     },
   }),
 

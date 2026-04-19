@@ -946,3 +946,462 @@
 .script-toc-content::-webkit-scrollbar-thumb:hover {
   background: var(--border-subtle, rgba(255, 255, 255, 0.25));
 }
+
+/* ============ 分镜编辑器 V2 样式 ============ */
+.storyboard-editor-v2 .panel-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* 三帧预览容器 */
+.preview-frames-container {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.preview-frame {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: var(--bg-secondary, #252538);
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.preview-frame:hover {
+  border-color: var(--accent-cyan, #06b6d4);
+  transform: scale(1.02);
+}
+
+.preview-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.frame-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-disabled, #4a4a5e);
+  gap: 6px;
+}
+
+.frame-placeholder span {
+  font-size: 11px;
+}
+
+.frame-label {
+  position: absolute;
+  bottom: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 2px 8px;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 4px;
+  font-size: 10px;
+  color: #fff;
+  white-space: nowrap;
+}
+
+/* 剧本段落紧凑版 */
+.script-textarea.compact {
+  min-height: 60px;
+  resize: vertical;
+}
+
+/* 合并的资产行容器 */
+.asset-rows-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--bg-secondary, #1e1e32);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.asset-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.asset-row:hover {
+  background: var(--bg-tertiary, #252538);
+}
+
+.asset-row-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+  width: 20px;
+  text-align: center;
+}
+
+.asset-row-label {
+  font-size: 12px;
+  color: var(--text-secondary, #8b8b9e);
+  flex-shrink: 0;
+  min-width: 36px;
+}
+
+.asset-row-names {
+  font-size: 13px;
+  color: var(--text-primary, #ffffff);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.asset-row-names.empty {
+  color: var(--text-disabled, #4a4a5e);
+  font-style: italic;
+}
+
+/* ============ 剧本引用块样式 ============ */
+.script-reference-block {
+  background: var(--bg-secondary, #1e1e32);
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  flex-shrink: 0;
+}
+
+.script-reference-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+}
+
+.script-reference-icon {
+  font-size: 13px;
+  opacity: 0.7;
+}
+
+.script-reference-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary, #8b8b9e);
+}
+
+.script-reference-content {
+  padding: 10px 12px;
+  min-height: 40px;
+}
+
+.script-quote {
+  margin: 0;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-primary, #ffffff);
+  font-style: normal;
+  border: none;
+  background: transparent;
+  white-space: pre-wrap;
+}
+
+.script-reference-empty {
+  font-size: 13px;
+  color: var(--text-disabled, #4a4a5e);
+  font-style: italic;
+}
+
+/* 4列参数行 */
+.params-4-col {
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  gap: 10px;
+}
+
+.params-4-col .form-group {
+  margin-bottom: 0;
+}
+
+/* 时长输入 */
+.duration-input {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.duration-input input {
+  width: 50px;
+  padding: 6px 8px;
+  background: var(--bg-tertiary, #252538);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  border-radius: 6px;
+  color: var(--text-primary, #ffffff);
+  font-size: 13px;
+  text-align: center;
+}
+
+.duration-input input:focus {
+  outline: none;
+  border-color: #3b82f6;
+}
+
+.duration-unit {
+  font-size: 12px;
+  color: var(--text-secondary, #8b8b9e);
+}
+
+/* Prompt 头部 */
+.prompt-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.prompt-header label {
+  margin-bottom: 0;
+}
+
+.ai-optimize-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  border-radius: 6px;
+  color: white;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ai-optimize-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+/* ============ 视频编辑器 V2 样式 ============ */
+.video-editor-v2 .panel-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* 视频预览大图 */
+.video-preview-large {
+  aspect-ratio: 16 / 9;
+  background: var(--bg-secondary, #252538);
+  border-radius: 8px;
+  overflow: hidden;
+  max-height: 240px;
+}
+
+.video-preview-large video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.video-preview-large .video-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 180px;
+  color: var(--text-disabled, #4a4a5e);
+  gap: 10px;
+}
+
+.video-placeholder-hint {
+  font-size: 12px;
+  color: var(--text-secondary, #8b8b9e);
+}
+
+/* 3列参数行 */
+.params-3-col {
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+}
+
+.params-3-col .form-group {
+  margin-bottom: 0;
+}
+
+/* ============ 剪辑编辑器样式 ============ */
+.clip-editor .panel-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* 片段预览 */
+.clip-preview {
+  aspect-ratio: 16 / 9;
+  background: var(--bg-secondary, #252538);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.clip-preview video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.clip-preview .video-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 120px;
+  color: var(--text-disabled, #4a4a5e);
+  gap: 10px;
+}
+
+/* 片段信息 */
+.clip-info {
+  display: flex;
+  gap: 16px;
+  padding: 10px 12px;
+  background: var(--bg-secondary, #1e1e32);
+  border-radius: 8px;
+}
+
+.clip-info-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.clip-info-label {
+  font-size: 12px;
+  color: var(--text-secondary, #8b8b9e);
+}
+
+.clip-info-value {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary, #ffffff);
+}
+
+/* 裁剪控制 */
+.clip-trim-section {
+  padding: 12px;
+  background: var(--bg-secondary, #1e1e32);
+  border-radius: 8px;
+}
+
+.clip-trim-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary, #8b8b9e);
+  margin-bottom: 12px;
+}
+
+.clip-trim-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.clip-trim-input {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.trim-input-label {
+  font-size: 11px;
+  color: var(--text-disabled, #4a4a5e);
+}
+
+.clip-trim-input input {
+  width: 48px;
+  padding: 6px 8px;
+  background: var(--bg-tertiary, #252538);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  border-radius: 6px;
+  color: var(--text-primary, #ffffff);
+  font-size: 13px;
+  text-align: center;
+}
+
+.clip-trim-input input:focus {
+  outline: none;
+  border-color: #3b82f6;
+}
+
+.trim-input-unit {
+  font-size: 11px;
+  color: var(--text-secondary, #8b8b9e);
+}
+
+.clip-trim-range {
+  flex: 1;
+  position: relative;
+  height: 24px;
+  display: flex;
+  align-items: center;
+}
+
+.clip-trim-range input[type="range"] {
+  position: absolute;
+  width: 100%;
+  height: 4px;
+  background: transparent;
+  pointer-events: none;
+  -webkit-appearance: none;
+}
+
+.clip-trim-range input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  background: #3b82f6;
+  border-radius: 50%;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.trim-range-track {
+  position: absolute;
+  width: 100%;
+  height: 4px;
+  background: var(--bg-tertiary, #252538);
+  border-radius: 2px;
+}
+
+.trim-range-selected {
+  position: absolute;
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6, #60a5fa);
+  border-radius: 2px;
+}
+
+.clip-trim-result {
+  margin-top: 12px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-secondary, #8b8b9e);
+}
+
+.clip-trim-result strong {
+  color: var(--accent-cyan, #06b6d4);
+}

@@ -1,6 +1,6 @@
-import { useCallback, useState, useEffect } from 'react';
+import { useCallback, useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, FileText } from 'lucide-react';
+import { Sparkles, FileText, Plus, Film, Trash2, Play, Download, Pause, Scissors } from 'lucide-react';
 import { toast } from '../Toast/Toast';
 import StageNavigation from './StageNavigation';
 import AssetGrid from './AssetGrid';
@@ -18,6 +18,38 @@ import './StoryboardMainView.css';
 
 // 剧本助手专用 agent ID（固定为 3）
 const SCRIPT_AGENT_ID = 3;
+
+// 格式化时间显示 (秒 -> MM:SS)
+const formatTime = (seconds) => {
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+};
+
+// 格式化时间码显示 (秒 -> HH:MM:SS:FF)
+const formatTimecode = (seconds, fps = 30) => {
+  const hours = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = Math.floor(seconds % 60);
+  const frames = Math.floor((seconds % 1) * fps);
+  return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}:${frames.toString().padStart(2, '0')}`;
+};
+
+// 解析时间码为秒
+const parseTimecode = (timecode) => {
+  const parts = timecode.split(':').map(Number);
+  if (parts.length === 4) {
+    const [h, m, s, f] = parts;
+    return h * 3600 + m * 60 + s + f / 30;
+  } else if (parts.length === 3) {
+    const [h, m, s] = parts;
+    return h * 3600 + m * 60 + s;
+  } else if (parts.length === 2) {
+    const [m, s] = parts;
+    return m * 60 + s;
+  }
+  return null;
+};
 
 /**
  * StoryboardMainView - 故事板主视图
@@ -73,8 +105,45 @@ const StoryboardMainView = () => {
   // 检查项目是否为空
   const projectIsEmpty = isProjectEmpty();
 
+  // T057: 剪辑阶段相关状态
+  const [clipCurrentTime, setClipCurrentTime] = useState(0);
+  const [clipIsPlaying, setClipIsPlaying] = useState(false);
+  const [clipZoom, setClipZoom] = useState(1);
+  const [clipAssets, setClipAssets] = useState([]);
+  const [draggedClipId, setDraggedClipId] = useState(null);
+  const [trimState, setTrimState] = useState({ clipId: null, edge: null, startX: 0 });
+  const clipVideoRef = useRef(null);
+
   // 获取 chatStore 的 context 切换函数
   const { switchContext } = useChatStore();
+
+  // T057: 初始化剪辑资产（从VIDEO阶段导入或使用模拟数据）
+  useEffect(() => {
+    if (currentStage === STAGES.CLIP) {
+      const videoAssets = stageAssets[STAGES.VIDEO] || [];
+      if (videoAssets.length > 0) {
+        // 从视频阶段导入
+        const imported = videoAssets.map((v, i) => ({
+          ...v,
+          id: `clip-${v.id}`,
+          name: v.name || `片段${i + 1}`,
+          order: i + 1,
+          startTime: 0,
+          endTime: v.duration || 5,
+          clipStartTime: 0,
+          clipEndTime: v.duration || 5,
+        }));
+        setClipAssets(imported);
+      } else if (clipAssets.length === 0) {
+        // 使用模拟数据
+        setClipAssets([
+          { id: 'clip-1', name: '开场镜头', order: 1, duration: 5, startTime: 0, endTime: 5, clipStartTime: 0, clipEndTime: 5, thumbnail: 'https://picsum.photos/seed/clip1/320/180', videoUrl: 'https://www.w3schools.com/html/mov_bbb.mp4' },
+          { id: 'clip-2', name: '咖啡馆内景', order: 2, duration: 8, startTime: 0, endTime: 8, clipStartTime: 0, clipEndTime: 8, thumbnail: 'https://picsum.photos/seed/clip2/320/180', videoUrl: 'https://www.w3schools.com/html/mov_bbb.mp4' },
+          { id: 'clip-3', name: '对话场景', order: 3, duration: 12, startTime: 0, endTime: 12, clipStartTime: 0, clipEndTime: 12, thumbnail: 'https://picsum.photos/seed/clip3/320/180', videoUrl: 'https://www.w3schools.com/html/mov_bbb.mp4' },
+        ]);
+      }
+    }
+  }, [currentStage, stageAssets]);
 
   // P0: 监听导出事件（来自 TopBar）
   useEffect(() => {
@@ -615,6 +684,159 @@ const StoryboardMainView = () => {
     }
   }, [handleAIParse, handleAIGenerateStoryboard, stageAssets, updateStageAsset]);
 
+  // T057: 剪辑阶段辅助函数
+  const totalDuration = clipAssets.reduce((sum, clip) => sum + (clip.endTime - clip.startTime), 0) || 1;
+
+  const currentClipIndex = (() => {
+    let acc = 0;
+    for (let i = 0; i < clipAssets.length; i++) {
+      const clipDur = clipAssets[i].endTime - clipAssets[i].startTime;
+      if (acc + clipDur > clipCurrentTime) return i;
+      acc += clipDur;
+    }
+    return clipAssets.length - 1;
+  })();
+
+  const handleTimeUpdate = (e) => {
+    setClipCurrentTime(e.target.currentTime);
+  };
+
+  const seekTo = (time) => {
+    if (clipVideoRef.current) {
+      clipVideoRef.current.currentTime = time;
+      setClipCurrentTime(time);
+    }
+  };
+
+  const handleSplitAtPlayhead = () => {
+    if (clipAssets.length === 0) return;
+    const splitTime = clipCurrentTime;
+    let acc = 0;
+    for (let i = 0; i < clipAssets.length; i++) {
+      const clip = clipAssets[i];
+      const clipDur = clip.endTime - clip.startTime;
+      if (acc + clipDur > splitTime && splitTime > acc) {
+        const splitPoint = splitTime - acc;
+        const clipStart = clip.startTime;
+        const clipEnd = clip.endTime;
+        const newClip1 = { ...clip, id: `${clip.id}-a`, endTime: clipStart + splitPoint };
+        const newClip2 = { ...clip, id: `${clip.id}-b`, startTime: clipStart + splitPoint, name: clip.name + ' (2)' };
+        const newClips = [...clipAssets.slice(0, i), newClip1, newClip2, ...clipAssets.slice(i + 1)];
+        setClipAssets(newClips);
+        toast?.success?.(`在 ${splitTime.toFixed(2)}s 处切割成功`);
+        return;
+      }
+      acc += clipDur;
+    }
+    toast?.info?.('请将播放头移动到片段上再切割');
+  };
+
+  const togglePlay = () => {
+    if (clipVideoRef.current) {
+      if (clipIsPlaying) {
+        clipVideoRef.current.pause();
+      } else {
+        clipVideoRef.current.play();
+      }
+      setClipIsPlaying(!clipIsPlaying);
+    }
+  };
+
+  const handleClipSelect = (clipId) => {
+    selectAsset(clipId);
+    let acc = 0;
+    for (const clip of clipAssets) {
+      if (clip.id === clipId) {
+        seekTo(acc);
+        break;
+      }
+      acc += clip.endTime - clip.startTime;
+    }
+  };
+
+  const handleDeleteClip = (clipId) => {
+    setClipAssets(prev => prev.filter(c => c.id !== clipId));
+    toast?.info?.('已删除片段');
+  };
+
+  const handleDragStart = (e, clipId) => {
+    setDraggedClipId(clipId);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragEnd = () => {
+    setDraggedClipId(null);
+  };
+
+  const handleDrop = (e, targetIndex) => {
+    e.preventDefault();
+    if (!draggedClipId) return;
+    const draggedIndex = clipAssets.findIndex(c => c.id === draggedClipId);
+    if (draggedIndex === targetIndex) return;
+    const newClips = [...clipAssets];
+    const [draggedClip] = newClips.splice(draggedIndex, 1);
+    newClips.splice(targetIndex, 0, draggedClip);
+    setClipAssets(newClips);
+    setDraggedClipId(null);
+  };
+
+  const handleClipDoubleClick = (e, clip) => {
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const clickRatio = clickX / rect.width;
+    const splitOffset = (clip.endTime - clip.startTime) * clickRatio;
+    const splitTime = clip.startTime + splitOffset;
+    let offset = 0;
+    for (let i = 0; i < clipAssets.length; i++) {
+      if (clipAssets[i].id === clip.id) {
+        const timelineSplitTime = offset + splitOffset;
+        const newClip1 = { ...clip, id: `${clip.id}-a`, endTime: splitTime };
+        const newClip2 = { ...clip, id: `${clip.id}-b`, startTime: splitTime, name: clip.name + ' (2)', thumbnail: clip.thumbnail };
+        const newClips = [...clipAssets.slice(0, i), newClip1, newClip2, ...clipAssets.slice(i + 1)];
+        setClipAssets(newClips);
+        toast?.success?.(`在 ${splitTime.toFixed(1)}s 处切割`);
+        return;
+      }
+      offset += clipAssets[i].endTime - clipAssets[i].startTime;
+    }
+  };
+
+  const handleTrimDrag = (e, clipId, edge) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startTrimState = { clipId, edge, startX };
+
+    const handleMouseMove = (moveEvent) => {
+      const deltaX = moveEvent.clientX - startX;
+      const trackWidth = 800;
+      const pixelsPerSecond = trackWidth / totalDuration;
+      const deltaTime = deltaX / pixelsPerSecond / clipZoom;
+
+      setClipAssets(prev => prev.map(clip => {
+        if (clip.id !== clipId) return clip;
+        if (edge === 'left') {
+          const newStartTime = Math.max(0, Math.min(clip.endTime - 0.5, clip.startTime + deltaTime));
+          return { ...clip, startTime: newStartTime };
+        } else {
+          const newEndTime = Math.max(clip.startTime + 0.5, Math.min(clip.duration || 30, clip.endTime + deltaTime));
+          return { ...clip, endTime: newEndTime };
+        }
+      }));
+    };
+
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      setTrimState({ clipId: null, edge: null, startX: 0 });
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    setTrimState(startTrimState);
+  };
+
   // T057: 处理批量导出视频
   const handleExportVideos = useCallback(async () => {
     const videos = currentAssets.filter(a => a.videoUrl);
@@ -894,6 +1116,174 @@ const StoryboardMainView = () => {
                 />
               </section>
             )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // T057: 剪辑阶段布局 - 上方预览 + 下方时间线+片段列表
+  if (currentStage === STAGES.CLIP) {
+    const playheadPosition = (clipCurrentTime / totalDuration) * 100;
+    const zoomedDuration = totalDuration * clipZoom;
+    const timelineScale = zoomedDuration > 0 ? (800 / zoomedDuration) : 0;
+
+    return (
+      <div className="storyboard-main">
+        <StageNavigation />
+        <div className="storyboard-content storyboard-stage-content">
+          <div className="clip-stage-layout">
+            {/* 顶部工具栏 */}
+            <div className="clip-toolbar">
+              <div className="clip-toolbar-left">
+                <span className="clip-title">视频剪辑</span>
+              </div>
+              <div className="clip-toolbar-center">
+                <button className="clip-tool-btn" onClick={togglePlay} title={clipIsPlaying ? '暂停' : '播放'}>
+                  {clipIsPlaying ? <Pause size={18} /> : <Play size={18} />}
+                </button>
+                <button className="clip-tool-btn" onClick={handleSplitAtPlayhead} title="切割">
+                  <Scissors size={18} />
+                </button>
+                <div className="clip-time-display">
+                  {formatTime(clipCurrentTime)} / {formatTime(totalDuration)}
+                </div>
+              </div>
+              <div className="clip-toolbar-right">
+                <button className="clip-tool-btn" onClick={() => setClipZoom(Math.max(0.5, clipZoom - 0.25))} title="缩小">
+                  -
+                </button>
+                <span className="clip-zoom-label">{Math.round(clipZoom * 100)}%</span>
+                <button className="clip-tool-btn" onClick={() => setClipZoom(clipZoom + 0.25)} title="放大">
+                  +
+                </button>
+              </div>
+            </div>
+
+            {/* 内容区域 */}
+            <div className="clip-content-area">
+              {/* 视频预览区 */}
+              <div className="clip-preview-area">
+                <div className="clip-video-wrapper">
+                  <video
+                    ref={clipVideoRef}
+                    src={clipAssets[currentClipIndex]?.videoUrl || 'https://www.w3schools.com/html/mov_bbb.mp4'}
+                    onTimeUpdate={handleTimeUpdate}
+                    onEnded={() => setClipIsPlaying(false)}
+                    onClick={togglePlay}
+                  />
+                  {/* 播放头指示器 */}
+                  <div
+                    className="clip-playhead-indicator"
+                    style={{ left: `${playheadPosition}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* 底部区域 */}
+              <div className="clip-bottom-area">
+                {/* 时间线 */}
+                <div className="clip-timeline-area">
+                  {/* 时间刻度 */}
+                  <div className="clip-timeline-scale">
+                    {Array.from({ length: Math.ceil(zoomedDuration) + 1 }, (_, i) => (
+                      <div key={i} className="clip-time-mark" style={{ left: `${i * timelineScale}px` }}>
+                        <span className="clip-time-label">{formatTime(i)}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* 播放头 */}
+                  <div
+                    className="clip-timeline-playhead"
+                    style={{ left: `${clipCurrentTime * timelineScale}px` }}
+                  />
+
+                  {/* 片段轨道 */}
+                  <div className="clip-timeline-track">
+                    {clipAssets.map((clip, index) => {
+                      const clipDuration = clip.endTime - clip.startTime;
+                      const clipWidth = clipDuration * timelineScale;
+                      let offset = 0;
+                      for (let i = 0; i < index; i++) {
+                        offset += (clipAssets[i].endTime - clipAssets[i].startTime) * timelineScale;
+                      }
+                      return (
+                        <div
+                          key={clip.id}
+                          className={`clip-timeline-clip ${selectedAssetIds[currentStage] === clip.id ? 'selected' : ''}`}
+                          style={{ left: `${offset}px`, width: `${clipWidth}px` }}
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, clip.id)}
+                          onDragEnd={handleDragEnd}
+                          onDrop={(e) => handleDrop(e, index)}
+                          onDragOver={(e) => e.preventDefault()}
+                          onClick={() => handleClipSelect(clip.id)}
+                          onDoubleClick={(e) => handleClipDoubleClick(e, clip)}
+                        >
+                          {/* 左侧裁剪手柄 */}
+                          <div
+                            className="clip-trim-handle clip-trim-left"
+                            onMouseDown={(e) => handleTrimDrag(e, clip.id, 'left')}
+                          />
+                          {/* 片段内容 */}
+                          <div className="clip-timeline-clip-content">
+                            <span className="clip-timeline-clip-name">{clip.name}</span>
+                          </div>
+                          {/* 右侧裁剪手柄 */}
+                          <div
+                            className="clip-trim-handle clip-trim-right"
+                            onMouseDown={(e) => handleTrimDrag(e, clip.id, 'right')}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 片段资产面板 */}
+                <div className="clip-assets-panel">
+                  <div className="clip-assets-header">
+                    <span>片段列表 ({clipAssets.length})</span>
+                  </div>
+                  <div className="clip-assets-list">
+                    {clipAssets.map((clip) => (
+                      <div
+                        key={clip.id}
+                        className={`clip-asset-item ${selectedAssetIds[currentStage] === clip.id ? 'selected' : ''}`}
+                        onClick={() => handleClipSelect(clip.id)}
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, clip.id)}
+                        onDragEnd={handleDragEnd}
+                        onDrop={(e) => handleDrop(e, clipAssets.indexOf(clip))}
+                        onDragOver={(e) => e.preventDefault()}
+                      >
+                        <div className="clip-asset-thumb">
+                          {clip.thumbnail ? (
+                            <img src={clip.thumbnail} alt={clip.name} />
+                          ) : (
+                            <Film size={24} />
+                          )}
+                        </div>
+                        <div className="clip-asset-info">
+                          <span className="clip-asset-name">{clip.name}</span>
+                          <span className="clip-asset-duration">{formatTime(clip.endTime - clip.startTime)}</span>
+                        </div>
+                        <button
+                          className="clip-asset-delete"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteClip(clip.id);
+                          }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
