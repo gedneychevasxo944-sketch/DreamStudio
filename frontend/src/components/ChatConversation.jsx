@@ -1,5 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle, createPortal } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Send, Bot, User, Copy, X, ExternalLink, Check, Sparkles, ChevronUp, ChevronDown, ZoomIn, GitBranch, Plus, ArrowRight, Trash2, Upload } from 'lucide-react';
 import { chatApi } from '../services/api';
@@ -7,6 +6,11 @@ import { formatTimestamp } from '../utils/dateUtils';
 import { chatLogger } from '../utils/logger';
 import './ChatConversation.css';
 
+/* ============================================
+   公共消息组件 - 可独立复用
+   ============================================ */
+
+// Toast 组件
 const Toast = ({ message, onClose }) => {
   useEffect(() => {
     const timer = setTimeout(onClose, 2000);
@@ -22,6 +26,7 @@ const Toast = ({ message, onClose }) => {
   );
 };
 
+// 图片查看器
 const ImageViewer = ({ images, currentIndex, onClose, onPrev, onNext }) => {
   return (
     <div className="cc-image-viewer-overlay" onClick={onClose}>
@@ -42,6 +47,7 @@ const ImageViewer = ({ images, currentIndex, onClose, onPrev, onNext }) => {
   );
 };
 
+// 视频查看器
 const VideoViewer = ({ url, onClose }) => {
   return (
     <div className="cc-image-viewer-overlay" onClick={onClose}>
@@ -55,7 +61,28 @@ const VideoViewer = ({ url, onClose }) => {
   );
 };
 
-const AssistantMessage = ({ message, onOpenModal, onShowToast, onApplyProposal, onRejectProposal, onDrillDown }) => {
+// 用户消息组件
+export const UserMessage = ({ message }) => {
+  return (
+    <div className="cc-chat-message user">
+      <div className="cc-message-wrapper user">
+        <div className="cc-message-header-row user">
+          <span className="cc-message-time">{message.timestamp || formatTimestamp()}</span>
+          <span className="cc-message-sender">用户</span>
+          <div className="cc-message-avatar user">
+            <User size={16} />
+          </div>
+        </div>
+        <div className="cc-message-body">
+          <p>{message.content}</p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// 助手消息组件（完整版 - 默认导出）
+export const AssistantMessage = ({ message, onOpenModal, onShowToast, onApplyProposal, onRejectProposal, onDrillDown }) => {
   const [thinkingExpanded, setThinkingExpanded] = useState(false);
   const [imageViewerOpen, setImageViewerOpen] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -80,7 +107,7 @@ const AssistantMessage = ({ message, onOpenModal, onShowToast, onApplyProposal, 
 
   const handleCopy = () => {
     navigator.clipboard.writeText(message.result || message.content);
-    onShowToast('已复制到剪贴板');
+    onShowToast?.('已复制到剪贴板');
   };
 
   const handleViewFullDiff = () => {
@@ -147,113 +174,102 @@ const AssistantMessage = ({ message, onOpenModal, onShowToast, onApplyProposal, 
       </div>
     );
 
-    const renderText = () => {
-      if (!hasText) return null;
-      if (message.resultType === 'markdown') {
-        return <div className="cc-result-markdown">{content}</div>;
-      }
-      return <div className="cc-result-text">{content}</div>;
-    };
-
-    if (hasImages || hasVideos) {
-      return (
-        <>
-          {renderText()}
-          {hasImages && renderImages(mixedImageUrls.length > 0 ? mixedImageUrls : legacyImageUrls)}
-          {hasVideos && renderVideos(mixedVideoItems)}
-        </>
-      );
-    }
-
-    return renderText();
+    return (
+      <div className="cc-result-render">
+        {hasText && <ReactMarkdown>{content}</ReactMarkdown>}
+        {hasImages && renderImages(imageUrls)}
+        {hasVideos && renderVideos(mixedVideoItems)}
+      </div>
+    );
   };
 
   return (
-    <div className="cc-chat-message assistant">
-      <div className="cc-message-wrapper assistant">
-        <div className="cc-message-header-row assistant">
-          <div className="cc-message-avatar">
-            <Bot size={16} />
-          </div>
-          <span className="cc-message-sender">助理</span>
-          <span className="cc-message-time">{message.timestamp}</span>
-        </div>
-
-        <div className="cc-message-body">
-          {message.thinking && (
-            <div className={`cc-thinking-section ${thinkingExpanded ? 'expanded' : ''}`}>
-              <button className="cc-thinking-toggle" onClick={() => setThinkingExpanded(!thinkingExpanded)}>
-                <Sparkles size={12} />
-                <span>思考过程</span>
-                {thinkingExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-              </button>
-              {thinkingExpanded && (
-                <div className="cc-thinking-content">
-                  <ReactMarkdown>{message.thinking}</ReactMarkdown>
-                </div>
-              )}
+    <>
+      <div className="cc-chat-message assistant">
+        <div className="cc-message-wrapper assistant">
+          <div className="cc-message-header-row assistant">
+            <div className="cc-message-avatar">
+              <Bot size={16} />
             </div>
-          )}
-
-          {(message.result || message.content) && (
-            <div className="cc-result-section">
-              <div className="cc-result-content">
-                {renderResult()}
-                {proposal && (
-                  <div className="cc-proposal-section">
-                    <div className="cc-proposal-header">
-                      <GitBranch size={14} />
-                      <span className="cc-proposal-label">建议修改：</span>
-                      <span className="cc-proposal-summary">{proposal.summary}</span>
-                    </div>
-                    {proposal.diffJson && (
-                      <div className="cc-proposal-diff-mini">
-                        <div className="diff-item">
-                          <span className="diff-label">原版：</span>
-                          <span className="diff-text">{getDiffBefore().substring(0, 50)}{getDiffBefore().length > 50 ? '...' : ''}</span>
-                        </div>
-                        <div className="diff-arrow">→</div>
-                        <div className="diff-item">
-                          <span className="diff-label">新版：</span>
-                          <span className="diff-text">{getDiffAfter().substring(0, 50)}{getDiffAfter().length > 50 ? '...' : ''}</span>
-                        </div>
-                      </div>
-                    )}
-                    <div className="cc-proposal-actions">
-                      <button className="cc-proposal-btn view-full" onClick={handleViewFullDiff}>查看完整diff</button>
-                      {proposal.status.toUpperCase() === 'PENDING' && (
-                        <>
-                          <button className="cc-proposal-btn reject" onClick={handleRejectProposal}>暂不采纳</button>
-                          <button className="cc-proposal-btn apply" onClick={handleApplyProposal}>确认应用</button>
-                        </>
-                      )}
-                      {proposal.status.toUpperCase() !== 'PENDING' && (
-                        <span className={`proposal-status-badge ${proposal.status}`}>
-                          {proposal.status.toUpperCase() === 'CONFIRMED' ? '✓ 已确认' : '✗ 已拒绝'}
-                        </span>
-                      )}
-                    </div>
+            <span className="cc-message-sender">助理</span>
+            <span className="cc-message-time">{message.timestamp || formatTimestamp()}</span>
+          </div>
+          <div className="cc-message-body">
+            {message.thinking && (
+              <div className={`cc-thinking-section ${thinkingExpanded ? 'expanded' : ''}`}>
+                <button className="cc-thinking-toggle" onClick={() => setThinkingExpanded(!thinkingExpanded)}>
+                  <Sparkles size={12} />
+                  <span>思考过程</span>
+                  {thinkingExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                </button>
+                {thinkingExpanded && (
+                  <div className="cc-thinking-content">
+                    <ReactMarkdown>{message.thinking}</ReactMarkdown>
                   </div>
                 )}
               </div>
-              <div className="cc-result-actions">
-                <button className="cc-result-action-btn" onClick={() => onOpenModal(message)}>
-                  <ExternalLink size={12} />
-                  弹窗查看
-                </button>
-                <button className="cc-result-action-btn" onClick={handleCopy}>
-                  <Copy size={12} />
-                  复制
-                </button>
-                {message.hasModification && (
-                  <button className="cc-result-action-btn drill-down" onClick={() => onDrillDown?.(message)}>
-                    <Sparkles size={12} />
-                    查看改了什么
+            )}
+
+            {(message.result || message.content) && (
+              <div className="cc-result-section">
+                <div className="cc-result-content">
+                  {renderResult()}
+                  {proposal && (
+                    <div className="cc-proposal-section">
+                      <div className="cc-proposal-header">
+                        <GitBranch size={14} />
+                        <span className="cc-proposal-label">建议修改：</span>
+                        <span className="cc-proposal-summary">{proposal.summary}</span>
+                      </div>
+                      {proposal.diffJson && (
+                        <div className="cc-proposal-diff-mini">
+                          <div className="diff-item">
+                            <span className="diff-label">原版：</span>
+                            <span className="diff-text">{getDiffBefore().substring(0, 50)}{getDiffBefore().length > 50 ? '...' : ''}</span>
+                          </div>
+                          <div className="diff-arrow">→</div>
+                          <div className="diff-item">
+                            <span className="diff-label">新版：</span>
+                            <span className="diff-text">{getDiffAfter().substring(0, 50)}{getDiffAfter().length > 50 ? '...' : ''}</span>
+                          </div>
+                        </div>
+                      )}
+                      <div className="cc-proposal-actions">
+                        <button className="cc-proposal-btn view-full" onClick={handleViewFullDiff}>查看完整diff</button>
+                        {proposal.status.toUpperCase() === 'PENDING' && (
+                          <>
+                            <button className="cc-proposal-btn reject" onClick={handleRejectProposal}>暂不采纳</button>
+                            <button className="cc-proposal-btn apply" onClick={handleApplyProposal}>确认应用</button>
+                          </>
+                        )}
+                        {proposal.status.toUpperCase() !== 'PENDING' && (
+                          <span className={`proposal-status-badge ${proposal.status}`}>
+                            {proposal.status.toUpperCase() === 'CONFIRMED' ? '✓ 已确认' : '✕ 已拒绝'}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="cc-result-actions">
+                  <button className="cc-result-action-btn" onClick={() => onOpenModal?.(message)}>
+                    <ExternalLink size={12} />
+                    弹窗查看
                   </button>
-                )}
+                  <button className="cc-result-action-btn" onClick={handleCopy}>
+                    <Copy size={12} />
+                    复制
+                  </button>
+                  {message.hasModification && (
+                    <button className="cc-result-action-btn drill-down" onClick={() => onDrillDown?.(message)}>
+                      <Sparkles size={12} />
+                      查看改了什么
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 
@@ -277,152 +293,64 @@ const AssistantMessage = ({ message, onOpenModal, onShowToast, onApplyProposal, 
       {diffModalOpen && proposal?.diffJson && (
         <div className="cc-proposal-modal-overlay" onClick={() => setDiffModalOpen(false)}>
           <div className="cc-proposal-modal-content" onClick={e => e.stopPropagation()}>
+            <button className="cc-proposal-modal-close" onClick={() => setDiffModalOpen(false)}>
+              <X size={20} />
+            </button>
             <div className="cc-proposal-modal-header">
-              <span>完整 Diff</span>
-              <button className="cc-proposal-modal-close" onClick={() => setDiffModalOpen(false)}>
-                <X size={18} />
-              </button>
+              <GitBranch size={16} />
+              <span>修改对比</span>
             </div>
             <div className="cc-proposal-modal-body">
-              <div className="cc-proposal-modal-section">
-                <div className="cc-proposal-modal-label">原版</div>
-                <div className="cc-proposal-modal-text before">{getDiffBefore()}</div>
+              <div className="diff-column">
+                <div className="diff-column-header">原版</div>
+                <pre className="diff-column-content">{getDiffBefore()}</pre>
               </div>
-              <div className="cc-proposal-modal-arrow">↓</div>
-              <div className="cc-proposal-modal-section">
-                <div className="cc-proposal-modal-label">新版</div>
-                <div className="cc-proposal-modal-text after">{getDiffAfter()}</div>
+              <div className="diff-column">
+                <div className="diff-column-header">新版</div>
+                <pre className="diff-column-content">{getDiffAfter()}</pre>
               </div>
             </div>
+            {proposal.status.toUpperCase() === 'PENDING' && (
+              <div className="cc-proposal-modal-footer">
+                <button className="cc-proposal-btn reject" onClick={handleRejectProposal}>暂不采纳</button>
+                <button className="cc-proposal-btn apply" onClick={handleApplyProposal}>确认应用</button>
+              </div>
+            )}
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 };
 
-const UserMessage = ({ message }) => {
+// 简化版助手消息（无操作按钮）
+export const SimpleAssistantMessage = ({ message }) => {
+  const content = message.result || message.content;
+  if (!content) return null;
+
   return (
-    <div className="cc-chat-message user">
-      <div className="cc-message-wrapper user">
-        <div className="cc-message-header-row user">
-          <span className="cc-message-time">{message.timestamp}</span>
-          <span className="cc-message-sender">用户</span>
-          <div className="cc-message-avatar user">
-            <User size={16} />
+    <div className="cc-chat-message assistant">
+      <div className="cc-message-wrapper assistant">
+        <div className="cc-message-header-row assistant">
+          <div className="cc-message-avatar assistant">
+            <Bot size={16} />
           </div>
+          <span className="cc-message-sender">助手</span>
+          <span className="cc-message-time">{message.timestamp || formatTimestamp()}</span>
         </div>
         <div className="cc-message-body">
-          <div className="cc-message-bubble">{message.content}</div>
+          <div className="cc-simple-result">
+            <ReactMarkdown>{content}</ReactMarkdown>
+          </div>
         </div>
       </div>
     </div>
   );
 };
 
-const ResultModal = ({ message, onClose, onShowToast }) => {
-  const [copied, setCopied] = useState(false);
-  const [thinkingExpanded, setThinkingExpanded] = useState(true);
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(message.result || message.content);
-    setCopied(true);
-    onShowToast('已复制到剪贴板');
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const legacyImageUrls = message.resultType === 'image' && message.result
-    ? message.result.split(',').map(u => u.trim())
-    : [];
-  const mixedImageUrls = message.imageUrls || [];
-  const mixedVideoItems = message.videoItems || [];
-
-  const renderResult = () => {
-    const content = message.result || message.content;
-    const hasText = content && content.length > 0;
-    const hasImages = mixedImageUrls.length > 0 || legacyImageUrls.length > 0;
-    const hasVideos = mixedVideoItems.length > 0;
-
-    if (!hasText && !hasImages && !hasVideos) return null;
-
-    const renderImages = (urls) => (
-      <div className="cc-result-image">
-        {urls.map((url, idx) => (
-          <img key={idx} src={url.trim()} alt={`图片${idx + 1}`} />
-        ))}
-      </div>
-    );
-
-    const renderVideos = (items) => (
-      <div className="cc-result-video">
-        {items.map((item, idx) => (
-          <video key={idx} src={item.url || item} controls />
-        ))}
-      </div>
-    );
-
-    const renderText = () => {
-      if (!hasText) return null;
-      if (message.resultType === 'markdown') {
-        return <div className="cc-result-markdown">{content}</div>;
-      }
-      return <div className="cc-result-text">{content}</div>;
-    };
-
-    if (hasImages || hasVideos) {
-      return (
-        <>
-          {renderText()}
-          {hasImages && renderImages(mixedImageUrls.length > 0 ? mixedImageUrls : legacyImageUrls)}
-          {hasVideos && renderVideos(mixedVideoItems)}
-        </>
-      );
-    }
-
-    return renderText();
-  };
-
-  return createPortal(
-    <div className="cc-modal-overlay" onClick={onClose}>
-      <div className="cc-modal-content" onClick={e => e.stopPropagation()}>
-        <button className="cc-modal-close-top" onClick={onClose}>
-          <X size={18} />
-        </button>
-
-        <div className="cc-modal-body">
-          {message.thinking && (
-            <div className={`cc-modal-thinking-section ${thinkingExpanded ? 'expanded' : ''}`}>
-              <button className="cc-modal-thinking-toggle" onClick={() => setThinkingExpanded(!thinkingExpanded)}>
-                <Sparkles size={12} />
-                <span>思考过程</span>
-                {thinkingExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-              </button>
-              {thinkingExpanded && (
-                <div className="cc-modal-thinking-content">
-                  <ReactMarkdown>{message.thinking}</ReactMarkdown>
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className="cc-modal-section-title">结果内容</div>
-          <div className="cc-modal-result">
-            {renderResult()}
-          </div>
-        </div>
-
-        <div className="cc-modal-footer">
-          <button className="cc-modal-btn" onClick={handleCopy}>
-            {copied ? <Check size={14} /> : <Copy size={14} />}
-            {copied ? '已复制' : '复制'}
-          </button>
-          <span className="cc-modal-time">{message.timestamp}</span>
-        </div>
-      </div>
-    </div>,
-    document.body
-  );
-};
+/* ============================================
+   ChatConversation 容器组件 - 核心逻辑
+   ============================================ */
 
 const ChatConversation = forwardRef(({
   agentId,
@@ -438,6 +366,12 @@ const ChatConversation = forwardRef(({
   onRejectProposal,
   onDrillDown,
   inputMode = 'textarea',
+
+  // === Render Props 扩展 ===
+  renderMessage,      // (msg, index) => ReactNode
+  renderFooter,       // (lastMessage) => ReactNode
+  headerContent,      // ReactNode
+
 }, ref) => {
   const [inputValue, setInputValue] = useState('');
   const [modalMessage, setModalMessage] = useState(null);
@@ -472,7 +406,6 @@ const ChatConversation = forwardRef(({
     const files = Array.from(e.target.files);
     if (files.length === 0) return;
 
-    // 限制文件类型和大小
     const maxSize = 10 * 1024 * 1024; // 10MB
     const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/webm', 'text/plain', 'application/pdf'];
 
@@ -493,7 +426,6 @@ const ChatConversation = forwardRef(({
       showToast(`已添加 ${validFiles.length} 个附件`);
     }
 
-    // 清空 input 以允许重复选择同一文件
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -525,78 +457,54 @@ const ChatConversation = forwardRef(({
     setInputValue('');
     setLoading(true);
 
-    const assistantMsgId = Date.now() + 1;
-    const assistantMsg = {
+    let assistantMsgId = null;
+    setLoading(true);
+    assistantMsgId = Date.now() + 1;
+    updateMessages(prev => [...prev, {
       id: assistantMsgId,
       role: 'assistant',
       content: '',
-      thinking: '',
-      resultType: 'text',
-      result: '',
-      imageUrls: [],
-      videoItems: [],
-      timestamp: formatTimestamp(),
-    };
-    updateMessages(prev =>[...prev, assistantMsg]);
-
-    let thinkingText = '';
-    let resultText = '';
-    let resultType = 'text';
-    let imageUrls = [];
-    let videoItems = [];
+      timestamp,
+    }]);
 
     sseConnectionRef.current = chatApi.sendMessageStream(
       {
         projectId,
         projectVersion,
         agentId,
-        agentName: agentId,
         message: messageContent.trim(),
-        generation: effectGenerationRef.current,
+        attachments: attachments.map(f => ({ name: f.name, type: f.type, size: f.size })),
       },
       {
-        onThinking: (data) => {
-          if (data.delta) {
-            thinkingText += data.delta;
-            updateMessages(prev =>prev.map(msg =>
+        onMessage: (data) => {
+          if (data.type === 'thinking') {
+            updateMessages(prev => prev.map(msg =>
               msg.id === assistantMsgId
-                ? { ...msg, thinking: thinkingText }
+                ? { ...msg, thinking: (msg.thinking || '') + data.content }
                 : msg
             ));
-          }
-        },
-
-        onResult: (data) => {
-          if (data.delta) {
-            resultText += data.delta;
-          }
-          if (data.contentType) {
-            resultType = data.contentType;
-          }
-          updateMessages(prev =>prev.map(msg =>
-            msg.id === assistantMsgId
-              ? { ...msg, resultType, result: resultText }
-              : msg
-          ));
-
-          if (data.workflowCreated && data.workflowNodes && data.workflowEdges) {
-            onWorkflowCreated?.(data.workflowNodes, data.workflowEdges);
-          }
-        },
-
-        onData: (data) => {
-          if (data.type === 'image' && data.items) {
-            imageUrls = [...imageUrls, ...data.items];
-            updateMessages(prev =>prev.map(msg =>
+          } else if (data.type === 'result') {
+            updateMessages(prev => prev.map(msg =>
               msg.id === assistantMsgId
-                ? { ...msg, imageUrls }
+                ? { ...msg, result: (msg.result || '') + data.content }
                 : msg
             ));
-          } else if (data.type === 'video' && data.items) {
-            videoItems = [...videoItems, ...data.items];
-            updateMessages(prev =>prev.map(msg =>
+          } else if (data.type === 'resultType') {
+            updateMessages(prev => prev.map(msg =>
               msg.id === assistantMsgId
-                ? { ...msg, videoItems }
+                ? { ...msg, resultType: data.resultType }
+                : msg
+            ));
+          } else if (data.type === 'imageUrls') {
+            updateMessages(prev => prev.map(msg =>
+              msg.id === assistantMsgId
+                ? { ...msg, imageUrls: data.imageUrls }
+                : msg
+            ));
+          } else if (data.type === 'videoItems') {
+            updateMessages(prev => prev.map(msg =>
+              msg.id === assistantMsgId
+                ? { ...msg, videoItems: data.videoItems }
                 : msg
             ));
           } else if (data.type === 'proposal' && data.proposal) {
@@ -612,7 +520,6 @@ const ChatConversation = forwardRef(({
           setLoading(false);
           sseConnectionRef.current = null;
 
-          // 如果有 plan 数据，触发 onPlanReceived
           if (data.plan && onPlanReceived) {
             onPlanReceived(data.plan);
           } else if (data.workflowCreated && onWorkflowCreated) {
@@ -633,9 +540,9 @@ const ChatConversation = forwardRef(({
         },
       }
     );
-  }, [loading, updateMessages, projectId, projectVersion, agentId, onWorkflowCreated, onPlanReceived]);
+  }, [loading, updateMessages, projectId, projectVersion, agentId, onWorkflowCreated, onPlanReceived, attachments]);
 
-  // 暴露 sendMessage 和 injectMessage 方法给父组件
+  // 暴露 sendMessage 和 injectMessage 方法
   useImperativeHandle(ref, () => ({
     sendMessage: (content) => {
       sendChatMessage(content);
@@ -645,14 +552,10 @@ const ChatConversation = forwardRef(({
     }
   }), [sendChatMessage]);
 
-  // 组件卸载时关闭 SSE 连接
-  // 注意：在 StrictMode 下，cleanup 会在 remount 之前运行，所以这里关闭可能导致问题
-  // SSE 只应该被最终的真实卸载（unmount）关闭，而不是 StrictMode 的伪卸载
   const effectGenerationRef = useRef(0);
 
   useEffect(() => {
     effectGenerationRef.current += 1;
-
     return () => {
       // StrictMode 下 cleanup 先于 remount 运行，不关闭 SSE
     };
@@ -671,9 +574,18 @@ const ChatConversation = forwardRef(({
 
   const isEditable = !loading;
   const safeMessages = Array.isArray(effectiveMessages) ? effectiveMessages : [];
+  const lastMessage = safeMessages[safeMessages.length - 1];
 
   return (
     <div className="cc-container">
+      {/* 可选头部 */}
+      {headerContent && (
+        <div className="cc-header">
+          {headerContent}
+        </div>
+      )}
+
+      {/* 消息列表 */}
       <div className="cc-messages" ref={messagesContainerRef}>
         {safeMessages.length === 0 ? (
           <div className="cc-empty">
@@ -682,26 +594,37 @@ const ChatConversation = forwardRef(({
           </div>
         ) : (
           safeMessages.map((msg, index) => (
-            msg.role === 'user' ? (
-              <UserMessage key={msg.id || index} message={msg} />
+            renderMessage ? (
+              renderMessage({ msg, index, onOpenModal: setModalMessage, onShowToast: showToast, onApplyProposal, onRejectProposal, onDrillDown })
             ) : (
-              <AssistantMessage
-                key={msg.id || index}
-                message={msg}
-                onOpenModal={setModalMessage}
-                onShowToast={showToast}
-                onApplyProposal={onApplyProposal}
-                onRejectProposal={onRejectProposal}
-                onDrillDown={onDrillDown}
-              />
+              msg.role === 'user' ? (
+                <UserMessage key={msg.id || index} message={msg} />
+              ) : (
+                <AssistantMessage
+                  key={msg.id || index}
+                  message={msg}
+                  onOpenModal={setModalMessage}
+                  onShowToast={showToast}
+                  onApplyProposal={onApplyProposal}
+                  onRejectProposal={onRejectProposal}
+                  onDrillDown={onDrillDown}
+                />
+              )
             )
           ))
         )}
         <div ref={messagesEndRef} />
       </div>
 
+      {/* 可选底部插槽 */}
+      {renderFooter && (
+        <div className="cc-footer">
+          {renderFooter({ message: lastMessage, messages: safeMessages })}
+        </div>
+      )}
+
+      {/* 输入区 */}
       <div className="cc-input-area">
-        {/* T061: 附件展示 */}
         {attachments.length > 0 && (
           <div className="cc-attachments">
             {attachments.map((file, index) => (
@@ -718,7 +641,6 @@ const ChatConversation = forwardRef(({
           </div>
         )}
         <div className="cc-input-wrapper">
-          {/* T061: 文件上传按钮 */}
           <input
             type="file"
             ref={fileInputRef}
@@ -765,14 +687,6 @@ const ChatConversation = forwardRef(({
           </button>
         </div>
       </div>
-
-      {modalMessage && (
-        <ResultModal
-          message={modalMessage}
-          onClose={() => setModalMessage(null)}
-          onShowToast={showToast}
-        />
-      )}
 
       {toast && (
         <Toast message={toast} onClose={() => setToast(null)} />

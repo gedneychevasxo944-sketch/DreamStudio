@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Upload, Sparkles, Plus } from 'lucide-react';
+import { Upload, Plus } from 'lucide-react';
 import { useStageStore, STAGES } from '../../stores';
 import UploadModal from './UploadModal';
 import './EmptyGuide.css';
@@ -10,42 +10,68 @@ import './EmptyGuide.css';
  *
  * 当项目为空时显示，引导用户选择起点：
  * - 上传剧本
- * - AI 生成剧本
  * - 从空白开始
+ *
+ * AI 生成剧本通过 FloatingAssistant 发起
  */
 function EmptyGuide({ onComplete }) {
-  const { currentStage, setCurrentStage } = useStageStore();
+  const { setCurrentStage, addStageAsset, selectAsset } = useStageStore();
   const [showUploadModal, setShowUploadModal] = useState(false);
 
   // 处理选择
   const handleSelect = (option) => {
     if (option === 'upload') {
       setShowUploadModal(true);
-    } else if (option === 'ai') {
-      // AI 生成剧本 - 切换到剧本阶段，后续通过对话生成
-      setCurrentStage(STAGES.SCRIPT);
-      onComplete?.();
     } else if (option === 'blank') {
-      // 从空白开始
+      // 从空白开始 - 创建空白剧本资产
+      const newAsset = {
+        id: `script-${Date.now()}`,
+        type: STAGES.SCRIPT,
+        name: '剧本',
+        content: '',
+        description: '',
+      };
+      addStageAsset(STAGES.SCRIPT, newAsset);
+      selectAsset(newAsset.id);
       setCurrentStage(STAGES.SCRIPT);
       onComplete?.();
     }
   };
 
   // 处理文件上传
-  const handleUpload = async (file, mode) => {
-    console.log('[EmptyGuide] Upload file:', file.name, 'mode:', mode);
-    // TODO: 调用实际的上传 API
-    // 模拟上传完成后切换到剧本阶段
+  const handleUpload = async (file) => {
+    console.log('[EmptyGuide] Upload file:', file.name);
+    // 创建剧本资产
+    const newAsset = {
+      id: `script-${Date.now()}`,
+      type: STAGES.SCRIPT,
+      name: file.name.replace(/\.[^/.]+$/, ''),
+      content: '',
+      description: '已上传剧本',
+    };
+    addStageAsset(STAGES.SCRIPT, newAsset);
+    selectAsset(newAsset.id);
     setCurrentStage(STAGES.SCRIPT);
+    setShowUploadModal(false);
+    onComplete?.();
   };
 
-  // 处理 AI 生成
-  const handleAIGenerate = async (topic) => {
-    console.log('[EmptyGuide] AI generate topic:', topic);
-    // TODO: 调用实际的 AI 生成 API
-    // 模拟生成完成后切换到剧本阶段
+  // 处理文本提交
+  const handleTextSubmit = async (text) => {
+    console.log('[EmptyGuide] Submit text, length:', text.length);
+    // 创建剧本资产
+    const newAsset = {
+      id: `script-${Date.now()}`,
+      type: STAGES.SCRIPT,
+      name: '剧本',
+      content: text,
+      description: '粘贴剧本',
+    };
+    addStageAsset(STAGES.SCRIPT, newAsset);
+    selectAsset(newAsset.id);
     setCurrentStage(STAGES.SCRIPT);
+    setShowUploadModal(false);
+    onComplete?.();
   };
 
   return (
@@ -71,27 +97,11 @@ function EmptyGuide({ onComplete }) {
               whileTap={{ scale: 0.98 }}
             >
               <div className="option-icon upload">
-                <Upload size={24} />
+                <Upload size={28} />
               </div>
               <div className="option-text">
                 <span className="option-title">上传剧本</span>
-                <span className="option-desc">支持 .txt, .pdf 格式</span>
-              </div>
-            </motion.button>
-
-            {/* AI 生成 */}
-            <motion.button
-              className="guide-option"
-              onClick={() => handleSelect('ai')}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <div className="option-icon ai">
-                <Sparkles size={24} />
-              </div>
-              <div className="option-text">
-                <span className="option-title">AI 生成剧本</span>
-                <span className="option-desc">描述你的想法，AI 帮你创作</span>
+                <span className="option-desc">支持文件上传或文本复制</span>
               </div>
             </motion.button>
 
@@ -103,11 +113,11 @@ function EmptyGuide({ onComplete }) {
               whileTap={{ scale: 0.98 }}
             >
               <div className="option-icon blank">
-                <Plus size={24} />
+                <Plus size={28} />
               </div>
               <div className="option-text">
                 <span className="option-title">从空白开始</span>
-                <span className="option-desc">手动创建剧本和资产</span>
+                <span className="option-desc">支持手动或AI创作</span>
               </div>
             </motion.button>
           </div>
@@ -120,12 +130,14 @@ function EmptyGuide({ onComplete }) {
         </div>
       </motion.div>
 
-      {/* 上传弹窗 */}
+      {/* 上传弹窗 - 支持上传文件和粘贴文本 */}
       <UploadModal
         isOpen={showUploadModal}
         onClose={() => setShowUploadModal(false)}
         onUpload={handleUpload}
-        onAIGenerate={handleAIGenerate}
+        onTextSubmit={handleTextSubmit}
+        accept="script"
+        title="上传剧本"
       />
     </>
   );

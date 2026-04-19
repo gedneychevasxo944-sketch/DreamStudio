@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { ChevronLeft, LayoutGrid, Settings, Save, Download, MoreVertical, Library, MessageCircle, FolderOpen, Plus, Check } from 'lucide-react';
+import { ChevronLeft, LayoutGrid, Settings, Save, Download, MoreVertical, Library, MessageCircle, FolderOpen, Plus, Check, Sun, Moon } from 'lucide-react';
 import { useProjectStore, useStageStore, STAGES } from '../../stores';
+import useThemeStore from '../../stores/themeStore';
 import './TopBar.css';
 
 /**
@@ -33,6 +34,9 @@ const TopBar = ({
   const [tempName, setTempName] = useState(projectName);
   const [showProjectDropdown, setShowProjectDropdown] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+
+  // 主题状态
+  const { mode, toggle } = useThemeStore();
 
   // 从 projectStore 获取项目列表和切换方法
   const { projects, switchProject, createProject, currentProjectId } = useProjectStore();
@@ -195,6 +199,15 @@ const TopBar = ({
 
         {/* 快捷操作 */}
         <div className="quick-actions">
+          {/* 主题切换按钮 */}
+          <button
+            className="action-btn icon-only"
+            onClick={toggle}
+            title={mode === 'day' ? '切换到深色模式' : '切换到浅色模式'}
+          >
+            {mode === 'day' ? <Moon size={16} /> : <Sun size={16} />}
+          </button>
+
           {/* 悬浮助手按钮 */}
           <button
             className="action-btn icon-only assistant-btn"

@@ -13,7 +13,6 @@ import SkillMarket from './components/SkillMarket/SkillMarket';
 import PlanPreview from './components/PlanPreview';
 import ContextPanel from './components/ContextPanel';
 import { TopBar } from './components/TopBar';
-import { StoryboardView } from './components/Storyboard';
 import { DrillPanel, PromptDiffPanel, AssetChangeCard, ParameterDiffPanel, VisualSliderPanel, BatchImpactList } from './components/DrillPanel';
 import { SmartSuggestion } from './components/SmartSuggestion';
 import { homePageApi, nodeVersionApi, proposalApi } from './services/api';
@@ -29,7 +28,7 @@ import { initializeMockData } from './mock/stagesMock';
 import './App.css';
 
 // 新增组件导入
-import StoryboardMainView from './components/Storyboard2/StoryboardMainView';
+import StoryboardMainView from './components/Storyboard/StoryboardMainView';
 import FloatingAssistant from './components/FloatingAssistant/FloatingAssistant';
 
 function App() {
@@ -601,12 +600,14 @@ function App() {
     setHasUnsavedChanges(false);
     setIsDemoMode(false);
 
-    // 初始化 mock 数据（PRD 2.0 开发阶段）
-    const { setStageAssets, setStageCompletion } = useStageStore.getState();
-    const { initializeMockData } = await import('./mock/stagesMock');
-    initializeMockData(setStageAssets, setStageCompletion);
+    // 清空故事板资产（新项目不加载 mock）
+    useStageStore.getState().resetAllStageAssets();
 
     if (demoId) {
+      // Demo 模式加载 mock 数据
+      const { setStageAssets, setStageCompletion } = useStageStore.getState();
+      const { initializeMockData } = await import('./mock/stagesMock');
+      initializeMockData(setStageAssets, setStageCompletion);
       setIsDemoMode(true);
       setProjectName('Demo演示');
       setCurrentView('workspace');
@@ -615,6 +616,7 @@ function App() {
     }
 
     if (projectId) {
+      // 加载已有项目
       setCurrentProjectId(projectId);
       try {
         const projectResponse = await homePageApi.getProject(projectId);
@@ -636,11 +638,20 @@ function App() {
             }
           }
           await loadVersions(projectId);
+
+          // 如果项目没有资产，加载 mock 作为演示
+          const { stageAssets: currentAssets, setStageAssets: setAssets, setStageCompletion: setCompletion } = useStageStore.getState();
+          const hasAssets = Object.values(currentAssets).some(arr => arr.length > 0);
+          if (!hasAssets) {
+            const { initializeMockData } = await import('./mock/stagesMock');
+            initializeMockData(setAssets, setCompletion);
+          }
         }
       } catch (error) {
         uiLogger.error('[App] Failed to load project data:', error);
       }
     } else {
+      // 新项目 - 不加载 mock，显示 EmptyGuide
       const projectTitle = initialProjectName || (userInput ? (userInput.length > 20 ? userInput.substring(0, 20) + '...' : userInput) : '未命名项目');
       setProjectName(projectTitle);
       try {

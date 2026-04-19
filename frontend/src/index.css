@@ -1,31 +1,13 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
 /* DreamStudio 2.0 Theme System */
+/* 主题变量先加载，:root 默认值后加载（会被主题覆盖） */
 @import './styles/theme-night.css';
 @import './styles/theme-day.css';
 
-/* 基础变量 - 兼容现有代码 */
+/* 基础变量 - 非主题相关变量（不切换的样式） */
 :root {
-  --bg-primary: #0a0a0f;
-  --bg-secondary: #12121a;
-  --bg-tertiary: #1a1a25;
-  --bg-card: rgba(26, 26, 37, 0.6);
-
-  --text-primary: #ffffff;
-  --text-secondary: #a0a8b8;
-  --text-muted: #6b7280;
-
-  --accent-blue: #3b82f6;
-  --accent-cyan: #06b6d4;
-  --accent-silver: #c0c8d4;
-  --accent-green: #10b981;
-  --accent-yellow: #f59e0b;
-  --accent-red: #ef4444;
-
-  --glass-bg: rgba(26, 26, 37, 0.7);
-  --glass-border: rgba(255, 255, 255, 0.08);
-  --glass-blur: blur(12px);
-
+  /* 这些变量不随主题切换 */
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);

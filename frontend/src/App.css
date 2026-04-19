@@ -3,6 +3,7 @@
   width: 100%;
   overflow: hidden;
   background: var(--bg-primary);
+  isolation: isolate; /* 确保 fixed 定位相对于 viewport */
 }
 
 /* 首页允许滚动 */

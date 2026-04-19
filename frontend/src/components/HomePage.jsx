@@ -1,12 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Play, X, Maximize2, Film, ChevronRight, ChevronLeft, User, LogOut, ArrowRight, Layers, Video, Bot, FileText } from 'lucide-react';
+import { Sparkles, Play, X, Maximize2, Film, ChevronRight, ChevronLeft, User, LogOut, ArrowRight, Layers, Video, Bot, FileText, Sun, Moon } from 'lucide-react';
 import ProjectCard from './ProjectCard';
 import AuthModal from './AuthModal/AuthModal';
+import ProjectSelector from './ProjectSelector/ProjectSelector';
 import { homePageApi, authApi, teamApi } from '../services/api';
 import { transformProjectData } from '../utils/transformUtils';
 import { uiLogger } from '../utils/logger';
 import { authStorage } from '../utils/authStorage';
+import useThemeStore from '../stores/themeStore';
 import './HomePage.css';
 
 // 产品流程步骤（详细）
@@ -207,6 +209,14 @@ const HomePage = ({ onEnter }) => {
   const [activeDemo, setActiveDemo] = useState(null);
   const showcaseScrollRef = useRef(null);
 
+  // 主题状态
+  const { mode, toggle } = useThemeStore();
+
+  // 项目选择状态
+  const [showProjectSelector, setShowProjectSelector] = useState(false);
+  const [projects, setProjects] = useState([]);
+  const [projectSelectorLoading, setProjectSelectorLoading] = useState(false);
+
   // 数据状态
   const [demoTemplates, setDemoTemplates] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -287,12 +297,53 @@ const HomePage = ({ onEnter }) => {
     setCurrentUser(null);
   };
 
-  const handleStartCreating = () => {
+  const handleStartCreating = async () => {
     if (!currentUser) {
       setShowAuthModal(true);
       return;
     }
-    onEnter('', false);
+
+    // 先加载项目列表
+    setProjectSelectorLoading(true);
+    let projectList = [];
+    try {
+      const res = await homePageApi.getProjects();
+      // 支持多种响应格式：res.data.projects, res.data.list, res.data
+      const data = res.data;
+      if (Array.isArray(data)) {
+        projectList = data;
+      } else if (data?.projects) {
+        projectList = data.projects;
+      } else if (data?.list) {
+        projectList = data.list;
+      }
+    } catch (err) {
+      uiLogger.error('[HomePage] Failed to load projects:', err);
+    } finally {
+      setProjectSelectorLoading(false);
+    }
+
+    // 如果没有历史项目，直接进入创建新项目
+    if (projectList.length === 0) {
+      onEnter('', false, null, null);
+      return;
+    }
+
+    // 有项目，显示选择弹窗
+    setProjects(Array.isArray(projectList) ? projectList.map(transformProjectData) : []);
+    setShowProjectSelector(true);
+  };
+
+  // 处理选择已有项目
+  const handleSelectProject = (project) => {
+    setShowProjectSelector(false);
+    onEnter('', false, project.id);
+  };
+
+  // 处理创建新项目
+  const handleCreateProject = (name) => {
+    setShowProjectSelector(false);
+    onEnter('', false, null, name);
   };
 
   const handleViewDemos = () => {
@@ -323,8 +374,17 @@ const HomePage = ({ onEnter }) => {
         <div className="glow-orb orb-4"></div>
       </div>
 
-      {/* 右上角登录/用户按钮 */}
+      {/* 右上角主题切换 + 登录/用户按钮 */}
       <div className="home-header-actions">
+        {/* 主题切换按钮 */}
+        <button
+          className="theme-toggle-btn"
+          onClick={toggle}
+          title={mode === 'day' ? '切换到深色模式' : '切换到浅色模式'}
+        >
+          {mode === 'day' ? <Moon size={16} /> : <Sun size={16} />}
+        </button>
+
         {currentUser ? (
           <div className="user-menu">
             <div className="user-info">
@@ -563,6 +623,16 @@ const HomePage = ({ onEnter }) => {
         isOpen={showAuthModal}
         onClose={() => { setShowAuthModal(false); setAuthError(null); }}
         onLoginSuccess={handleLoginSuccess}
+      />
+
+      {/* 项目选择弹窗 */}
+      <ProjectSelector
+        isOpen={showProjectSelector}
+        onClose={() => setShowProjectSelector(false)}
+        projects={projects}
+        onSelectProject={handleSelectProject}
+        onCreateProject={handleCreateProject}
+        loading={projectSelectorLoading}
       />
     </div>
   );

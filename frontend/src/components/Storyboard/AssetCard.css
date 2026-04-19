@@ -135,6 +135,45 @@
   }
 }
 
+/* Skeleton Loading */
+.asset-thumbnail.skeleton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #2a2a3e 0%, #1a1a2e 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.skeleton-shimmer {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.05) 0%,
+    rgba(255, 255, 255, 0.1) 50%,
+    rgba(255, 255, 255, 0.05) 100%
+  );
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.skeleton-icon {
+  font-size: 32px;
+  opacity: 0.3;
+  z-index: 1;
+}
+
+/* 等待生成状态 */
+.status-pending {
+  background: rgba(139, 92, 246, 0.9);
+  color: #ffffff;
+}
+
 /* 菜单按钮 */
 .menu-btn {
   position: absolute;

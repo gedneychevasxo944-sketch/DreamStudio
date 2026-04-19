@@ -23,30 +23,25 @@ const AssetDetailPanel = ({
   onUpdate,
   onDelete,
   onGenerate,
+  onAIDialog,
 }) => {
-  const { currentStage, stageAssets } = useStageStore();
-
+  // 没选中资产时返回 null，不渲染详情面板
   if (!asset) {
-    return (
-      <div className="asset-detail-panel empty">
-        <div className="empty-state">
-          <span className="empty-icon">{STAGE_CONFIG[currentStage]?.icon || '📦'}</span>
-          <p className="empty-text">选择{STAGE_CONFIG[currentStage]?.label || '资产'}查看详情</p>
-        </div>
-      </div>
-    );
+    return null;
   }
+
+  const { currentStage, stageAssets } = useStageStore();
 
   // 根据阶段渲染不同的编辑器
   switch (currentStage) {
     case STAGES.SCRIPT:
       return <ScriptEditor asset={asset} onUpdate={onUpdate} />;
     case STAGES.CHARACTER:
-      return <CharacterEditor asset={asset} onUpdate={onUpdate} onDelete={onDelete} onGenerate={onGenerate} />;
+      return <CharacterEditor asset={asset} onUpdate={onUpdate} onDelete={onDelete} onGenerate={onGenerate} onAIDialog={onAIDialog} />;
     case STAGES.SCENE:
-      return <SceneEditor asset={asset} onUpdate={onUpdate} onDelete={onDelete} onGenerate={onGenerate} />;
+      return <SceneEditor asset={asset} onUpdate={onUpdate} onDelete={onDelete} onGenerate={onGenerate} onAIDialog={onAIDialog} />;
     case STAGES.PROP:
-      return <PropEditor asset={asset} onUpdate={onUpdate} onDelete={onDelete} onGenerate={onGenerate} />;
+      return <PropEditor asset={asset} onUpdate={onUpdate} onDelete={onDelete} onGenerate={onGenerate} onAIDialog={onAIDialog} />;
     case STAGES.STORYBOARD:
       return <StoryboardEditor asset={asset} onUpdate={onUpdate} onDelete={onDelete} onGenerate={onGenerate} />;
     case STAGES.VIDEO:
@@ -60,6 +55,14 @@ const AssetDetailPanel = ({
 const ScriptEditor = ({ asset, onUpdate }) => {
   // 剧本内容（纯文本）
   const [content, setContent] = useState(asset.content || '');
+
+  // 当内容变化时同步到 store
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      onUpdate?.(asset.id, { content });
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [content, asset.id, onUpdate]);
 
   // 是否已生成目录
   const [hasGeneratedToc, setHasGeneratedToc] = useState(false);
@@ -243,17 +246,6 @@ const ScriptEditor = ({ asset, onUpdate }) => {
             placeholder="在此输入剧本内容..."
           />
         </div>
-
-        <div className="panel-footer script-actions">
-          <button className="btn-secondary" onClick={handleGenerateToc}>
-            <Sparkles size={14} />
-            基于规则生成剧本导航
-          </button>
-          <button className="btn-primary" onClick={handleGenerateFull}>
-            <Sparkles size={14} />
-            自动生成完整剧本
-          </button>
-        </div>
       </div>
     );
   }
@@ -353,7 +345,7 @@ const ScriptEditor = ({ asset, onUpdate }) => {
 };
 
 // ============ 角色编辑器 ============
-const CharacterEditor = ({ asset, onUpdate, onDelete, onGenerate }) => {
+const CharacterEditor = ({ asset, onUpdate, onDelete, onGenerate, onAIDialog }) => {
   const [name, setName] = useState(asset.name || '');
   const [description, setDescription] = useState(asset.description || '');
   const [prompt, setPrompt] = useState(asset.prompt || '');
@@ -367,6 +359,9 @@ const CharacterEditor = ({ asset, onUpdate, onDelete, onGenerate }) => {
       <div className="panel-header">
         <User size={18} />
         <h3>角色设计</h3>
+        <button className="btn-icon-danger" onClick={() => onDelete?.(asset.id)}>
+          <Trash2 size={16} />
+        </button>
       </div>
 
       <div className="panel-body">
@@ -413,16 +408,16 @@ const CharacterEditor = ({ asset, onUpdate, onDelete, onGenerate }) => {
       </div>
 
       <div className="panel-footer">
-        <button className="btn-danger" onClick={() => onDelete?.(asset.id)}>
-          <Trash2 size={14} />
+        <button className="btn-secondary" onClick={handleSave}>
+          保存
         </button>
-        <button className="btn-secondary" onClick={() => onGenerate?.(asset.id)}>
-          <RefreshCw size={14} />
-          重新生成
-        </button>
-        <button className="btn-primary" onClick={handleSave}>
+        <button className="btn-primary" onClick={() => onGenerate?.(asset.id)}>
           <Sparkles size={14} />
-          AI 修改
+          生成图片
+        </button>
+        <button className="btn-secondary" onClick={() => onAIDialog?.(asset.id)}>
+          <Sparkles size={14} />
+          让 AI 帮你优化
         </button>
       </div>
     </div>
@@ -430,7 +425,7 @@ const CharacterEditor = ({ asset, onUpdate, onDelete, onGenerate }) => {
 };
 
 // ============ 场景编辑器 ============
-const SceneEditor = ({ asset, onUpdate, onDelete, onGenerate }) => {
+const SceneEditor = ({ asset, onUpdate, onDelete, onGenerate, onAIDialog }) => {
   const [name, setName] = useState(asset.name || '');
   const [description, setDescription] = useState(asset.description || '');
   const [prompt, setPrompt] = useState(asset.prompt || '');
@@ -444,6 +439,9 @@ const SceneEditor = ({ asset, onUpdate, onDelete, onGenerate }) => {
       <div className="panel-header">
         <MapPin size={18} />
         <h3>场景设计</h3>
+        <button className="btn-icon-danger" onClick={() => onDelete?.(asset.id)}>
+          <Trash2 size={16} />
+        </button>
       </div>
 
       <div className="panel-body">
@@ -489,16 +487,16 @@ const SceneEditor = ({ asset, onUpdate, onDelete, onGenerate }) => {
       </div>
 
       <div className="panel-footer">
-        <button className="btn-danger" onClick={() => onDelete?.(asset.id)}>
-          <Trash2 size={14} />
+        <button className="btn-secondary" onClick={handleSave}>
+          保存
         </button>
-        <button className="btn-secondary" onClick={() => onGenerate?.(asset.id)}>
-          <RefreshCw size={14} />
-          重新生成
-        </button>
-        <button className="btn-primary" onClick={handleSave}>
+        <button className="btn-primary" onClick={() => onGenerate?.(asset.id)}>
           <Sparkles size={14} />
-          AI 修改
+          生成图片
+        </button>
+        <button className="btn-secondary" onClick={() => onAIDialog?.(asset.id)}>
+          <Sparkles size={14} />
+          让 AI 帮你优化
         </button>
       </div>
     </div>
@@ -506,7 +504,7 @@ const SceneEditor = ({ asset, onUpdate, onDelete, onGenerate }) => {
 };
 
 // ============ 道具编辑器 ============
-const PropEditor = ({ asset, onUpdate, onDelete, onGenerate }) => {
+const PropEditor = ({ asset, onUpdate, onDelete, onGenerate, onAIDialog }) => {
   const [name, setName] = useState(asset.name || '');
   const [description, setDescription] = useState(asset.description || '');
   const [prompt, setPrompt] = useState(asset.prompt || '');
@@ -520,6 +518,9 @@ const PropEditor = ({ asset, onUpdate, onDelete, onGenerate }) => {
       <div className="panel-header">
         <Box size={18} />
         <h3>道具设计</h3>
+        <button className="btn-icon-danger" onClick={() => onDelete?.(asset.id)}>
+          <Trash2 size={16} />
+        </button>
       </div>
 
       <div className="panel-body">
@@ -565,16 +566,16 @@ const PropEditor = ({ asset, onUpdate, onDelete, onGenerate }) => {
       </div>
 
       <div className="panel-footer">
-        <button className="btn-danger" onClick={() => onDelete?.(asset.id)}>
-          <Trash2 size={14} />
+        <button className="btn-secondary" onClick={handleSave}>
+          保存
         </button>
-        <button className="btn-secondary" onClick={() => onGenerate?.(asset.id)}>
-          <RefreshCw size={14} />
-          重新生成
-        </button>
-        <button className="btn-primary" onClick={handleSave}>
+        <button className="btn-primary" onClick={() => onGenerate?.(asset.id)}>
           <Sparkles size={14} />
-          AI 修改
+          生成图片
+        </button>
+        <button className="btn-secondary" onClick={() => onAIDialog?.(asset.id)}>
+          <Sparkles size={14} />
+          让 AI 帮你优化
         </button>
       </div>
     </div>

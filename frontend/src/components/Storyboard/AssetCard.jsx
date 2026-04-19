@@ -42,6 +42,16 @@ const AssetCard = ({
 
   // 获取缩略图
   const renderThumbnail = () => {
+    // pending 或 running 状态显示 skeleton loading
+    if (status === 'pending' || status === 'running') {
+      return (
+        <div className="asset-thumbnail skeleton">
+          <div className="skeleton-shimmer" />
+          <span className="skeleton-icon">{getTypeIcon()}</span>
+        </div>
+      );
+    }
+
     if (thumbnail) {
       return (
         <div className="asset-thumbnail">
@@ -65,11 +75,12 @@ const AssetCard = ({
 
   // 状态标签
   const renderStatusBadge = () => {
-    if (!status || status === 'synced') return null;
+    if (!status || status === 'synced' || status === 'generated') return null;
 
     const statusConfig = {
       modified: { label: '已修改', className: 'status-modified' },
       running: { label: '生成中', className: 'status-running' },
+      pending: { label: '等待生成', className: 'status-pending' },
       error: { label: '错误', className: 'status-error' },
     };
 
@@ -78,7 +89,7 @@ const AssetCard = ({
 
     return (
       <span className={`status-badge ${config.className}`}>
-        {status === 'running' && <span className="pulse-dot" />}
+        {(status === 'running' || status === 'pending') && <span className="pulse-dot" />}
         {config.label}
       </span>
     );

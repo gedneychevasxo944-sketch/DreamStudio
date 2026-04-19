@@ -1,5 +1,17 @@
 /* DreamStudio 2.0 - 深色主题 (Night Theme) */
 
+/*
+  z-index 层级参考:
+  --z-dropdown: 100      下拉菜单
+  --z-sticky: 200        粘性元素
+  --z-fixed: 300         固定元素
+  --z-modal-backdrop: 4000 弹窗遮罩
+  --z-modal: 5000        弹窗
+  --z-popover: 600       弹出框
+  --z-tooltip: 700       提示
+  --z-floating: 800      浮动元素
+*/
+
 [data-theme="night"] {
   /* 背景渐变 */
   --gradient-bg: linear-gradient(180deg, #0F0F12 0%, #18181B 100%);
@@ -12,6 +24,41 @@
   --navbar-bg: rgba(26, 26, 31, 0.9);
   --navbar-border: #3F3F46;
 
+  /* 兼容旧变量名（组件当前使用的） */
+  --bg-primary: #0F0F12;
+  --bg-secondary: #18181B;
+  --bg-tertiary: #1A1A25;
+  --bg-card: rgba(26, 26, 31, 0.85);
+
+  --text-primary: #FAFAFA;
+  --text-secondary: #A1A1AA;
+  --text-muted: #71717A;
+
+  --accent-blue: #60A5FA;
+  --accent-cyan: #22D3EE;
+  --accent-silver: #C0C8D4;
+  --accent-green: #34D399;
+  --accent-yellow: #FBBF24;
+  --accent-red: #F87171;
+
+  --border-color: rgba(255, 255, 255, 0.1);
+  --bg-hover: rgba(255, 255, 255, 0.08);
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-medium: rgba(255, 255, 255, 0.12);
+
+  /* 层级变量 */
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-fixed: 300;
+  --z-modal-backdrop: 4000;
+  --z-modal: 5000;
+  --z-popover: 600;
+  --z-tooltip: 700;
+  --z-floating: 800;
+
+  /* 遮罩 */
+  --modal-backdrop: rgba(0, 0, 0, 0.7);
+
   /* 卡片 */
   --card-bg: #1A1A1F;
   --card-border: #3F3F46;
@@ -20,6 +67,7 @@
   --input-bg: #1A1A1F;
   --input-border: #3F3F46;
   --input-focus: #818CF8;
+  --text-placeholder: #71717A;
 
   /* 按钮主色 */
   --btn-primary-bg: #818CF8;
@@ -37,9 +85,6 @@
   --floating-border: #3F3F46;
   --floating-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
 
-  /* 对话框遮罩 */
-  --modal-backdrop: rgba(0, 0, 0, 0.7);
-
   /* 滚动条 */
   --scrollbar-track: #27272A;
   --scrollbar-thumb: #52525B;
@@ -51,10 +96,8 @@
   /* 禁用态 */
   --disabled-bg: #27272A;
   --disabled-text: #71717A;
-}
 
-/* 深色主题下 body 样式 */
-[data-theme="night"] {
+  /* body 样式 */
   background-color: #0F0F12;
   color: #FAFAFA;
 }

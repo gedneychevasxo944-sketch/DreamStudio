@@ -126,8 +126,15 @@ export const useStageStore = create((set, get) => ({
     [STAGES.VIDEO]: [],
   },
 
-  // 选中的资产ID
-  selectedAssetId: null,
+  // 选中的资产ID - 按阶段独立存储
+  selectedAssetIds: {
+    [STAGES.SCRIPT]: null,
+    [STAGES.CHARACTER]: null,
+    [STAGES.SCENE]: null,
+    [STAGES.PROP]: null,
+    [STAGES.STORYBOARD]: null,
+    [STAGES.VIDEO]: null,
+  },
 
   // 阶段完成状态（用于显示✓）
   stageCompletion: {
@@ -145,6 +152,34 @@ export const useStageStore = create((set, get) => ({
   setStageAssets: (stage, assets) => set((state) => ({
     stageAssets: { ...state.stageAssets, [stage]: assets }
   })),
+
+  // 重置所有阶段资产（用于新项目）
+  resetAllStageAssets: () => set({
+    stageAssets: {
+      [STAGES.SCRIPT]: [],
+      [STAGES.CHARACTER]: [],
+      [STAGES.SCENE]: [],
+      [STAGES.PROP]: [],
+      [STAGES.STORYBOARD]: [],
+      [STAGES.VIDEO]: [],
+    },
+    selectedAssetIds: {
+      [STAGES.SCRIPT]: null,
+      [STAGES.CHARACTER]: null,
+      [STAGES.SCENE]: null,
+      [STAGES.PROP]: null,
+      [STAGES.STORYBOARD]: null,
+      [STAGES.VIDEO]: null,
+    },
+    stageCompletion: {
+      [STAGES.SCRIPT]: false,
+      [STAGES.CHARACTER]: false,
+      [STAGES.SCENE]: false,
+      [STAGES.PROP]: false,
+      [STAGES.STORYBOARD]: false,
+      [STAGES.VIDEO]: false,
+    },
+  }),
 
   addStageAsset: (stage, asset) => set((state) => ({
     stageAssets: {
@@ -167,13 +202,26 @@ export const useStageStore = create((set, get) => ({
       ...state.stageAssets,
       [stage]: state.stageAssets[stage].filter(a => a.id !== assetId)
     },
-    // 如果删除的是选中的资产，清除选择
-    selectedAssetId: state.selectedAssetId === assetId ? null : state.selectedAssetId
+    // 如果删除的是当前阶段选中的资产，清除选择
+    selectedAssetIds: {
+      ...state.selectedAssetIds,
+      [stage]: state.selectedAssetIds[stage] === assetId ? null : state.selectedAssetIds[stage]
+    }
   })),
 
-  selectAsset: (assetId) => set({ selectedAssetId: assetId }),
+  selectAsset: (assetId) => set((state) => ({
+    selectedAssetIds: {
+      ...state.selectedAssetIds,
+      [state.currentStage]: assetId
+    }
+  })),
 
-  clearSelection: () => set({ selectedAssetId: null }),
+  clearSelection: () => set((state) => ({
+    selectedAssetIds: {
+      ...state.selectedAssetIds,
+      [state.currentStage]: null
+    }
+  })),
 
   setStageCompletion: (stage, completed) => set((state) => ({
     stageCompletion: { ...state.stageCompletion, [stage]: completed }
@@ -188,14 +236,15 @@ export const useStageStore = create((set, get) => ({
   // 获取选中资产
   getSelectedAsset: () => {
     const state = get();
-    if (!state.selectedAssetId) return null;
+    const selectedId = state.selectedAssetIds[state.currentStage];
+    if (!selectedId) return null;
     const assets = state.stageAssets[state.currentStage] || [];
-    return assets.find(a => a.id === state.selectedAssetId) || null;
+    return assets.find(a => a.id === selectedId) || null;
   },
 
   // 重置所有状态
   reset: () => set({
-    currentStage: STAGES.CHARACTER,
+    currentStage: STAGES.SCRIPT,
     stageAssets: {
       [STAGES.SCRIPT]: [],
       [STAGES.CHARACTER]: [],
@@ -204,7 +253,14 @@ export const useStageStore = create((set, get) => ({
       [STAGES.STORYBOARD]: [],
       [STAGES.VIDEO]: [],
     },
-    selectedAssetId: null,
+    selectedAssetIds: {
+      [STAGES.SCRIPT]: null,
+      [STAGES.CHARACTER]: null,
+      [STAGES.SCENE]: null,
+      [STAGES.PROP]: null,
+      [STAGES.STORYBOARD]: null,
+      [STAGES.VIDEO]: null,
+    },
     stageCompletion: {
       [STAGES.SCRIPT]: false,
       [STAGES.CHARACTER]: false,

@@ -109,7 +109,13 @@ const AssetGrid = ({
               <span>上传</span>
             </button>
           )}
-          <button className="header-action-btn" onClick={onBatchGenerate}>
+          {/* AI 批量生成：仅在没有资产时启用 */}
+          <button
+            className="header-action-btn"
+            onClick={onBatchGenerate}
+            disabled={assets.length > 0}
+            title={assets.length > 0 ? '请先删除现有资产再使用批量生成' : '从剧本提取角色生成'}
+          >
             <Sparkles size={14} />
             <span>AI 批量生成</span>
           </button>

@@ -1,17 +1,23 @@
 import { useCallback, useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { Sparkles } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Sparkles, FileText } from 'lucide-react';
 import { toast } from '../Toast/Toast';
 import StageNavigation from './StageNavigation';
 import AssetGrid from './AssetGrid';
 import AssetDetailPanel from './AssetDetailPanel';
 import EmptyGuide from './EmptyGuide';
 import ScriptParser from './ScriptParser';
+import ScriptAssistantPanel from './ScriptAssistantPanel';
+import AssetAIDialog from './AssetAIDialog';
 import ImpactToast from './ImpactToast';
 import UploadModal from './UploadModal';
 import { useStageStore, STAGES } from '../../stores/stageStore';
 import { useChatStore } from '../../stores/chatStore';
+import { ASSISTANT_AGENT_ID } from '../../constants/ComponentType';
 import './StoryboardMainView.css';
+
+// 剧本助手专用 agent ID（固定为 3）
+const SCRIPT_AGENT_ID = 3;
 
 /**
  * StoryboardMainView - 故事板主视图
@@ -34,10 +40,20 @@ const StoryboardMainView = () => {
   // P1: 右键菜单状态
   const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, asset: null });
 
+  // 剧本助手面板状态
+  const [scriptAssistantOpen, setScriptAssistantOpen] = useState(false);
+
+  // AI 对话面板状态 - 按阶段独立存储
+  const [aiDialogs, setAiDialogs] = useState({
+    [STAGES.CHARACTER]: { isOpen: false, asset: null, messages: [] },
+    [STAGES.SCENE]: { isOpen: false, asset: null, messages: [] },
+    [STAGES.PROP]: { isOpen: false, asset: null, messages: [] },
+  });
+
   const {
     currentStage,
     stageAssets,
-    selectedAssetId,
+    selectedAssetIds,
     setCurrentStage,
     setStageAssets,
     selectAsset,
@@ -149,11 +165,25 @@ const StoryboardMainView = () => {
   // 处理资产选择 - 同时切换聊天上下文
   const handleSelectAsset = useCallback((asset) => {
     selectAsset(asset.id);
+
+    // 如果 AI 对话已打开，更新对话资产并开启新会话
+    const currentDialog = aiDialogs[currentStage];
+    if (currentDialog?.isOpen && currentDialog?.asset?.id !== asset.id) {
+      setAiDialogs(prev => ({
+        ...prev,
+        [currentStage]: {
+          ...prev[currentStage],
+          asset,
+          messages: [] // 切换资产开启新对话
+        }
+      }));
+    }
+
     // 切换聊天上下文到该资产
     if (asset) {
       switchContext('asset', asset.id, asset.name);
     }
-  }, [selectAsset, switchContext]);
+  }, [selectAsset, switchContext, aiDialogs, currentStage]);
 
   // 处理添加新资产
   const handleAddNew = useCallback(() => {
@@ -231,6 +261,42 @@ const StoryboardMainView = () => {
     toast?.success?.(`已触发 ${currentAssets.length} 个资产生成`);
   }, [currentAssets, handleGenerate]);
 
+  // AI 对话
+  const handleAIDialog = useCallback((assetId) => {
+    const asset = stageAssets[currentStage]?.find(a => a.id === assetId);
+    if (asset) {
+      setAiDialogs(prev => {
+        const currentDialog = prev[currentStage];
+        // 如果是同一个资产，保持对话；如果是不同资产，开启新对话
+        const isSameAsset = currentDialog?.asset?.id === assetId;
+        return {
+          ...prev,
+          [currentStage]: {
+            isOpen: true,
+            asset,
+            messages: isSameAsset ? (currentDialog?.messages || []) : []
+          }
+        };
+      });
+    }
+  }, [stageAssets, currentStage]);
+
+  // 关闭 AI 对话（保留 asset 和消息）
+  const handleCloseAIDialog = useCallback(() => {
+    setAiDialogs(prev => ({
+      ...prev,
+      [currentStage]: { ...prev[currentStage], isOpen: false }
+    }));
+  }, [currentStage]);
+
+  // 更新 AI 对话消息
+  const handleAIMessagesChange = useCallback((newMessages) => {
+    setAiDialogs(prev => ({
+      ...prev,
+      [currentStage]: { ...prev[currentStage], messages: newMessages }
+    }));
+  }, [currentStage]);
+
   // P1: 右键菜单
   const handleContextMenu = useCallback((e, asset) => {
     e.preventDefault();
@@ -300,34 +366,75 @@ const StoryboardMainView = () => {
   }, []);
 
   // T058/T062: 处理实际上传
-  const handleUpload = useCallback((file, mode) => {
-    console.log('上传文件:', file.name, '模式:', mode);
+  // options: { enableAI: boolean }
+  const handleUpload = useCallback(async (file, options = {}) => {
+    console.log('上传文件:', file.name, '选项:', options);
+
+    const { enableAI = false } = options;
+    const newAssetId = `${currentStage}-${Date.now()}`;
 
     // 创建新资产
     const newAsset = {
-      id: `${currentStage}-${Date.now()}`,
+      id: newAssetId,
       type: currentStage,
       name: file.name.replace(/\.[^/.]+$/, ''), // 去掉扩展名作为初始名称
       description: '',
       prompt: '',
       thumbnail: null, // TODO: 实际上传后获取真实 URL
+      status: enableAI ? 'pending' : 'synced', // pending=骨架屏, synced=有内容
       // T062: AI 处理相关字段
-      aiProcessed: mode === 'ai',
-      aiDescription: mode === 'ai' ? `AI 处理后的 ${file.name}` : null,
+      aiProcessed: enableAI,
     };
 
     // 添加到阶段资产
     addStageAsset(currentStage, newAsset);
-    selectAsset(newAsset.id);
+    selectAsset(newAssetId);
 
-    if (mode === 'ai') {
-      toast?.success?.(`已上传 ${file.name}，AI 处理中...`);
+    if (enableAI) {
+      toast?.success?.(`已上传 ${file.name}，AI 解析中...`);
+
+      // 关闭上传弹窗
+      setUploadModal({ isOpen: false, accept: 'image' });
+
+      // TODO: 调用实际的 AI 图片解析 API
+      // AI 解析接口: parseImageAsset(file, currentStage)
+      // 返回: { name, description, prompt, thumbnail? }
+
+      // 模拟 AI 解析（1.5秒后更新资产）
+      setTimeout(() => {
+        // 模拟解析结果
+        const parsedDescriptions = {
+          [STAGES.CHARACTER]: '红发女黑客，智能机械义肢，赛博朋克风格服装，眼神坚定而锐利',
+          [STAGES.SCENE]: '高科技数据中心，蓝色全息显示屏，悬浮操作界面，霓虹灯光效果',
+          [STAGES.PROP]: '便携式黑客终端，透明全息投影，集成神经网络接口',
+        };
+
+        const parsedNames = {
+          [STAGES.CHARACTER]: file.name.replace(/\.[^/.]+$/, ''),
+          [STAGES.SCENE]: '赛博城市夜景',
+          [STAGES.PROP]: '黑客终端设备',
+        };
+
+        // 更新资产状态为 running（生成中）
+        updateStageAsset(currentStage, newAssetId, {
+          status: 'running',
+          description: parsedDescriptions[currentStage] || 'AI 解析完成',
+          name: parsedNames[currentStage] || file.name.replace(/\.[^/.]+$/, ''),
+        });
+
+        // 再过 2 秒完成生成
+        setTimeout(() => {
+          updateStageAsset(currentStage, newAssetId, {
+            status: 'synced',
+          });
+          toast?.success?.(`AI 解析完成！`);
+        }, 2000);
+      }, 1500);
     } else {
       toast?.success?.(`已上传 ${file.name}`);
+      setUploadModal({ isOpen: false, accept: 'image' });
     }
-
-    setUploadModal({ isOpen: false, accept: 'image' });
-  }, [currentStage, addStageAsset, selectAsset]);
+  }, [currentStage, addStageAsset, selectAsset, updateStageAsset]);
 
   // T058/T062: 处理 AI 生成主题
   const handleAIGenerate = useCallback((topic) => {
@@ -562,11 +669,11 @@ const StoryboardMainView = () => {
     }
   }, [currentAssets]);
 
-  // 项目为空且不在剧本阶段时显示 EmptyGuide
-  if (projectIsEmpty && currentStage !== STAGES.SCRIPT) {
+  // 项目为空时显示 EmptyGuide（新项目默认进入剧本阶段）
+  if (projectIsEmpty) {
     return (
       <div className="storyboard-main">
-        <StageNavigation onAIGenerate={handleStageAIGenerate} />
+        <StageNavigation />
         <div className="storyboard-content">
           <EmptyGuide onComplete={handleEmptyGuideComplete} />
         </div>
@@ -576,43 +683,115 @@ const StoryboardMainView = () => {
 
   // 剧本阶段特殊处理
   if (currentStage === STAGES.SCRIPT) {
+    const scriptAsset = currentAssets[0];
+    const isScriptEmpty = !scriptAsset?.content;
+
+    // 剧本助手面板回调
+    const handleScriptAccept = (content) => {
+      handleUpdateAsset(scriptAsset?.id || 'script-main', { content });
+      setScriptAssistantOpen(false);
+    };
+
+    const handleScriptReject = () => {
+      // 拒绝后可以继续对话，不需要关闭面板
+    };
+
     return (
       <div className="storyboard-main">
-        <StageNavigation onAIGenerate={handleStageAIGenerate} />
-        <div className="storyboard-content script-content">
-          {/* T050: AI解析按钮 */}
-          <div className="script-actions">
-            <motion.button
-              className="ai-parse-btn"
-              onClick={handleAIParse}
-              disabled={isParsing || currentAssets.length === 0}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <Sparkles size={16} />
-              {isParsing ? '解析中...' : 'AI 解析剧本'}
-            </motion.button>
+        <StageNavigation />
+        <div className="script-stage-layout">
+          {/* 左侧主区域 70% */}
+          <div className="script-main-area">
+            {/* 剧本引导提示 - 仅内容为空时显示 */}
+            {isScriptEmpty && (
+              <motion.div
+                className="script-guidance"
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+              >
+                <div className="guidance-icon">💡</div>
+                <div className="guidance-text">
+                  <strong>开始创作你的剧本</strong>
+                  <p>在下方编辑剧本，或让AI帮你生成 / 提取素材</p>
+                </div>
+              </motion.div>
+            )}
+
+            <AssetDetailPanel
+              asset={currentAssets[0] || {
+                id: 'script-main',
+                type: STAGES.SCRIPT,
+                name: '剧本',
+                content: '',
+              }}
+              onUpdate={handleUpdateAsset}
+            />
+
+            {/* 底部按钮栏 */}
+            <div className="script-bottom-actions">
+              <div className="left-actions">
+                <button
+                  className="action-btn"
+                  onClick={() => setScriptAssistantOpen(true)}
+                  disabled={isScriptEmpty}
+                >
+                  <FileText size={16} className="icon" />
+                  生成目录
+                </button>
+                <button
+                  className="action-btn"
+                  onClick={handleAIParse}
+                  disabled={isScriptEmpty || isParsing}
+                >
+                  <Sparkles size={16} className="icon" />
+                  {isParsing ? '提取中...' : 'AI提取素材'}
+                </button>
+              </div>
+              <div className="right-actions">
+                <button
+                  className="action-btn primary"
+                  onClick={() => setScriptAssistantOpen(true)}
+                >
+                  <Sparkles size={16} className="icon" />
+                  AI生成剧本
+                </button>
+                <button
+                  className="action-btn"
+                  onClick={() => handleUpdateAsset(scriptAsset?.id, { content: scriptAsset?.content })}
+                  disabled={!scriptAsset?.content}
+                >
+                  保存
+                </button>
+              </div>
+            </div>
           </div>
 
-          <AssetDetailPanel
-            asset={currentAssets[0] || {
-              id: 'script-main',
-              type: STAGES.SCRIPT,
-              name: '剧本',
-              content: '在此输入剧本内容...',
-            }}
-            onUpdate={handleUpdateAsset}
-          />
-
-          {/* T050: 剧本解析结果弹窗 */}
-          <ScriptParser
-            isOpen={showScriptParser}
-            parseResult={parseResult}
-            onConfirm={handleParseConfirm}
-            onCancel={() => setShowScriptParser(false)}
-            onRetry={handleParseRetry}
-          />
+          {/* 右侧助手面板 30% */}
+          <AnimatePresence>
+            {scriptAssistantOpen && (
+              <div className="script-assistant-area">
+                <ScriptAssistantPanel
+                  isOpen={scriptAssistantOpen}
+                  onClose={() => setScriptAssistantOpen(false)}
+                  onAccept={handleScriptAccept}
+                  onReject={handleScriptReject}
+                  scriptContent={scriptAsset?.content || ''}
+                  agentId={SCRIPT_AGENT_ID}
+                />
+              </div>
+            )}
+          </AnimatePresence>
         </div>
+
+        {/* T050: 剧本解析结果弹窗 */}
+        <ScriptParser
+          isOpen={showScriptParser}
+          parseResult={parseResult}
+          onConfirm={handleParseConfirm}
+          onCancel={() => setShowScriptParser(false)}
+          onRetry={handleParseRetry}
+        />
       </div>
     );
   }
@@ -621,7 +800,7 @@ const StoryboardMainView = () => {
   if (currentStage === STAGES.STORYBOARD) {
     return (
       <div className="storyboard-main">
-        <StageNavigation onAIGenerate={handleStageAIGenerate} />
+        <StageNavigation />
         <div className="storyboard-content storyboard-stage-content">
           {/* AI 生成分镜按钮 */}
           <div className="stage-action-bar">
@@ -643,7 +822,7 @@ const StoryboardMainView = () => {
               <AssetGrid
                 assets={currentAssets}
                 stage={currentStage}
-                selectedId={selectedAssetId}
+                selectedId={selectedAssetIds[currentStage]}
                 onSelect={handleSelectAsset}
                 onContextMenu={handleContextMenu}
                 onAddNew={handleAddNew}
@@ -652,15 +831,18 @@ const StoryboardMainView = () => {
               />
             </aside>
 
-            {/* 右侧：详情面板 */}
-            <section className="detail-panel">
-              <AssetDetailPanel
-                asset={selectedAsset}
-                onUpdate={handleUpdateAsset}
-                onDelete={handleDeleteAsset}
-                onGenerate={handleGenerate}
-              />
-            </section>
+            {/* 右侧：详情面板 - 仅当选中资产时渲染 */}
+            {selectedAsset && (
+              <section className="detail-panel">
+                <AssetDetailPanel
+                  asset={selectedAsset}
+                  onUpdate={handleUpdateAsset}
+                  onDelete={handleDeleteAsset}
+                  onGenerate={handleGenerate}
+                  onAIDialog={handleAIDialog}
+                />
+              </section>
+            )}
           </div>
         </div>
       </div>
@@ -671,7 +853,7 @@ const StoryboardMainView = () => {
   if (currentStage === STAGES.VIDEO) {
     return (
       <div className="storyboard-main">
-        <StageNavigation onAIGenerate={handleStageAIGenerate} />
+        <StageNavigation />
         <div className="storyboard-content storyboard-stage-content">
           {/* 导出按钮 */}
           <div className="stage-action-bar">
@@ -691,7 +873,7 @@ const StoryboardMainView = () => {
               <AssetGrid
                 assets={currentAssets}
                 stage={currentStage}
-                selectedId={selectedAssetId}
+                selectedId={selectedAssetIds[currentStage]}
                 onSelect={handleSelectAsset}
                 onContextMenu={handleContextMenu}
                 onAddNew={handleAddNew}
@@ -700,32 +882,35 @@ const StoryboardMainView = () => {
               />
             </aside>
 
-            {/* 右侧：详情面板 */}
-            <section className="detail-panel">
-              <AssetDetailPanel
-                asset={selectedAsset}
-                onUpdate={handleUpdateAsset}
-                onDelete={handleDeleteAsset}
-                onGenerate={handleGenerate}
-              />
-            </section>
+            {/* 右侧：详情面板 - 仅当选中资产时渲染 */}
+            {selectedAsset && (
+              <section className="detail-panel">
+                <AssetDetailPanel
+                  asset={selectedAsset}
+                  onUpdate={handleUpdateAsset}
+                  onDelete={handleDeleteAsset}
+                  onGenerate={handleGenerate}
+                  onAIDialog={handleAIDialog}
+                />
+              </section>
+            )}
           </div>
         </div>
       </div>
     );
   }
 
-  return (
-    <div className="storyboard-main">
-      <StageNavigation onAIGenerate={handleStageAIGenerate} />
-
-      <div className="storyboard-content">
-        {/* 左侧：资产网格 */}
+  // 角色/场景/道具阶段布局 - 和剧本阶段一样用 70:30 布局
+  const renderAssetStageContent = () => (
+    <div className="asset-stage-layout">
+      {/* 左侧主区域 */}
+      <div className="asset-main-area">
+        {/* 资产网格 */}
         <aside className="assets-panel">
           <AssetGrid
             assets={currentAssets}
             stage={currentStage}
-            selectedId={selectedAssetId}
+            selectedId={selectedAssetIds[currentStage]}
             onSelect={handleSelectAsset}
             onContextMenu={handleContextMenu}
             onAddNew={handleAddNew}
@@ -733,16 +918,49 @@ const StoryboardMainView = () => {
           />
         </aside>
 
-        {/* 右侧：详情面板 */}
+        {/* 详情面板 */}
         <section className="detail-panel">
-          <AssetDetailPanel
-            asset={selectedAsset}
-            onUpdate={handleUpdateAsset}
-            onDelete={handleDeleteAsset}
-            onGenerate={handleGenerate}
-          />
+          {selectedAsset && (
+            <AssetDetailPanel
+              asset={selectedAsset}
+              onUpdate={handleUpdateAsset}
+              onDelete={handleDeleteAsset}
+              onGenerate={handleGenerate}
+              onAIDialog={handleAIDialog}
+            />
+          )}
         </section>
       </div>
+
+      {/* 右侧 AI 对话面板 */}
+      <AnimatePresence>
+        {aiDialogs[currentStage]?.isOpen && (
+          <div className="asset-ai-assistant-area">
+            <AssetAIDialog
+              isOpen={aiDialogs[currentStage].isOpen}
+              asset={aiDialogs[currentStage].asset}
+              messages={aiDialogs[currentStage].messages}
+              onMessagesChange={handleAIMessagesChange}
+              onClose={handleCloseAIDialog}
+              onGenerate={(assetId) => {
+                handleGenerate(assetId);
+                handleCloseAIDialog();
+              }}
+              onSave={(assetId) => {
+                toast?.success?.('Prompt 已保存');
+                handleCloseAIDialog();
+              }}
+            />
+          </div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+
+  return (
+    <div className="storyboard-main">
+      <StageNavigation />
+      {renderAssetStageContent()}
 
       {/* T072: 资产修改影响提示 */}
       {impactToast && (
@@ -759,9 +977,9 @@ const StoryboardMainView = () => {
         isOpen={uploadModal.isOpen}
         onClose={() => setUploadModal({ isOpen: false, accept: 'image' })}
         onUpload={handleUpload}
-        onAIGenerate={handleAIGenerate}
         accept={uploadModal.accept}
         title="上传资产"
+        stage={currentStage}
       />
 
       {/* P1: 右键菜单 */}

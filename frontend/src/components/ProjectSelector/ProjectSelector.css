@@ -1,41 +1,62 @@
-.project-selector-overlay {
+/*
+  层级关系：
+  - .ps-wrapper (fixed inset:0) > HomePage所有内容
+  - .ps-overlay (z:1) > HomePage
+  - .ps-dialog (z:2) > overlay
+*/
+
+/* 外层 wrapper - 全屏 fixed，使用 absolute 让内容相对于视口居中 */
+.ps-wrapper {
+  position: fixed;
+  inset: 0;
+  z-index: 4000;
+}
+
+/* 遮罩 - 使用 fixed 铺满视口 */
+.ps-overlay {
   position: fixed;
   inset: 0;
   background: var(--modal-backdrop);
-  z-index: var(--z-modal-backdrop);
+  z-index: 1;
 }
 
-.project-selector {
-  position: fixed;
+/* 弹窗 - 使用 absolute + transform 居中 */
+.ps-dialog {
+  position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
   width: 90%;
-  max-width: 480px;
+  max-width: 560px;
+  height: 520px;
+  display: flex;
+  flex-direction: column;
   background: var(--card-bg);
   border: 1px solid var(--card-border);
-  border-radius: var(--radius-xl);
+  border-radius: 16px;
   box-shadow: var(--shadow-xl);
-  z-index: var(--z-modal);
+  z-index: 2;
   overflow: hidden;
 }
 
-.selector-header {
+/* 头部 */
+.ps-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--space-4) var(--space-5);
+  padding: 20px 24px;
   border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
 }
 
-.selector-title {
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
+.ps-title {
+  font-size: 18px;
+  font-weight: 600;
   color: var(--text-primary);
   margin: 0;
 }
 
-.close-btn {
+.ps-close-btn {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -43,186 +64,297 @@
   height: 32px;
   background: transparent;
   border: none;
-  border-radius: var(--radius-md);
+  border-radius: 8px;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: all var(--duration-fast) var(--ease-out);
+  transition: all 0.15s ease;
 }
 
-.close-btn:hover {
+.ps-close-btn:hover {
   background: var(--bg-tertiary);
   color: var(--text-primary);
 }
 
-.selector-content {
-  padding: var(--space-5);
+/* 内容区 */
+.ps-content {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  padding: 28px 32px;
+  overflow: hidden;
 }
 
-/* 创建新项目按钮/表单 */
-.create-btn {
+/* 创建区域 */
+.ps-create-section {
+  flex-shrink: 0;
+}
+
+.ps-create-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-2);
+  gap: 8px;
   width: 100%;
-  padding: var(--space-4);
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+  height: 56px;
+  background: var(--gradient-primary);
   border: none;
-  border-radius: var(--radius-lg);
+  border-radius: 12px;
   color: white;
-  font-size: var(--font-size-base);
-  font-weight: var(--font-weight-medium);
+  font-size: 16px;
+  font-weight: 500;
   cursor: pointer;
-  transition: all var(--duration-normal) var(--ease-out);
+  transition: box-shadow 0.2s ease;
 }
 
-.create-btn:hover {
+.ps-create-btn:hover {
   box-shadow: var(--shadow-glow);
 }
 
-.create-form {
+.ps-create-form {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: 12px;
 }
 
-.project-name-input {
+.ps-input {
   width: 100%;
-  padding: var(--space-3) var(--space-4);
+  height: 48px;
+  padding: 0 16px;
   background: var(--input-bg);
   border: 1px solid var(--input-border);
-  border-radius: var(--radius-md);
+  border-radius: 10px;
   color: var(--text-primary);
-  font-size: var(--font-size-base);
+  font-size: 15px;
   outline: none;
-  transition: border-color var(--duration-fast) var(--ease-out);
+  transition: border-color 0.15s ease;
 }
 
-.project-name-input:focus {
+.ps-input:focus {
   border-color: var(--color-primary);
 }
 
-.project-name-input::placeholder {
+.ps-input::placeholder {
   color: var(--text-placeholder);
 }
 
-.create-actions {
+.ps-form-actions {
   display: flex;
-  gap: var(--space-2);
+  gap: 12px;
   justify-content: flex-end;
 }
 
-.btn-secondary {
-  padding: var(--space-2) var(--space-4);
-  background: transparent;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
+.ps-btn {
+  height: 36px;
+  padding: 0 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
-  transition: all var(--duration-fast) var(--ease-out);
+  transition: all 0.15s ease;
 }
 
-.btn-secondary:hover {
+.ps-btn-cancel {
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+}
+
+.ps-btn-cancel:hover {
   background: var(--bg-tertiary);
   color: var(--text-primary);
 }
 
-.btn-primary {
-  padding: var(--space-2) var(--space-4);
+.ps-btn-confirm {
   background: var(--color-primary);
   border: none;
-  border-radius: var(--radius-md);
   color: white;
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-  cursor: pointer;
-  transition: all var(--duration-fast) var(--ease-out);
 }
 
-.btn-primary:hover:not(:disabled) {
+.ps-btn-confirm:hover:not(:disabled) {
   background: var(--color-primary-hover);
 }
 
-.btn-primary:disabled {
+.ps-btn-confirm:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-/* 历史项目列表 */
-.projects-section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.section-title {
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-  color: var(--text-secondary);
-  margin: 0;
-}
-
-.projects-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.project-item {
+/* 分隔线 */
+.ps-divider {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  width: 100%;
-  padding: var(--space-3) var(--space-4);
-  background: var(--bg-tertiary);
-  border: 1px solid transparent;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  transition: all var(--duration-fast) var(--ease-out);
-  text-align: left;
+  padding: 20px 0;
+  flex-shrink: 0;
 }
 
-.project-item:hover {
+.ps-divider::before,
+.ps-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border-subtle);
+}
+
+.ps-divider span {
+  padding: 0 16px;
+  font-size: 13px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* 历史项目列表区 */
+.ps-projects-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* 搜索框 */
+.ps-search-wrapper {
+  position: relative;
+  flex-shrink: 0;
+  margin-bottom: 12px;
+}
+
+.ps-search-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.ps-search-input {
+  width: 100%;
+  height: 40px;
+  padding: 0 14px 0 40px;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.ps-search-input:focus {
+  border-color: var(--input-focus);
+}
+
+.ps-search-input::placeholder {
+  color: var(--text-placeholder);
+}
+
+.ps-projects-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.ps-project-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  height: 72px;
+  padding: 0 16px;
+  background: var(--bg-tertiary);
+  border: 1px solid transparent;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+  flex-shrink: 0;
+}
+
+.ps-project-item:hover {
   background: var(--bg-secondary);
   border-color: var(--border-subtle);
 }
 
-.project-icon {
+.ps-project-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   background: var(--color-primary);
-  border-radius: var(--radius-md);
+  border-radius: 10px;
   color: white;
+  flex-shrink: 0;
 }
 
-.project-info {
+.ps-project-info {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
 }
 
-.project-name {
-  font-size: var(--font-size-base);
-  font-weight: var(--font-weight-medium);
+.ps-project-name {
+  font-size: 15px;
+  font-weight: 500;
   color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.project-date {
-  font-size: var(--font-size-xs);
+.ps-project-date {
+  font-size: 12px;
   color: var(--text-muted);
 }
 
-.empty-hint {
-  text-align: center;
+.ps-empty-hint {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
   color: var(--text-muted);
-  font-size: var(--font-size-sm);
-  margin: 0;
-  padding: var(--space-4);
+}
+
+/* 骨架屏 */
+.ps-skeleton-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.ps-skeleton-item {
+  height: 72px;
+  background: var(--bg-tertiary);
+  border-radius: 10px;
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.ps-skeleton-item::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.05) 50%,
+    transparent 100%
+  );
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
 }

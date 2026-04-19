@@ -1,7 +1,6 @@
-import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Check } from 'lucide-react';
-import { useStageStore, STAGE_ORDER, STAGE_LABELS, STAGE_CONFIG, STAGES } from '../../stores/stageStore';
+import { useStageStore, STAGE_ORDER, STAGE_LABELS, STAGE_CONFIG } from '../../stores/stageStore';
 import './StageNavigation.css';
 
 /**
@@ -13,37 +12,12 @@ import './StageNavigation.css';
  * - 已完成阶段显示 ✓ 图标
  * - 点击切换阶段
  */
-const StageNavigation = ({ onAIGenerate }) => {
+const StageNavigation = () => {
   const { currentStage, setCurrentStage, stageCompletion } = useStageStore();
-  const [activeDropdown, setActiveDropdown] = useState(null);
 
   const handleStageClick = (stage) => {
     if (stage !== currentStage) {
       setCurrentStage(stage);
-    }
-  };
-
-  const handleAIGenerate = () => {
-    if (onAIGenerate) {
-      onAIGenerate(currentStage);
-    }
-  };
-
-  // 获取当前阶段的 AI 生成按钮文字
-  const getAIGenerateText = () => {
-    switch (currentStage) {
-      case STAGES.SCRIPT:
-        return 'AI 生成剧本';
-      case STAGES.CHARACTER:
-      case STAGES.SCENE:
-      case STAGES.PROP:
-        return 'AI 解析生成';
-      case STAGES.STORYBOARD:
-        return 'AI 生成分镜';
-      case STAGES.VIDEO:
-        return 'AI 生成视频';
-      default:
-        return 'AI 生成';
     }
   };
 
@@ -122,18 +96,6 @@ const StageNavigation = ({ onAIGenerate }) => {
             </button>
           );
         })}
-      </div>
-
-      {/* AI 生成按钮 */}
-      <div className="stage-actions">
-        <button
-          className="ai-generate-btn"
-          aria-label={getAIGenerateText()}
-          onClick={handleAIGenerate}
-        >
-          <span className="ai-icon">✨</span>
-          <span>{getAIGenerateText()}</span>
-        </button>
       </div>
     </div>
   );

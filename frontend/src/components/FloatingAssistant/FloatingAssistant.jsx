@@ -4,13 +4,14 @@ import { X, Minimize2, MessageCircle } from 'lucide-react';
 import { useChatStore, useProjectStore } from '../../stores';
 import ChatConversation from '../ChatConversation';
 import { ASSISTANT_AGENT_ID } from '../../constants/ComponentType';
+import { eventBus, EVENT_TYPES } from '../../utils/eventBus';
 import './FloatingAssistant.css';
 
 /**
  * FloatingAssistant - 悬浮助手
  */
 function FloatingAssistant() {
-  const { isFloatingOpen, closeFloating, floatingPosition, floatingSize, setFloatingPosition, contextType, contextName } = useChatStore();
+  const { isFloatingOpen, openFloating, closeFloating, floatingPosition, floatingSize, setFloatingPosition, contextType, contextName } = useChatStore();
   const currentProjectId = useProjectStore(state => state.currentProjectId);
   const currentVersion = useProjectStore(state => state.currentVersion);
 
@@ -56,6 +57,17 @@ function FloatingAssistant() {
       }
     } catch (e) {}
   }, []);
+
+  // 监听打开浮窗助手事件
+  useEffect(() => {
+    const handleOpen = () => {
+      openFloating();
+    };
+    eventBus.on(EVENT_TYPES.OPEN_FLOATING_ASSISTANT, handleOpen);
+    return () => {
+      eventBus.off(EVENT_TYPES.OPEN_FLOATING_ASSISTANT, handleOpen);
+    };
+  }, [openFloating]);
 
   // 拖拽开始 - 只在头部
   const handleMouseDown = useCallback((e) => {

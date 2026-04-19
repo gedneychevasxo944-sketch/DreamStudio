@@ -39,9 +39,14 @@
   transition: all 0.15s ease;
 }
 
-.header-action-btn:hover {
+.header-action-btn:hover:not(:disabled) {
   background: rgba(139, 92, 246, 0.25);
   border-color: rgba(139, 92, 246, 0.5);
+}
+
+.header-action-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 /* 网格内容区 */

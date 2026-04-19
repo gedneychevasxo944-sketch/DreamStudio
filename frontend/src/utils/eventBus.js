@@ -34,6 +34,9 @@ export const EVENT_TYPES = {
 
   // 系统消息
   SYSTEM_MESSAGE: 'systemMessage',
+
+  // 浮窗助手
+  OPEN_FLOATING_ASSISTANT: 'openFloatingAssistant',
 };
 
 class EventBus {

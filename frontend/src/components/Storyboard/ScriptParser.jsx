@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, X, ChevronRight, User, MapPin, Package, Sparkles, Loader2 } from 'lucide-react';
 import { useStageStore, STAGES } from '../../stores';
@@ -27,6 +27,17 @@ function ScriptParser({
     props: {},
   });
   const [isImporting, setIsImporting] = useState(false);
+
+  // 解析结果变化时，默认全选
+  useEffect(() => {
+    if (parseResult) {
+      setSelectedItems({
+        characters: (parseResult.characters || []).reduce((acc, c) => { acc[c.id] = true; return acc; }, {}),
+        scenes: (parseResult.scenes || []).reduce((acc, s) => { acc[s.id] = true; return acc; }, {}),
+        props: (parseResult.props || []).reduce((acc, p) => { acc[p.id] = true; return acc; }, {}),
+      });
+    }
+  }, [parseResult]);
 
   // 切换选中状态
   const toggleItem = (category, id) => {
@@ -130,8 +141,10 @@ function ScriptParser({
               return (
                 <div key={key} className="parse-category">
                   <div className="category-header">
-                    <div className="category-title" style={{ color }}>
-                      <Icon size={16} />
+                    <div className={`category-title ${key}`}>
+                      <div className="icon-wrapper">
+                        <Icon size={14} />
+                      </div>
                       <span>{label}</span>
                       <span className="category-count">({items.length})</span>
                     </div>
@@ -158,12 +171,8 @@ function ScriptParser({
                         whileHover={{ scale: 1.01 }}
                         whileTap={{ scale: 0.98 }}
                       >
-                        <div className="item-checkbox">
-                          {selectedItems[key]?.[item.id] ? (
-                            <Check size={14} />
-                          ) : (
-                            <div className="empty-checkbox" />
-                          )}
+                        <div className={`item-checkbox ${selectedItems[key]?.[item.id] ? 'checked' : ''}`}>
+                          <Check size={14} />
                         </div>
                         <div className="item-content">
                           <span className="item-name">{item.name}</span>
@@ -183,6 +192,7 @@ function ScriptParser({
               parseResult.scenes?.length === 0 &&
               parseResult.props?.length === 0 && (
                 <div className="empty-result">
+                  <div className="empty-result-icon">📭</div>
                   <p>未能从剧本中识别出角色、场景或道具</p>
                   <p className="empty-hint">请尝试手动创建或重新上传剧本</p>
                 </div>
