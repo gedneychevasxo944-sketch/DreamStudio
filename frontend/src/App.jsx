@@ -97,6 +97,7 @@ function App() {
 
   // Project Store
   const {
+    projects,
     currentProjectId,
     projectName,
     currentVersion,
@@ -114,6 +115,7 @@ function App() {
     setVersions,
     setShowVersionDropdown,
     markSaved,
+    switchProject,
   } = useProjectStore();
 
   // Workflow Store
@@ -966,28 +968,30 @@ function App() {
               <AssetLibrary
                 isOpen={assetLibraryOpen}
                 onClose={() => setAssetLibraryOpen(false)}
-                title="资产库"
-                currentEditingContext={selectedShotId ? `镜头${selectedShotId.replace('shot-', '')}` : null}
+                currentProject={{
+                  id: currentProjectId,
+                  name: projectName,
+                }}
+                projects={projects.map(p => ({ id: p.id, name: p.name }))}
+                onProjectChange={(projectId) => {
+                  // 切换项目前检查未保存更改
+                  if (projectId !== currentProjectId && hasUnsavedChanges) {
+                    // TODO: 显示确认对话框
+                    console.log('[App] 切换项目有未保存更改');
+                  }
+                  switchProject(projectId);
+                  setAssetLibraryOpen(false);
+                }}
                 onAssetSelect={(asset) => {
                   console.log('[App] 资产选中:', asset);
                 }}
                 onAssetDrag={(asset) => {
                   console.log('[App] 资产拖拽:', asset);
                 }}
-                onJump={(layer, id) => {
-                  console.log('[App] 跳转:', layer, id);
-                  // 关闭资产库
+                onAssetAddToStoryboard={(asset) => {
+                  console.log('[App] 添加资产到故事板:', asset);
+                  // TODO: 实现添加到故事板的逻辑
                   setAssetLibraryOpen(false);
-                  // 根据层级跳转
-                  if (layer === 'storyboard') {
-                    setCurrentLayer('storyboard');
-                    setFocusedEntity({ type: 'storyboard', id });
-                  } else if (layer === 'workflow') {
-                    // 工作流：先显示概览，这里暂时直接跳到节点层
-                    // TODO: 实现工作流概览浮层
-                    setCurrentLayer('node');
-                    setFocusedEntity({ type: 'workflow', id });
-                  }
                 }}
               />
             </>
