@@ -13,6 +13,7 @@ import SkillMarket from './components/SkillMarket/SkillMarket';
 import PlanPreview from './components/PlanPreview';
 import ContextPanel from './components/ContextPanel';
 import { TopBar } from './components/TopBar';
+import UnsavedChangesDialog from './components/ConfirmDialog/UnsavedChangesDialog';
 import { DrillPanel, PromptDiffPanel, AssetChangeCard, ParameterDiffPanel, VisualSliderPanel, BatchImpactList } from './components/DrillPanel';
 import { SmartSuggestion } from './components/SmartSuggestion';
 import { homePageApi, nodeVersionApi, proposalApi } from './services/api';
@@ -21,7 +22,7 @@ import { WORKFLOW_LAYOUT } from './constants/layoutConstants';
 import { uiLogger } from './utils/logger';
 import { authStorage } from './utils/authStorage';
 import { eventBus, EVENT_TYPES } from './utils/eventBus';
-import { useProjectStore, useWorkflowStore, useUIStore, useSubgraphStore, useStageStore, useChatStore, STAGES } from './stores';
+import { useProjectStore, useWorkflowStore, useUIStore, useStageStore, useChatStore, STAGES } from './stores';
 import { traverseConnectedNodes } from './utils/nodeUtils';
 import { mockModifications } from './mock/mockData';
 import { initializeMockData } from './mock/stagesMock';
@@ -45,11 +46,20 @@ function App() {
   const [currentLayer, setCurrentLayer] = useState('storyboard');
   const [focusedEntity, setFocusedEntity] = useState(null); // 当前焦点实体
 
-  // 节点层查看模式：'nodes' | 'subgraph'
-  const [nodeViewMode, setNodeViewMode] = useState('nodes');
-
   // 故事板选中镜头
   const [selectedShotId, setSelectedShotId] = useState(null);
+
+  // 未保存确认弹窗状态
+  const [unsavedDialog, setUnsavedDialog] = useState({
+    isOpen: false,
+    pendingAction: null, // 'goHome' | 'switchProject'
+    target: null, // project id for switchProject
+  });
+
+  // 未保存修改详情（示例，实际应从 store 获取）
+  const [unsavedChanges, setUnsavedChanges] = useState([
+    { stage: '剧本阶段', description: '台词已修改' },
+  ]);
 
   // ============================================================================
   // 原有状态（保留）
@@ -206,14 +216,6 @@ function App() {
     setFocusedEntity({ type: 'shot', id: shotId });
   }, []);
 
-  // P0: 处理子图聚焦（从子图列表进入节点画布）
-  const handleSubgraphFocus = useCallback((subgraphId) => {
-    // 切换到节点视图模式
-    setNodeViewMode('nodes');
-    // 设置焦点子图
-    useSubgraphStore.getState().setFocusedSubgraph(subgraphId);
-  }, []);
-
   // P1: 处理钻取 - 打开钻取面板
   const handleDrillDown = useCallback((message) => {
     if (!message || !message.modificationId) return;
@@ -353,109 +355,6 @@ function App() {
       setHasUnsavedChanges(true);
     }
   }, [canvasNodes, canvasConnections, canvasViewport, projectName, savedProjectState, setHasUnsavedChanges]);
-
-  // P0: 切换到节点层时，如果有子图则自动显示子图列表
-  useEffect(() => {
-    if (currentLayer === 'node') {
-      const subgraphs = useSubgraphStore.getState().subgraphs;
-      if (subgraphs.length > 0) {
-        setNodeViewMode('subgraph');
-      } else {
-        setNodeViewMode('nodes');
-      }
-
-      // 如果没有子图，加载演示数据
-      if (subgraphs.length === 0) {
-        loadDemoSubgraphs();
-      }
-    }
-  }, [currentLayer]);
-
-  // P0: 加载演示用子图数据
-  const loadDemoSubgraphs = () => {
-    const { getOrCreateSubgraphByAssetId, setSubgraphContent, updateSubgraph } = useSubgraphStore.getState();
-
-    // 角色类
-    const char1 = getOrCreateSubgraphByAssetId('demo-char-1', 'character', '红发女黑客');
-    setSubgraphContent(char1.id, [
-      { id: 'dc1-node-1', name: '角色设计', type: 'visual' },
-      { id: 'dc1-node-2', name: 'Prompt优化', type: 'content' },
-      { id: 'dc1-node-3', name: '高清渲染', type: 'videoGen' },
-    ], []);
-
-    const char2 = getOrCreateSubgraphByAssetId('demo-char-2', 'character', '安保人员A');
-    setSubgraphContent(char2.id, [
-      { id: 'dc2-node-1', name: '角色设计', type: 'visual' },
-      { id: 'dc2-node-2', name: '服装生成', type: 'content' },
-    ], []);
-
-    const char3 = getOrCreateSubgraphByAssetId('demo-char-3', 'character', 'AI管理员');
-    setSubgraphContent(char3.id, [
-      { id: 'dc3-node-1', name: 'AI形象设计', type: 'visual' },
-      { id: 'dc3-node-2', name: '语音合成', type: 'technical' },
-      { id: 'dc3-node-3', name: '行为模型', type: 'content' },
-    ], []);
-
-    // 场景类
-    const scene1 = getOrCreateSubgraphByAssetId('demo-scene-1', 'scene', '数据中心场景');
-    setSubgraphContent(scene1.id, [
-      { id: 'ds1-node-1', name: '场景构图', type: 'director' },
-      { id: 'ds1-node-2', name: '环境光照', type: 'visual' },
-      { id: 'ds1-node-3', name: '氛围渲染', type: 'videoGen' },
-    ], []);
-
-    const scene2 = getOrCreateSubgraphByAssetId('demo-scene-2', 'scene', '霓虹雨夜街道');
-    setSubgraphContent(scene2.id, [
-      { id: 'ds2-node-1', name: '街道布局', type: 'director' },
-      { id: 'ds2-node-2', name: '霓虹灯光', type: 'visual' },
-      { id: 'ds2-node-3', name: '雨天特效', type: 'technical' },
-      { id: 'ds2-node-4', name: '最终合成', type: 'videoGen' },
-    ], [
-      { id: 'c1', from: 'ds2-node-1', to: 'ds2-node-2' },
-      { id: 'c2', from: 'ds2-node-3', to: 'ds2-node-2' },
-      { id: 'c3', from: 'ds2-node-2', to: 'ds2-node-4' },
-    ]);
-
-    // 道具类
-    const prop1 = getOrCreateSubgraphByAssetId('demo-prop-1', 'prop', '服务器终端');
-    setSubgraphContent(prop1.id, [
-      { id: 'dp1-node-1', name: '道具建模', type: 'technical' },
-      { id: 'dp1-node-2', name: '材质贴图', type: 'visual' },
-    ], []);
-
-    const prop2 = getOrCreateSubgraphByAssetId('demo-prop-2', 'prop', '黑客终端');
-    setSubgraphContent(prop2.id, [
-      { id: 'dp2-node-1', name: '终端建模', type: 'technical' },
-      { id: 'dp2-node-2', name: '代码动画', type: 'content' },
-    ], []);
-
-    // 设置不同状态
-    updateSubgraph(char1.id, { syncStatus: 'synced' });
-    updateSubgraph(char2.id, { syncStatus: 'modified' });
-    updateSubgraph(char3.id, { syncStatus: 'running' });
-    updateSubgraph(scene1.id, { syncStatus: 'synced' });
-    updateSubgraph(scene2.id, { syncStatus: 'synced' });
-    updateSubgraph(prop1.id, { syncStatus: 'error', lastError: '渲染超时' });
-    updateSubgraph(prop2.id, { syncStatus: 'synced' });
-
-    setNodeViewMode('subgraph');
-  };
-
-  // P0: 监听资产生成事件，自动创建子图
-  useEffect(() => {
-    const { getOrCreateSubgraphByAssetId } = useSubgraphStore.getState();
-
-    const handleAssetGenerated = ({ asset }) => {
-      if (asset) {
-        getOrCreateSubgraphByAssetId(asset.id, asset.type, asset.name);
-      }
-    };
-
-    eventBus.on(EVENT_TYPES.ASSET_GENERATED, handleAssetGenerated);
-    return () => {
-      eventBus.off(EVENT_TYPES.ASSET_GENERATED, handleAssetGenerated);
-    };
-  }, []);
 
   // 点击版本下拉框外部关闭
   useEffect(() => {
@@ -699,6 +598,43 @@ function App() {
     setSharedMessages([]);
   }, []);
 
+  // 未保存确认弹窗 - 请求确认（由 TopBar 调用）
+  const handleRequestUnsavedConfirm = useCallback((action, target = null) => {
+    setUnsavedDialog({ isOpen: true, pendingAction: action, target });
+  }, []);
+
+  // 未保存确认弹窗 - 保存并离开
+  const handleSaveAndLeave = useCallback(async () => {
+    const { pendingAction, target } = unsavedDialog;
+    setUnsavedDialog({ isOpen: false, pendingAction: null, target: null });
+    await handleSaveProject();
+    // 执行待处理动作
+    if (pendingAction === 'goHome') {
+      handleCancelPlanning();
+    } else if (pendingAction === 'switchProject' && target) {
+      const { switchProject } = useProjectStore.getState();
+      switchProject(target);
+    }
+  }, [handleSaveProject, handleCancelPlanning, unsavedDialog]);
+
+  // 未保存确认弹窗 - 不保存离开
+  const handleLeaveWithoutSaving = useCallback(() => {
+    const { pendingAction, target } = unsavedDialog;
+    setUnsavedDialog({ isOpen: false, pendingAction: null, target: null });
+    // 执行待处理动作（不保存）
+    if (pendingAction === 'goHome') {
+      handleCancelPlanning();
+    } else if (pendingAction === 'switchProject' && target) {
+      const { switchProject } = useProjectStore.getState();
+      switchProject(target);
+    }
+  }, [handleCancelPlanning]);
+
+  // 未保存确认弹窗 - 取消
+  const handleCancelUnsaved = useCallback(() => {
+    setUnsavedDialog({ isOpen: false, pendingAction: null, target: null });
+  }, []);
+
   // 拖拽调整左右面板
   const startDragLeft = useCallback((e) => {
     e.preventDefault();
@@ -916,6 +852,7 @@ function App() {
             isSaving={isSaving}
             saveSuccess={saveSuccess}
             hasUnsavedChanges={hasUnsavedChanges}
+            onRequestUnsavedConfirm={handleRequestUnsavedConfirm}
           />
 
           {/* 主内容区 */}
@@ -966,9 +903,6 @@ function App() {
                         handleNodeSelect(node);
                       }}
                       isDemoMode={isDemoMode}
-                      viewMode={nodeViewMode}
-                      onSubgraphFocus={handleSubgraphFocus}
-                      onSwitchToSubgraphView={() => setNodeViewMode('subgraph')}
                       onReturnToStoryboard={() => handleLayerChange('storyboard')}
                     />
                   </motion.div>
@@ -1081,6 +1015,16 @@ function App() {
       )}
       <ToastContainer />
       <BottomToastContainer />
+
+      {/* 未保存确认弹窗 */}
+      <UnsavedChangesDialog
+        isOpen={unsavedDialog.isOpen}
+        projectName={projectName}
+        changes={unsavedChanges}
+        onSaveAndLeave={handleSaveAndLeave}
+        onLeaveWithoutSaving={handleLeaveWithoutSaving}
+        onCancel={handleCancelUnsaved}
+      />
 
       {/* P1: 钻取面板 */}
       <DrillPanel

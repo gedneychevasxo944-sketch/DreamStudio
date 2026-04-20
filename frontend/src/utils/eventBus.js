@@ -13,12 +13,6 @@ export const EVENT_TYPES = {
   ASSET_UPDATED: 'assetUpdated',
   ASSET_DELETED: 'assetDeleted',
 
-  // 子图更新
-  SUBGRAPH_UPDATED: 'subgraphUpdated',
-  SUBGRAPH_RUN_START: 'subgraphRunStart',
-  SUBGRAPH_RUN_COMPLETE: 'subgraphRunComplete',
-  SUBGRAPH_SYNC_STATUS_CHANGED: 'subgraphSyncStatusChanged',
-
   // 工作流同步
   WORKFLOW_SYNCED: 'workflowSynced',
   WORKFLOW_MODIFIED: 'workflowModified',

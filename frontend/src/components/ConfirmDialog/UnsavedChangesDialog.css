@@ -1,0 +1,180 @@
+.unsaved-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.unsaved-dialog {
+  position: relative;
+  background: rgba(18, 18, 28, 0.98);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  width: 90%;
+  max-width: 440px;
+  padding: 24px;
+  overflow: hidden;
+}
+
+/* 关闭按钮 */
+.unsaved-dialog-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: var(--text-muted, #6b7280);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.unsaved-dialog-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary, #fff);
+}
+
+/* 头部 */
+.unsaved-dialog-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.unsaved-dialog-icon {
+  width: 40px;
+  height: 40px;
+  background: rgba(99, 102, 241, 0.15);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-color, #6366f1);
+  flex-shrink: 0;
+}
+
+.unsaved-dialog-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-right: 24px;
+}
+
+.unsaved-dialog-project-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary, #fff);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 280px;
+}
+
+.unsaved-dialog-subtitle {
+  font-size: 13px;
+  color: var(--text-muted, #6b7280);
+}
+
+/* 修改列表 */
+.unsaved-dialog-changes {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
+  border-radius: 10px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.unsaved-dialog-change-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.unsaved-dialog-change-stage {
+  color: var(--accent-color, #6366f1);
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.unsaved-dialog-change-desc {
+  color: var(--text-secondary, #888);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 提示 */
+.unsaved-dialog-hint {
+  font-size: 12px;
+  color: var(--text-muted, #6b7280);
+  margin-bottom: 20px;
+}
+
+/* 按钮组 */
+.unsaved-dialog-footer {
+  display: flex;
+  gap: 8px;
+}
+
+.unsaved-dialog-btn {
+  flex: 1;
+  height: 36px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: none;
+  font-family: var(--font-sans);
+}
+
+.unsaved-dialog-btn.primary {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  color: white;
+}
+
+.unsaved-dialog-btn.primary:hover {
+  opacity: 0.9;
+}
+
+.unsaved-dialog-btn.secondary {
+  background: transparent;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+  color: var(--text-secondary, #888);
+}
+
+.unsaved-dialog-btn.secondary:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  color: var(--text-primary, #fff);
+}
+
+.unsaved-dialog-btn.cancel {
+  background: transparent;
+  border: none;
+  color: var(--text-muted, #6b7280);
+}
+
+.unsaved-dialog-btn.cancel:hover {
+  color: var(--text-primary, #fff);
+}

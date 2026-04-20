@@ -185,12 +185,12 @@
 
 ### 实现
 
-- [x] T070a [P] [P2] 在 `data-model.md` Asset 接口中添加 `referencedBy` 字段
-- [x] T070b [P] [P2] 在 `stageStore.js` 中实现 `addAsset` 时自动建立引用关系
-- [x] T070c [P] [P2] 在 `stageStore.js` 中实现 `getImpactedAssets(assetId)` 函数
-- [x] T071 [P] [P2] 创建影响提示条组件 `ImpactToast.jsx`
-- [x] T072 [US2] 在 `AssetDetailPanel.jsx` 中触发影响提示显示
-- [x] T073 [US2] 在影响提示中实现"重新生成"和"忽略"按钮
+- [x] T070 [P] [P2] 在 `data-model.md` Asset 接口中添加 `referencedBy` 字段
+- [x] T071 [P] [P2] 在 `stageStore.js` 中实现 `addAsset` 时自动建立引用关系
+- [x] T072 [P] [P2] 在 `stageStore.js` 中实现 `getImpactedAssets(assetId)` 函数
+- [x] T073 [P] [P2] 创建影响提示条组件 `ImpactToast.jsx`
+- [x] T074 [US2] 在 `AssetDetailPanel.jsx` 中触发影响提示显示
+- [x] T075 [US2] 在影响提示中实现"重新生成"和"忽略"按钮
 
 ---
 
@@ -202,11 +202,11 @@
 
 ### 实现
 
-- [x] T074 [P] [P3] 创建模板选择下拉组件 `TemplateSelector.jsx`
-- [x] T075 [P] [P3] 在模板选择器中显示系统预设模板
-- [x] T076 [P3] 在模板选择器中显示用户创建的模板
-- [x] T077 [P3] 在 `workflowStore.js` 中实现"发布为模板"功能
-- [x] T078 [P3] 在模板版本变更时通知相关资产用户
+- [x] T076 [P] [P3] 创建模板选择下拉组件 `TemplateSelector.jsx`
+- [x] T077 [P] [P3] 在模板选择器中显示系统预设模板
+- [x] T078 [P] [P3] 在模板选择器中显示用户创建的模板
+- [x] T079 [P3] 在 `workflowStore.js` 中实现"发布为模板"功能
+- [x] T080 [P3] 在模板版本变更时通知相关资产用户
 
 ---
 
@@ -214,13 +214,34 @@
 
 **Purpose**: 提升整体质量和体验
 
-- [x] T079 [P] 动画性能优化（检查所有动画使用 transform/opacity）
-- [x] T080 [P] 响应式布局检查（最小宽度 1200px）
-- [x] T081 [P] 深色主题细节完善（边框、阴影、对比度）
-- [x] T082 空状态设计检查（各阶段无数据时显示引导）
-- [x] T083 [P] 对话助手浮窗 z-index 层级检查
-- [x] T084 [P] 无障碍检查（键盘导航、aria-label）
-- [x] T085 记忆用户偏好（浮窗位置、主题选择）
+- [x] T081 [P] 动画性能优化（检查所有动画使用 transform/opacity）
+- [x] T082 [P] 响应式布局检查（最小宽度 1200px）
+- [x] T083 [P] 深色主题细节完善（边框、阴影、对比度）
+- [x] T084 空状态设计检查（各阶段无数据时显示引导）
+- [x] T085 [P] 对话助手浮窗 z-index 层级检查
+- [x] T086 [P] 无障碍检查（键盘导航、aria-label）
+- [x] T087 记忆用户偏好（浮窗位置、主题选择）
+
+---
+
+## Phase 13: 剪辑阶段 (优先级: P1)
+
+**Goal**: 用户可以将多个视频片段组装成完整成片
+
+**Independent Test**: 选择多个视频片段 → 拖拽调整顺序 → 裁剪起止时间 → 导出成片
+
+### 实现
+
+- [ ] T088 [P] [US5] 创建 `Storyboard2/EditingTimeline.jsx` 剪辑时间线组件
+- [ ] T089 [P] [US5] 创建 `Storyboard2/VideoClipCard.jsx` 视频片段卡片组件
+- [ ] T090 [US5] 在 `stageStore.js` 中实现剪辑阶段资产管理（添加/删除/排序）
+- [ ] T091 [US5] 在时间线中实现拖拽排序功能
+- [ ] T092 [US5] 实现裁剪功能（设置起止时间）
+- [ ] T093 [US5] 实现视频预览功能
+- [ ] T094 [US5] 实现导出功能（MP4/MOV/WebM格式选择）
+- [ ] T095 [US5] 在 `App.jsx` 中添加剪辑阶段路由
+
+**Checkpoint**: 用户可以在剪辑阶段完成从片段到成片的完整编辑流程
 
 ---
 

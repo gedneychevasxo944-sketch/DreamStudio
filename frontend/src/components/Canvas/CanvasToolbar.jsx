@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Plus, Play, Loader2, Save, Trash2, Maximize2, Minimize2, ChevronDown, AlertCircle, LayoutGrid } from 'lucide-react';
 import PipelineTemplates from '../NodeCanvas/PipelineTemplates';
 
@@ -23,12 +23,12 @@ const CanvasToolbar = ({
 }) => {
   const [showRunMenu, setShowRunMenu] = useState(false);
 
-  const runMenuOptions = [
+  const runMenuOptions = useMemo(() => [
     { key: 'restart', label: '从头运行', description: '重新运行整个流程' },
     { key: 'continue', label: '继续运行', description: '从受影响节点继续', disabled: !hasStaleNodes },
     { key: 'fromCurrent', label: '从当前节点运行', description: '从选中节点重新开始' },
     { key: 'currentOnly', label: '仅运行当前节点', description: '只运行选中的节点' },
-  ];
+  ], [hasStaleNodes]);
 
   const handleRunClick = (e) => {
     e.stopPropagation();

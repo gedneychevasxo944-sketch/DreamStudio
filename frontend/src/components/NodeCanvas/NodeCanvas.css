@@ -535,29 +535,6 @@
   color: rgba(255, 255, 255, 0.9);
 }
 
-/* 迷你地图 */
-.minimap {
-  position: absolute;
-  right: 16px;
-  bottom: 140px;
-  width: 160px;
-  height: 100px;
-  background: var(--bg-panel);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid var(--border-medium);
-  border-radius: 8px;
-  overflow: hidden;
-  z-index: 50;
-}
-
-.minimap-viewport {
-  position: absolute;
-  border: 1px solid rgba(59, 130, 246, 0.5);
-  background: rgba(59, 130, 246, 0.1);
-  cursor: move;
-}
-
 /* 加载状态 */
 .canvas-loading {
   position: absolute;
@@ -689,32 +666,6 @@
   border-color: rgba(99, 102, 241, 0.4);
   color: var(--accent-color, #6366f1);
   transform: translateX(-50%) scale(1.02);
-}
-
-/* P0: 子图列表切换按钮 */
-.subgraph-list-toggle {
-  position: absolute;
-  bottom: 56px;
-  left: 16px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
-  background: rgba(59, 130, 246, 0.1);
-  border: 1px solid rgba(59, 130, 246, 0.3);
-  border-radius: 8px;
-  color: var(--accent-blue, #3b82f6);
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  z-index: 50;
-}
-
-.subgraph-list-toggle:hover {
-  background: rgba(59, 130, 246, 0.2);
-  border-color: rgba(59, 130, 246, 0.5);
-  transform: scale(1.02);
 }
 
 /* P3: 收拢节点占位符 */

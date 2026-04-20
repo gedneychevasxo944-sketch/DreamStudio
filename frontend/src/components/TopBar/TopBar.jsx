@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown, LayoutGrid, Settings, Save, Download, MoreVertical, Library, MessageCircle, FolderOpen, Plus, Check, Sun, Moon, Edit2, Home } from 'lucide-react';
+import { ChevronDown, LayoutGrid, Settings, Save, Download, MoreVertical, Library, MessageCircle, FolderOpen, Plus, Check, Sun, Moon, Edit2, Home, Search, Folder } from 'lucide-react';
 import { useProjectStore, useStageStore, STAGES } from '../../stores';
 import useThemeStore from '../../stores/themeStore';
 import './TopBar.css';
@@ -9,7 +9,7 @@ import './TopBar.css';
  * TopBar - 统一顶部导航栏
  *
  * 布局：
- * [Logo] [项目名称] [V版本▼] | [故事板] [节点] | [资产] [助手] [保存] [···]
+ * [Logo] [项目名称] [V版本▼] | [故事板 ▼] | [资产] [助手] [···]
  *
  * 交互：
  * - 点击项目名称 → 编辑模式
@@ -28,6 +28,7 @@ const TopBar = ({
   isSaving = false,
   saveSuccess = false,
   hasUnsavedChanges = false,
+  onRequestUnsavedConfirm,
 }) => {
   // 从 store 获取
   const currentStage = useStageStore(state => state.currentStage);
@@ -43,15 +44,19 @@ const TopBar = ({
   const [showProjectDropdown, setShowProjectDropdown] = useState(false);
   const [showVersionDropdown, setShowVersionDropdown] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showLayerDropdown, setShowLayerDropdown] = useState(false);
+  const [projectSearchQuery, setProjectSearchQuery] = useState('');
 
   // 下拉菜单 ref
   const projectDropdownRef = useRef(null);
   const versionDropdownRef = useRef(null);
   const moreMenuRef = useRef(null);
+  const layerDropdownRef = useRef(null);
 
-  const layers = [
-    { id: 'storyboard', label: '故事板', icon: LayoutGrid },
-    { id: 'node', label: '节点', icon: Settings },
+  // 层选项
+  const layerOptions = [
+    { id: 'storyboard', label: '故事板', desc: '标准创作流程' },
+    { id: 'node', label: '自由创作', desc: '适合进阶用户自由创作' },
   ];
 
   // 同步编辑名称
@@ -95,11 +100,11 @@ const TopBar = ({
   // 返回首页前检查未保存更改
   const handleGoHome = useCallback(() => {
     if (hasUnsavedChanges) {
-      const confirmed = window.confirm('有未保存的更改，确定要离开吗？');
-      if (!confirmed) return;
+      onRequestUnsavedConfirm?.('goHome');
+    } else {
+      onGoHome?.();
     }
-    onGoHome?.();
-  }, [hasUnsavedChanges, onGoHome]);
+  }, [hasUnsavedChanges, onGoHome, onRequestUnsavedConfirm]);
 
   // 点击空白处关闭下拉菜单
   useEffect(() => {
@@ -112,6 +117,9 @@ const TopBar = ({
       }
       if (moreMenuRef.current && !moreMenuRef.current.contains(e.target)) {
         setShowMoreMenu(false);
+      }
+      if (layerDropdownRef.current && !layerDropdownRef.current.contains(e.target)) {
+        setShowLayerDropdown(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -135,13 +143,13 @@ const TopBar = ({
   const handleSwitchProject = useCallback((p) => {
     if (p.id !== currentProjectId) {
       if (hasUnsavedChanges) {
-        const confirmed = window.confirm('有未保存的更改，切换项目会丢失这些更改，确定要切换吗？');
-        if (!confirmed) return;
+        onRequestUnsavedConfirm?.('switchProject', p.id);
+      } else {
+        switchProject(p.id);
       }
-      switchProject(p.id);
     }
     setShowProjectDropdown(false);
-  }, [currentProjectId, hasUnsavedChanges, switchProject]);
+  }, [currentProjectId, hasUnsavedChanges, switchProject, onRequestUnsavedConfirm]);
 
   // 切换版本
   const handleSwitchVersion = useCallback((v) => {
@@ -226,32 +234,49 @@ const TopBar = ({
                 <motion.div
                   ref={projectDropdownRef}
                   className="dropdown-panel project-dropdown"
-                  initial={{ opacity: 0, y: -8 }}
+                  initial={{ opacity: 0, y: -4 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -8 }}
+                  exit={{ opacity: 0, y: -4 }}
                   transition={{ duration: 0.15 }}
                 >
-                  <div className="dropdown-header">切换项目</div>
-                  {projects.map(p => (
-                    <button
-                      key={p.id}
-                      className={`dropdown-item ${p.id === currentProjectId ? 'active' : ''}`}
-                      onClick={() => handleSwitchProject(p)}
-                    >
-                      <FolderOpen size={14} />
-                      <span className="item-name">{p.name}</span>
-                      {p.id === currentProjectId && <Check size={14} className="check-icon" />}
-                    </button>
-                  ))}
-                  <div className="dropdown-divider" />
-                  <button className="dropdown-item" onClick={handleRename}>
-                    <Edit2 size={14} />
-                    <span>重命名</span>
-                  </button>
-                  <button className="dropdown-item create-new" onClick={handleCreateProject}>
+                  {/* 创建故事板按钮 */}
+                  <button className="project-create-btn" onClick={() => { handleCreateProject(); setShowProjectDropdown(false); setProjectSearchQuery(''); }}>
                     <Plus size={14} />
-                    <span>创建新项目</span>
+                    创建故事板
                   </button>
+
+                  {/* 搜索框 */}
+                  <div className="project-search-wrapper">
+                    <Search size={13} className="project-search-icon" />
+                    <input
+                      type="text"
+                      className="project-search-input"
+                      placeholder="搜索项目"
+                      value={projectSearchQuery}
+                      onChange={(e) => setProjectSearchQuery(e.target.value)}
+                    />
+                  </div>
+
+                  {/* 项目列表 */}
+                  <div className="project-list">
+                    {projects
+                      .filter(p => !projectSearchQuery || p.name.toLowerCase().includes(projectSearchQuery.toLowerCase()))
+                      .map(p => (
+                        <button
+                          key={p.id}
+                          className={`project-item ${p.id === currentProjectId ? 'active' : ''}`}
+                          onClick={() => { handleSwitchProject(p); setShowProjectDropdown(false); setProjectSearchQuery(''); }}
+                        >
+                          <Folder size={14} className="project-item-icon" />
+                          <span className="project-item-name">{p.name}</span>
+                          <span className="project-item-time">{p.updatedAt || ''}</span>
+                          {p.id === currentProjectId && <Check size={13} className="check-icon" />}
+                        </button>
+                      ))}
+                    {projects.filter(p => !projectSearchQuery || p.name.toLowerCase().includes(projectSearchQuery.toLowerCase())).length === 0 && (
+                      <div className="project-list-empty">暂无历史项目</div>
+                    )}
+                  </div>
                 </motion.div>
               </>
             )}
@@ -275,26 +300,23 @@ const TopBar = ({
                 <motion.div
                   ref={versionDropdownRef}
                   className="dropdown-panel version-dropdown"
-                  initial={{ opacity: 0, y: -8 }}
+                  initial={{ opacity: 0, y: -4 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -8 }}
+                  exit={{ opacity: 0, y: -4 }}
                   transition={{ duration: 0.15 }}
                 >
-                  <div className="dropdown-header">版本历史</div>
                   {versions.map(v => (
                     <button
                       key={v.id}
-                      className={`dropdown-item version-item ${v.id === currentVersion?.id ? 'active' : ''}`}
+                      className={`version-item ${v.id === currentVersion?.id ? 'active' : ''}`}
                       onClick={() => handleSwitchVersion(v)}
+                      title={v.description}
                     >
-                      <div className="version-info">
-                        <span className="version-name">{v.name}</span>
-                        {v.id === currentVersion?.id && <span className="current-badge">当前</span>}
+                      <div className="version-item-check">
+                        {v.id === currentVersion?.id ? <Check size={14} /> : null}
                       </div>
-                      <div className="version-meta">
-                        <span className="version-time">{v.createdAt}</span>
-                        <span className="version-desc">{v.description}</span>
-                      </div>
+                      <span className="version-item-name">{v.name}</span>
+                      <span className="version-item-time">{v.createdAt}</span>
                     </button>
                   ))}
                 </motion.div>
@@ -304,30 +326,72 @@ const TopBar = ({
         </div>
       </div>
 
-      {/* ========== 中间：层切换 ========== */}
+      {/* ========== 中间：层切换（下拉式）========== */}
       <div className="top-bar-center">
-        <div className="layer-tabs">
-          {layers.map((layer) => {
-            const Icon = layer.icon;
-            const isActive = currentLayer === layer.id;
-            return (
-              <button
-                key={layer.id}
-                className={`layer-tab ${isActive ? 'active' : ''}`}
-                onClick={() => onLayerChange?.(layer.id)}
-              >
-                <Icon size={16} />
-                <span>{layer.label}</span>
-                {isActive && (
-                  <motion.div
-                    className="tab-indicator"
-                    layoutId="activeTab"
-                    transition={{ type: 'spring', stiffness: 500, damping: 35 }}
-                  />
-                )}
-              </button>
-            );
-          })}
+        <div className="layer-tabs" ref={layerDropdownRef}>
+          {/* Tab - 显示当前层名称，始终可点击显示下拉 */}
+          <button
+            className={`layer-tab ${currentLayer === 'storyboard' ? 'active' : ''}`}
+            onClick={() => {
+              // 始终切换下拉显示/隐藏
+              setShowLayerDropdown(!showLayerDropdown);
+            }}
+          >
+            {currentLayer === 'storyboard' ? <LayoutGrid size={16} /> : <Settings size={16} />}
+            <span>{currentLayer === 'storyboard' ? '故事板' : '自由创作'}</span>
+            <ChevronDown
+              size={14}
+              className={`dropdown-arrow ${showLayerDropdown ? 'open' : ''}`}
+              style={{ marginLeft: 2 }}
+            />
+            {/* 指示器 - 始终显示在 tab 上 */}
+            <motion.div
+              className="tab-indicator"
+              layoutId="activeTab"
+              transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+              style={{ position: 'absolute', inset: 0 }}
+            />
+          </button>
+
+          {/* 下拉面板 - 放在 layer-tabs 内部，position: absolute 相对于 layer-tabs 定位 */}
+          <AnimatePresence>
+            {showLayerDropdown && (
+              <>
+                <div
+                  className="dropdown-backdrop"
+                  onClick={() => setShowLayerDropdown(false)}
+                  style={{ display: 'none' }}
+                />
+                <motion.div
+                  className="dropdown-panel layer-dropdown"
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: 0.15 }}
+                >
+                  {layerOptions.map((option) => (
+                    <button
+                      key={option.id}
+                      className={`dropdown-item layer-option ${currentLayer === option.id ? 'active' : ''}`}
+                      onClick={() => {
+                        onLayerChange?.(option.id);
+                        setShowLayerDropdown(false);
+                      }}
+                    >
+                      <div className="layer-option-content">
+                        <span className="layer-option-label">
+                          {option.id === 'storyboard' ? <LayoutGrid size={15} /> : <Settings size={15} />}
+                          {option.label}
+                        </span>
+                        <span className="layer-option-desc">{option.desc}</span>
+                      </div>
+                      {currentLayer === option.id && <Check size={15} className="check-icon" />}
+                    </button>
+                  ))}
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 

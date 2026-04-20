@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import StreamingText from '../common/StreamingText';
@@ -284,634 +284,88 @@ const ScriptDetailModal = ({ isOpen, script, onClose }) => {
   );
 };
 
-// 编剧节点内容 - 极简版（结果在右侧工作区展示）
-const WriterNodeContent = ({ node, isRunning, onSelect, onUpdateContent, onExpand, isDragging: isParentDragging, projectId, projectVersion }) => {
+// 基础节点内容组件 - 抽取公共结构
+const BaseNodeContent = ({ node, isRunning, onSelect, icon: Icon, statusLabel, resultPreview }) => {
   const [isThinkingExpanded, setIsThinkingExpanded] = useState(false);
-  const hasResult = !!node.data?.result;
+  const hasResult = !!resultPreview;
 
-  // 解析剧本获取摘要
+  return (
+    <div className="rich-node-content simple-node" onMouseDown={() => onSelect?.()}>
+      <div className="content-header">
+        <div className="content-icon" style={{ backgroundColor: node.color }}>
+          {Icon && <Icon size={16} />}
+        </div>
+        <div className="content-info">
+          <span className="content-title">{node.name}</span>
+          <span className="content-status">
+            {isRunning ? <><Loader2 className="spin" size={12} /> 生成中</> :
+             node.data?.status === 'stale' ? <><AlertCircle size={12} /> 依赖失效</> :
+             hasResult ? <><Check size={12} /> {statusLabel || '已完成'}</> : '待生成'}
+          </span>
+        </div>
+      </div>
+      {node.data?.status === 'stale' && node.data?.staleReason && (
+        <div className="stale-indicator" title={node.data.staleReason}><AlertCircle size={12} /><span>{node.data.staleReason}</span></div>
+      )}
+      {node.data?.thinking && node.data.thinking.length > 0 && (
+        <div className="thinking-preview minimal" onClick={() => setIsThinkingExpanded(!isThinkingExpanded)}>
+          <Sparkles size={12} />
+          <span className="thinking-text">{isRunning ? (node.data.thinking[node.data.thinkingIndex - 1] || '思考中...') : '点击查看思考过程'}</span>
+          {isThinkingExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+        </div>
+      )}
+      <AnimatePresence>{isThinkingExpanded && <ThinkingExpanded thinking={node.data.thinking} thinkingIndex={node.data.thinking.length} />}</AnimatePresence>
+      {hasResult && <div className="result-preview-minimal">{resultPreview}</div>}
+    </div>
+  );
+};
+
+// 编剧节点内容
+const WriterNodeContent = ({ node, isRunning, onSelect }) => {
   const { episodes, totalScenes } = parseScript(node.data?.result);
-
-  const handleMouseDown = (e) => {
-    onSelect?.();
-  };
-
-  return (
-    <div className="rich-node-content simple-node" onMouseDown={handleMouseDown}>
-      {/* 头部 */}
-      <div className="content-header">
-        <div className="content-icon" style={{ backgroundColor: node.color }}>
-          <PenTool size={16} />
-        </div>
-        <div className="content-info">
-          <span className="content-title">{node.name}</span>
-          <span className="content-status">
-            {isRunning ? (
-              <><Loader2 className="spin" size={12} /> 生成中</>
-            ) : node.data?.status === 'stale' ? (
-              <><AlertCircle size={12} /> 依赖失效</>
-            ) : hasResult ? (
-              <><Check size={12} /> 已完成</>
-            ) : (
-              '待生成'
-            )}
-          </span>
-        </div>
-      </div>
-
-      {/* stale 状态提示 */}
-      {node.data?.status === 'stale' && node.data?.staleReason && (
-        <div className="stale-indicator" title={node.data.staleReason}>
-          <AlertCircle size={12} />
-          <span>{node.data.staleReason}</span>
-        </div>
-      )}
-
-      {/* 思考过程气泡 */}
-      {node.data?.thinking && node.data.thinking.length > 0 && (
-        <div
-          className="thinking-preview minimal"
-          onClick={() => setIsThinkingExpanded(!isThinkingExpanded)}
-        >
-          <Sparkles size={12} />
-          <span className="thinking-text">
-            {isRunning
-              ? (node.data.thinking[node.data.thinkingIndex - 1] || '思考中...')
-              : '点击查看思考过程'}
-          </span>
-          {isThinkingExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-        </div>
-      )}
-
-      {/* 思考内容展开区域 */}
-      <AnimatePresence>
-        {isThinkingExpanded && (
-          <ThinkingExpanded
-            thinking={node.data.thinking}
-            thinkingIndex={node.data.thinking.length}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* 结果预览 - 显示剧本摘要 */}
-      {hasResult && (
-        <div className="result-preview-minimal">
-          <BookOpen size={12} />
-          <span>{episodes.length}集 · {totalScenes}场戏</span>
-        </div>
-      )}
-    </div>
-  );
+  return <BaseNodeContent node={node} isRunning={isRunning} onSelect={onSelect} icon={PenTool} statusLabel="已完成" resultPreview={<><BookOpen size={12} /><span>{episodes.length}集 · {totalScenes}场戏</span></>} />;
 };
 
-// 美术节点内容 - 极简版（结果在右侧工作区展示）
-const VisualNodeContent = ({ node, isRunning, onSelect, onUpdateContent, onExpand, isDragging: isParentDragging, projectId, projectVersion }) => {
-  const [isThinkingExpanded, setIsThinkingExpanded] = useState(false);
-
-  const characters = node.data?.characters || [];
-  const scenes = node.data?.scenes || [];
-  const props = node.data?.props || [];
-  const hasResult = characters.length > 0 || scenes.length > 0 || props.length > 0;
-
-  const handleMouseDown = (e) => {
-    onSelect?.();
-  };
-
-  return (
-    <div className="rich-node-content simple-node" onMouseDown={handleMouseDown}>
-      {/* 头部 */}
-      <div className="content-header">
-        <div className="content-icon" style={{ backgroundColor: node.color }}>
-          <Palette size={16} />
-        </div>
-        <div className="content-info">
-          <span className="content-title">{node.name}</span>
-          <span className="content-status">
-            {isRunning ? (
-              <><Loader2 className="spin" size={12} /> 生成中</>
-            ) : node.data?.status === 'stale' ? (
-              <><AlertCircle size={12} /> 依赖失效</>
-            ) : hasResult ? (
-              <><Check size={12} /> 已完成</>
-            ) : (
-              '待生成'
-            )}
-          </span>
-        </div>
-      </div>
-
-      {/* stale 状态提示 */}
-      {node.data?.status === 'stale' && node.data?.staleReason && (
-        <div className="stale-indicator" title={node.data.staleReason}>
-          <AlertCircle size={12} />
-          <span>{node.data.staleReason}</span>
-        </div>
-      )}
-
-      {/* 思考过程气泡 */}
-      {node.data?.thinking && node.data.thinking.length > 0 && (
-        <div
-          className="thinking-preview minimal"
-          onClick={() => setIsThinkingExpanded(!isThinkingExpanded)}
-        >
-          <Sparkles size={12} />
-          <span className="thinking-text">
-            {isRunning
-              ? (node.data.thinking[node.data.thinkingIndex - 1] || '思考中...')
-              : '点击查看思考过程'}
-          </span>
-          {isThinkingExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-        </div>
-      )}
-
-      {/* 思考内容展开区域 */}
-      <AnimatePresence>
-        {isThinkingExpanded && (
-          <ThinkingExpanded
-            thinking={node.data.thinking}
-            thinkingIndex={node.data.thinking.length}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* 结果预览 - 显示资源统计 */}
-      {hasResult && (
-        <div className="result-preview-minimal">
-          <Image size={12} />
-          <span>{characters.length}角色 · {scenes.length}场景 · {props.length}道具</span>
-        </div>
-      )}
-    </div>
-  );
+// 美术节点内容
+const VisualNodeContent = ({ node, isRunning, onSelect }) => {
+  const c = node.data?.characters || [], s = node.data?.scenes || [], p = node.data?.props || [];
+  const hasResult = c.length > 0 || s.length > 0 || p.length > 0;
+  return <BaseNodeContent node={node} isRunning={isRunning} onSelect={onSelect} icon={Palette} statusLabel={hasResult ? '已完成' : '待生成'} resultPreview={hasResult && <><Image size={12} /><span>{c.length}角色 · {s.length}场景 · {p.length}道具</span></>} />;
 };
 
-// 分镜导演节点内容 - 极简版（结果在右侧工作区展示）
-const DirectorNodeContent = ({ node, isRunning, onSelect, onUpdateContent, onExpand, isDragging: isParentDragging, projectId, projectVersion }) => {
-  const [isThinkingExpanded, setIsThinkingExpanded] = useState(false);
-
+// 分镜导演节点内容
+const DirectorNodeContent = ({ node, isRunning, onSelect }) => {
   const storyboards = node.data?.storyboards || [];
-  const hasResult = storyboards.length > 0;
-
-  const handleMouseDown = (e) => {
-    onSelect?.();
-  };
-
-  return (
-    <div className="rich-node-content simple-node" onMouseDown={handleMouseDown}>
-      {/* 头部 */}
-      <div className="content-header">
-        <div className="content-icon" style={{ backgroundColor: node.color }}>
-          <Video size={16} />
-        </div>
-        <div className="content-info">
-          <span className="content-title">{node.name}</span>
-          <span className="content-status">
-            {isRunning ? (
-              <><Loader2 className="spin" size={12} /> 生成中</>
-            ) : node.data?.status === 'stale' ? (
-              <><AlertCircle size={12} /> 依赖失效</>
-            ) : hasResult ? (
-              <><Check size={12} /> {storyboards.length}个分镜</>
-            ) : (
-              '待生成'
-            )}
-          </span>
-        </div>
-      </div>
-
-      {/* stale 状态提示 */}
-      {node.data?.status === 'stale' && node.data?.staleReason && (
-        <div className="stale-indicator" title={node.data.staleReason}>
-          <AlertCircle size={12} />
-          <span>{node.data.staleReason}</span>
-        </div>
-      )}
-
-      {/* 思考过程气泡 */}
-      {node.data?.thinking && node.data.thinking.length > 0 && (
-        <div
-          className="thinking-preview minimal"
-          onClick={() => setIsThinkingExpanded(!isThinkingExpanded)}
-        >
-          <Sparkles size={12} />
-          <span className="thinking-text">
-            {isRunning
-              ? (node.data.thinking[node.data.thinkingIndex - 1] || '思考中...')
-              : '点击查看思考过程'}
-          </span>
-          {isThinkingExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-        </div>
-      )}
-
-      {/* 思考内容展开区域 */}
-      <AnimatePresence>
-        {isThinkingExpanded && (
-          <ThinkingExpanded
-            thinking={node.data.thinking}
-            thinkingIndex={node.data.thinking.length}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* 结果预览 */}
-      {hasResult && (
-        <div className="result-preview-minimal">
-          <Video size={12} />
-          <span>{storyboards.length}个分镜</span>
-        </div>
-      )}
-    </div>
-  );
+  return <BaseNodeContent node={node} isRunning={isRunning} onSelect={onSelect} icon={Video} statusLabel={storyboards.length > 0 ? `${storyboards.length}个分镜` : '待生成'} resultPreview={storyboards.length > 0 && <><Video size={12} /><span>{storyboards.length}个分镜</span></>} />;
 };
 
-// 制片人节点内容 - 极简版（结果在右侧工作区展示）
-const ProducerNodeContent = ({ node, isRunning, onSelect, onUpdateContent, onExpand, isDragging: isParentDragging, projectId, projectVersion }) => {
-  const [isThinkingExpanded, setIsThinkingExpanded] = useState(false);
-  const hasResult = !!node.data?.result;
+// 制片人节点内容
+const ProducerNodeContent = ({ node, isRunning, onSelect }) => (
+  <BaseNodeContent node={node} isRunning={isRunning} onSelect={onSelect} icon={Target} statusLabel="已完成" resultPreview={<><FileText size={12} /><span>查看右侧工作区获取详情</span></>} />
+);
 
-  const handleMouseDown = (e) => {
-    onSelect?.();
-  };
-
-  return (
-    <div className="rich-node-content simple-node" onMouseDown={handleMouseDown}>
-      {/* 头部 - 点击不展开，只展示状态 */}
-      <div className="content-header">
-        <div className="content-icon" style={{ backgroundColor: node.color }}>
-          <Target size={16} />
-        </div>
-        <div className="content-info">
-          <span className="content-title">{node.name}</span>
-          <span className="content-status">
-            {isRunning ? (
-              <><Loader2 className="spin" size={12} /> 生成中</>
-            ) : node.data?.status === 'stale' ? (
-              <><AlertCircle size={12} /> 依赖失效</>
-            ) : hasResult ? (
-              <><Check size={12} /> 已完成</>
-            ) : (
-              '待生成'
-            )}
-          </span>
-        </div>
-      </div>
-
-      {/* stale 状态提示 */}
-      {node.data?.status === 'stale' && node.data?.staleReason && (
-        <div className="stale-indicator" title={node.data.staleReason}>
-          <AlertCircle size={12} />
-          <span>{node.data.staleReason}</span>
-        </div>
-      )}
-
-      {/* 思考过程气泡 - 仅展示最新一条，点击可展开 */}
-      {node.data?.thinking && node.data.thinking.length > 0 && (
-        <div
-          className="thinking-preview minimal"
-          onClick={() => setIsThinkingExpanded(!isThinkingExpanded)}
-        >
-          <Sparkles size={12} />
-          <span className="thinking-text">
-            {isRunning
-              ? (node.data.thinking[node.data.thinkingIndex - 1] || '思考中...')
-              : '点击查看思考过程'}
-          </span>
-          {isThinkingExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-        </div>
-      )}
-
-      {/* 思考内容展开区域 */}
-      <AnimatePresence>
-        {isThinkingExpanded && (
-          <ThinkingExpanded
-            thinking={node.data.thinking}
-            thinkingIndex={node.data.thinking.length}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* 结果预览 - 仅显示摘要，点击提示去右侧查看 */}
-      {hasResult && (
-        <div className="result-preview-minimal">
-          <FileText size={12} />
-          <span>查看右侧工作区获取详情</span>
-        </div>
-      )}
-    </div>
-  );
-};
-
-// 技术节点内容 - 极简版（结果在右侧工作区展示）
-const TechnicalNodeContent = ({ node, isRunning, onSelect, onUpdateContent, onExpand, isDragging: isParentDragging, onGenerateVideoNodes, projectId, projectVersion }) => {
-  const [isThinkingExpanded, setIsThinkingExpanded] = useState(false);
-
+// 技术节点内容
+const TechnicalNodeContent = ({ node, isRunning, onSelect }) => {
   const prompts = node.data?.prompts || [];
-  const hasResult = prompts.length > 0;
-
-  const handleMouseDown = (e) => {
-    onSelect?.();
-  };
-
-  return (
-    <div className="rich-node-content simple-node" onMouseDown={handleMouseDown}>
-      {/* 头部 */}
-      <div className="content-header">
-        <div className="content-icon" style={{ backgroundColor: node.color }}>
-          <Code size={16} />
-        </div>
-        <div className="content-info">
-          <span className="content-title">{node.name}</span>
-          <span className="content-status">
-            {isRunning ? (
-              <><Loader2 className="spin" size={12} /> 生成中</>
-            ) : node.data?.status === 'stale' ? (
-              <><AlertCircle size={12} /> 依赖失效</>
-            ) : hasResult ? (
-              <><Check size={12} /> {prompts.length}组提示词</>
-            ) : (
-              '待生成'
-            )}
-          </span>
-        </div>
-      </div>
-
-      {/* stale 状态提示 */}
-      {node.data?.status === 'stale' && node.data?.staleReason && (
-        <div className="stale-indicator" title={node.data.staleReason}>
-          <AlertCircle size={12} />
-          <span>{node.data.staleReason}</span>
-        </div>
-      )}
-
-      {/* 思考过程气泡 */}
-      {node.data?.thinking && node.data.thinking.length > 0 && (
-        <div
-          className="thinking-preview minimal"
-          onClick={() => setIsThinkingExpanded(!isThinkingExpanded)}
-        >
-          <Sparkles size={12} />
-          <span className="thinking-text">
-            {isRunning
-              ? (node.data.thinking[node.data.thinkingIndex - 1] || '思考中...')
-              : '点击查看思考过程'}
-          </span>
-          {isThinkingExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-        </div>
-      )}
-
-      {/* 思考内容展开区域 */}
-      <AnimatePresence>
-        {isThinkingExpanded && (
-          <ThinkingExpanded
-            thinking={node.data.thinking}
-            thinkingIndex={node.data.thinking.length}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* 结果预览 */}
-      {hasResult && (
-        <div className="result-preview-minimal">
-          <Zap size={12} />
-          <span>{prompts.length}组提示词</span>
-        </div>
-      )}
-    </div>
-  );
+  return <BaseNodeContent node={node} isRunning={isRunning} onSelect={onSelect} icon={Code} statusLabel={prompts.length > 0 ? `${prompts.length}组提示词` : '待生成'} resultPreview={prompts.length > 0 && <><Zap size={12} /><span>{prompts.length}组提示词</span></>} />;
 };
 
-// 视频生成节点内容 - 极简版（结果在右侧工作区展示）
-const VideoGenNodeContent = ({ node, isRunning, onSelect, onUpdateContent, onExpand, isDragging: isParentDragging, projectId, projectVersion }) => {
-  const [isThinkingExpanded, setIsThinkingExpanded] = useState(false);
-
-  const hasResult = node.data?.videoPreview || node.data?.videos?.length > 0;
-  const videos = node.data?.videos || [];
-  const videoPreview = node.data?.videoPreview;
-
-  const handleMouseDown = (e) => {
-    onSelect?.();
-  };
-
-  return (
-    <div className="rich-node-content simple-node" onMouseDown={handleMouseDown}>
-      {/* 头部 */}
-      <div className="content-header">
-        <div className="content-icon" style={{ backgroundColor: node.color }}>
-          <Video size={16} />
-        </div>
-        <div className="content-info">
-          <span className="content-title">{node.name}</span>
-          <span className="content-status">
-            {isRunning ? (
-              <><Loader2 className="spin" size={12} /> 生成中</>
-            ) : node.data?.status === 'stale' ? (
-              <><AlertCircle size={12} /> 依赖失效</>
-            ) : hasResult ? (
-              <><Check size={12} /> 已完成</>
-            ) : (
-              '待生成'
-            )}
-          </span>
-        </div>
-      </div>
-
-      {/* stale 状态提示 */}
-      {node.data?.status === 'stale' && node.data?.staleReason && (
-        <div className="stale-indicator" title={node.data.staleReason}>
-          <AlertCircle size={12} />
-          <span>{node.data.staleReason}</span>
-        </div>
-      )}
-
-      {/* 思考过程气泡 */}
-      {node.data?.thinking && node.data.thinking.length > 0 && (
-        <div
-          className="thinking-preview minimal"
-          onClick={() => setIsThinkingExpanded(!isThinkingExpanded)}
-        >
-          <Sparkles size={12} />
-          <span className="thinking-text">
-            {isRunning
-              ? (node.data.thinking[node.data.thinkingIndex - 1] || '思考中...')
-              : '点击查看思考过程'}
-          </span>
-          {isThinkingExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-        </div>
-      )}
-
-      {/* 思考内容展开区域 */}
-      <AnimatePresence>
-        {isThinkingExpanded && (
-          <ThinkingExpanded
-            thinking={node.data.thinking}
-            thinkingIndex={node.data.thinking.length}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* 结果预览 */}
-      {hasResult && (
-        <div className="result-preview-minimal">
-          <Play size={12} />
-          <span>
-            {videos.length > 0
-              ? `${videos.length}个视频`
-              : videoPreview
-                ? '视频已生成'
-                : '视频生成中'}
-          </span>
-        </div>
-      )}
-    </div>
-  );
+// 视频生成节点内容
+const VideoGenNodeContent = ({ node, isRunning, onSelect }) => {
+  const videos = node.data?.videos || [], videoPreview = node.data?.videoPreview, hasResult = videoPreview || videos.length > 0;
+  return <BaseNodeContent node={node} isRunning={isRunning} onSelect={onSelect} icon={Video} statusLabel="已完成" resultPreview={hasResult && <><Play size={12} /><span>{videos.length > 0 ? `${videos.length}个视频` : videoPreview ? '视频已生成' : '视频生成中'}</span></>} />;
 };
 
-// 视频剪辑节点内容 - 极简版（结果在右侧工作区展示）
-const VideoEditorNodeContent = ({ node, isRunning, onSelect, onUpdateContent, onExpand, isDragging: isParentDragging, projectId, projectVersion }) => {
-  const [isThinkingExpanded, setIsThinkingExpanded] = useState(false);
-
-  const videos = node.data?.videos || [];
-  const editedVideo = node.data?.editedVideo;
-  const hasResult = !!editedVideo;
-
-  const handleMouseDown = (e) => {
-    onSelect?.();
-  };
-
-  return (
-    <div className="rich-node-content simple-node" onMouseDown={handleMouseDown}>
-      {/* 头部 */}
-      <div className="content-header">
-        <div className="content-icon" style={{ backgroundColor: '#a855f7' }}>
-          <Scissors size={16} />
-        </div>
-        <div className="content-info">
-          <span className="content-title">{node.name}</span>
-          <span className="content-status">
-            {isRunning ? (
-              <><Loader2 className="spin" size={12} /> 处理中</>
-            ) : node.data?.status === 'stale' ? (
-              <><AlertCircle size={12} /> 依赖失效</>
-            ) : hasResult ? (
-              <><Check size={12} /> 已完成</>
-            ) : (
-              '待剪辑'
-            )}
-          </span>
-        </div>
-      </div>
-
-      {/* stale 状态提示 */}
-      {node.data?.status === 'stale' && node.data?.staleReason && (
-        <div className="stale-indicator" title={node.data.staleReason}>
-          <AlertCircle size={12} />
-          <span>{node.data.staleReason}</span>
-        </div>
-      )}
-
-      {/* 思考过程气泡 */}
-      {node.data?.thinking && node.data.thinking.length > 0 && (
-        <div
-          className="thinking-preview minimal"
-          onClick={() => setIsThinkingExpanded(!isThinkingExpanded)}
-        >
-          <Sparkles size={12} />
-          <span className="thinking-text">
-            {isRunning
-              ? (node.data.thinking[node.data.thinkingIndex - 1] || '思考中...')
-              : '点击查看思考过程'}
-          </span>
-          {isThinkingExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-        </div>
-      )}
-
-      {/* 思考内容展开区域 */}
-      <AnimatePresence>
-        {isThinkingExpanded && (
-          <ThinkingExpanded
-            thinking={node.data.thinking}
-            thinkingIndex={node.data.thinking.length}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* 结果预览 */}
-      {hasResult && (
-        <div className="result-preview-minimal">
-          <Video size={12} />
-          <span>剪辑完成</span>
-        </div>
-      )}
-    </div>
-  );
+// 视频剪辑节点内容
+const VideoEditorNodeContent = ({ node, isRunning, onSelect }) => {
+  const editedVideo = node.data?.editedVideo, hasResult = !!editedVideo;
+  return <BaseNodeContent node={node} isRunning={isRunning} onSelect={onSelect} icon={Scissors} statusLabel={hasResult ? '已完成' : '待剪辑'} resultPreview={hasResult && <><Video size={12} /><span>剪辑完成</span></>} />;
 };
 
-
-// 通用节点内容 - 极简版（未定义的类型）
-const GenericNodeContent = ({ node, isRunning, onSelect, onUpdateContent, onExpand, isDragging: isParentDragging, projectId, projectVersion }) => {
-  const [isThinkingExpanded, setIsThinkingExpanded] = useState(false);
-
-  const handleMouseDown = (e) => {
-    onSelect?.();
-  };
-
-  return (
-    <div className="rich-node-content simple-node" onMouseDown={handleMouseDown}>
-      {/* 头部 */}
-      <div className="content-header">
-        <div className="content-icon" style={{ backgroundColor: node.color }}>
-          <Bot size={16} />
-        </div>
-        <div className="content-info">
-          <span className="content-title">{node.name}</span>
-          <span className="content-status">
-            {isRunning ? (
-              <><Loader2 className="spin" size={12} /> 运行中</>
-            ) : node.data?.status === 'stale' ? (
-              <><AlertCircle size={12} /> 依赖失效</>
-            ) : (
-              '就绪'
-            )}
-          </span>
-        </div>
-      </div>
-
-      {/* stale 状态提示 */}
-      {node.data?.status === 'stale' && node.data?.staleReason && (
-        <div className="stale-indicator" title={node.data.staleReason}>
-          <AlertCircle size={12} />
-          <span>{node.data.staleReason}</span>
-        </div>
-      )}
-
-      {/* 思考过程气泡 */}
-      {node.data?.thinking && node.data.thinking.length > 0 && (
-        <div
-          className="thinking-preview minimal"
-          onClick={() => setIsThinkingExpanded(!isThinkingExpanded)}
-        >
-          <Sparkles size={12} />
-          <span className="thinking-text">
-            {isRunning
-              ? (node.data.thinking[node.data.thinkingIndex - 1] || '思考中...')
-              : '点击查看思考过程'}
-          </span>
-          {isThinkingExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-        </div>
-      )}
-
-      {/* 思考内容展开区域 */}
-      <AnimatePresence>
-        {isThinkingExpanded && (
-          <ThinkingExpanded
-            thinking={node.data.thinking}
-            thinkingIndex={isRunning ? node.data.thinkingIndex : node.data.thinking.length}
-          />
-        )}
-      </AnimatePresence>
-    </div>
-  );
-};
+// 通用节点内容
+const GenericNodeContent = ({ node, isRunning, onSelect }) => (
+  <BaseNodeContent node={node} isRunning={isRunning} onSelect={onSelect} icon={Bot} statusLabel="就绪" />
+);
 
 // 主组件
 const RichAgentNode = ({
@@ -964,11 +418,9 @@ const RichAgentNode = ({
   const updatePortPositions = useCallback(() => {
     if (!onPortPositionChange) return;
     const width = getNodeWidth();
-    // 输入端口在左侧，端口中心在节点左边缘
-    // 输入端口 left: -7px, 端口宽度14px, 中心在7px处, 所以中心位置是 node.x - 7 + 7 = node.x
+    // 输入端口在节点左侧边缘（x = node.x）
+    // 输出端口在节点右侧边缘（x = node.x + width）
     onPortPositionChange(node.id, 'input', { x: node.x, y: node.y + 20 });
-    // 输出端口在右侧，端口中心在节点右边缘
-    // 输出端口 right: -7px, 端口宽度14px, 中心在7px处, 所以中心位置是 node.x + width + 7 - 7 = node.x + width
     onPortPositionChange(node.id, 'output', { x: node.x + width, y: node.y + 20 });
   }, [node.id, node.x, node.y, getNodeWidth, onPortPositionChange]);
 
@@ -1140,7 +592,7 @@ const RichAgentNode = ({
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDragging, isResizing, dragOffset, resizeStart]);
+  }, [isDragging, isResizing]);
 
   const handleOutputPortMouseDown = (e) => {
     e.stopPropagation();
@@ -1198,7 +650,7 @@ const RichAgentNode = ({
   };
 
   const renderContent = () => {
-    const contentProps = {
+    const contentProps = useMemo(() => ({
       node,
       isRunning,
       onSelect,
@@ -1207,9 +659,9 @@ const RichAgentNode = ({
       isDragging: isDragging || isResizing,
       projectId,
       projectVersion
-    };
+    }), [node, isRunning, onSelect, handleUpdateContent, onBringToFront, isDragging, isResizing, projectId, projectVersion]);
 
-    switch (node.type) {
+  switch (node.type) {
       case 'producer':
         return <ProducerNodeContent {...contentProps} />;
       case 'content':

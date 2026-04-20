@@ -106,13 +106,6 @@ const ScriptStageView = ({
               <Sparkles size={16} className="icon" />
               AI生成剧本
             </button>
-            <button
-              className="action-btn"
-              onClick={() => onUpdateAsset(scriptAsset?.id, { content: scriptAsset?.content })}
-              disabled={!scriptAsset?.content}
-            >
-              保存
-            </button>
           </div>
         </div>
       </div>

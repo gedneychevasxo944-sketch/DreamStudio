@@ -267,10 +267,6 @@ const ScriptEditor = ({ asset, onUpdate }) => {
           <button className="btn-secondary" onClick={() => setHasGeneratedToc(false)}>
             返回纯文本
           </button>
-          <button className="btn-primary" onClick={handleSave}>
-            <Sparkles size={14} />
-            保存
-          </button>
         </div>
       </div>
     </div>
@@ -346,9 +342,6 @@ const CharacterEditor = ({ asset, onUpdate, onDelete, onGenerate, onAIDialog }) 
           让 AI 帮你优化
         </button>
         <div className="footer-spacer" />
-        <button className="btn-secondary" onClick={handleSave}>
-          保存
-        </button>
         <button className="btn-primary" onClick={() => onGenerate?.(asset.id)}>
           <Sparkles size={14} />
           生成图片
@@ -426,9 +419,6 @@ const SceneEditor = ({ asset, onUpdate, onDelete, onGenerate, onAIDialog }) => {
           让 AI 帮你优化
         </button>
         <div className="footer-spacer" />
-        <button className="btn-secondary" onClick={handleSave}>
-          保存
-        </button>
         <button className="btn-primary" onClick={() => onGenerate?.(asset.id)}>
           <Sparkles size={14} />
           生成图片
@@ -506,9 +496,6 @@ const PropEditor = ({ asset, onUpdate, onDelete, onGenerate, onAIDialog }) => {
           让 AI 帮你优化
         </button>
         <div className="footer-spacer" />
-        <button className="btn-secondary" onClick={handleSave}>
-          保存
-        </button>
         <button className="btn-primary" onClick={() => onGenerate?.(asset.id)}>
           <Sparkles size={14} />
           生成图片
@@ -757,9 +744,6 @@ const StoryboardEditor = ({ asset, onUpdate, onDelete, onGenerate, onAIDialog })
           <Image size={14} />
           生成预览帧
         </button>
-        <button className="btn-primary" onClick={handleSave}>
-          保存
-        </button>
       </div>
     </div>
   );
@@ -952,9 +936,6 @@ const VideoEditor = ({ asset, onUpdate, onGenerate, onAIDialog }) => {
 
       {/* 底部操作栏 */}
       <div className="panel-footer">
-        <button className="btn-secondary" onClick={handleSave} title="保存参数">
-          保存参数
-        </button>
         <div className="footer-spacer" />
         <button className="btn-primary" onClick={onGenerate} title="生成视频">
           <Play size={14} />
@@ -1088,9 +1069,6 @@ const ClipEditor = ({ asset, onUpdate, onDelete }) => {
           <Trash2 size={14} />
         </button>
         <div className="footer-spacer" />
-        <button className="btn-secondary" onClick={handleSave} title="保存裁剪">
-          保存
-        </button>
       </div>
     </div>
   );
