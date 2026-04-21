@@ -298,9 +298,57 @@ export const mockNodes = [
     x: 1300,
     y: 300,
     data: {
-      prompts: [
-        { id: 'p1', prompt: '繁华的赛博朋克街道...' },
-        { id: 'p2', prompt: '红发女黑客出现...' },
+      overallStyle: '赛博朋克、霓虹灯光、高科技感。整体色调偏暗，以蓝色和紫色为主光源，辅以霓虹灯光营造未来都市氛围。',
+      characters: [
+        {
+          name: '零',
+          description: '红发女黑客，身穿战术外套，佩戴智能眼镜，眼神坚定',
+          thumbnail: 'https://picsum.photos/seed/char_zero/400/300',
+        },
+        {
+          name: '安保人员A',
+          description: '高大男性，穿着标准安保制服，手持电击棒，表情严肃',
+          thumbnail: 'https://picsum.photos/seed/char_guard/400/300',
+        },
+        {
+          name: 'AI管理员',
+          description: '全息投影的蓝色光球，代表数据中心的控制系统',
+          thumbnail: 'https://picsum.photos/seed/char_ai/400/300',
+        },
+      ],
+      scenes: [
+        {
+          name: '数据中心',
+          description: '高科技数据中心，服务器密集排列，蓝光闪烁，雾气缭绕',
+          thumbnail: 'https://picsum.photos/seed/scene_datacenter/400/300',
+        },
+        {
+          name: '霓虹雨夜街道',
+          description: '赛博朋克风格雨夜街道，霓虹广告牌倒映在积水之中',
+          thumbnail: 'https://picsum.photos/seed/scene_street/400/300',
+        },
+        {
+          name: '数据中心走廊',
+          description: '狭长的数据中心走廊，紧急照明灯闪烁',
+          thumbnail: 'https://picsum.photos/seed/scene_corridor/400/300',
+        },
+      ],
+      props: [
+        {
+          name: '黑客终端',
+          description: '便携式黑客设备，可接入任何终端，支持无线入侵',
+          thumbnail: 'https://picsum.photos/seed/prop_hacker/400/300',
+        },
+        {
+          name: '干扰器',
+          description: '电磁脉冲装置，可瞬间瘫痪方圆十米内的电子设备',
+          thumbnail: 'https://picsum.photos/seed/prop_emp/400/300',
+        },
+        {
+          name: '数据芯片',
+          description: '高密度存储芯片，存储容量达PB级，外形小巧',
+          thumbnail: 'https://picsum.photos/seed/prop_chip/400/300',
+        },
       ],
     },
   },

@@ -232,14 +232,14 @@
 
 ### 实现
 
-- [ ] T088 [P] [US5] 创建 `Storyboard2/EditingTimeline.jsx` 剪辑时间线组件
-- [ ] T089 [P] [US5] 创建 `Storyboard2/VideoClipCard.jsx` 视频片段卡片组件
+- [x] T088 [P] [US5] 创建 `Storyboard/stages/ClipStageView.jsx` 剪辑时间线组件
+- [x] T089 [P] [US5] 创建 `Storyboard/stages/ClipStageView.jsx` 中的视频片段卡片功能（已集成在 ClipStageView 中）
 - [ ] T090 [US5] 在 `stageStore.js` 中实现剪辑阶段资产管理（添加/删除/排序）
-- [ ] T091 [US5] 在时间线中实现拖拽排序功能
-- [ ] T092 [US5] 实现裁剪功能（设置起止时间）
-- [ ] T093 [US5] 实现视频预览功能
+- [x] T091 [US5] 在时间线中实现拖拽排序功能（已在 ClipStageView.jsx 中实现）
+- [x] T092 [US5] 实现裁剪功能（设置起止时间）（已在 ClipStageView.jsx 中实现）
+- [x] T093 [US5] 实现视频预览功能（已在 ClipStageView.jsx 中实现）
 - [ ] T094 [US5] 实现导出功能（MP4/MOV/WebM格式选择）
-- [ ] T095 [US5] 在 `App.jsx` 中添加剪辑阶段路由
+- [x] T095 [US5] 在 `StoryboardMainView.jsx` 中集成剪辑阶段视图（已实现）
 
 **Checkpoint**: 用户可以在剪辑阶段完成从片段到成片的完整编辑流程
 

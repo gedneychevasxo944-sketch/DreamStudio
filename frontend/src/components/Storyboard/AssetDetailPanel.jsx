@@ -736,10 +736,6 @@ const StoryboardEditor = ({ asset, onUpdate, onDelete, onGenerate, onAIDialog })
           <Trash2 size={14} />
         </button>
         <div className="footer-spacer" />
-        <button className="btn-secondary" onClick={() => onAIDialog?.(asset.id)} title="AI 优化描述">
-          <Sparkles size={14} />
-          AI优化
-        </button>
         <button className="btn-secondary" onClick={() => onGenerate?.(asset.id, 'frames')} title="生成预览帧">
           <Image size={14} />
           生成预览帧

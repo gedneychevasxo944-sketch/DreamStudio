@@ -556,6 +556,31 @@
   color: var(--accent-color, #6366f1);
 }
 
+/* 禁用状态的选项 */
+.dropdown-item.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.dropdown-item.disabled:hover {
+  background: transparent;
+}
+
+.dropdown-item.disabled .layer-option-label {
+  color: var(--text-secondary, #8b8b9e);
+}
+
+.layer-option-badge {
+  margin-left: auto;
+  padding: 2px 8px;
+  background: rgba(139, 92, 246, 0.2);
+  border: 1px solid rgba(139, 92, 246, 0.4);
+  border-radius: 4px;
+  font-size: 10px;
+  color: #a78bfa;
+  font-weight: 500;
+}
+
 .dropdown-item .item-name {
   flex: 1;
   overflow: hidden;

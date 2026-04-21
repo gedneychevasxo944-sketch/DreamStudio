@@ -56,7 +56,7 @@ const TopBar = ({
   // 层选项
   const layerOptions = [
     { id: 'storyboard', label: '故事板', desc: '标准创作流程' },
-    { id: 'node', label: '自由创作', desc: '适合进阶用户自由创作' },
+    { id: 'node', label: '自由创作', desc: '适合进阶用户自由创作', disabled: true, badge: '开发中' },
   ];
 
   // 同步编辑名称
@@ -372,8 +372,12 @@ const TopBar = ({
                   {layerOptions.map((option) => (
                     <button
                       key={option.id}
-                      className={`dropdown-item layer-option ${currentLayer === option.id ? 'active' : ''}`}
+                      className={`dropdown-item layer-option ${currentLayer === option.id ? 'active' : ''} ${option.disabled ? 'disabled' : ''}`}
                       onClick={() => {
+                        if (option.disabled) {
+                          toast?.('自由创作功能正在开发中，敬请期待');
+                          return;
+                        }
                         onLayerChange?.(option.id);
                         setShowLayerDropdown(false);
                       }}
@@ -385,6 +389,9 @@ const TopBar = ({
                         </span>
                         <span className="layer-option-desc">{option.desc}</span>
                       </div>
+                      {option.badge && (
+                        <span className="layer-option-badge">{option.badge}</span>
+                      )}
                       {currentLayer === option.id && <Check size={15} className="check-icon" />}
                     </button>
                   ))}

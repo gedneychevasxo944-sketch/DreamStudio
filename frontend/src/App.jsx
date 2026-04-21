@@ -547,6 +547,14 @@ function App() {
             const { initializeMockData } = await import('./mock/stagesMock');
             initializeMockData(setAssets, setCompletion);
           }
+
+          // 如果画布没有节点，加载 mockNodes 作为演示
+          const { nodes: currentNodes, setNodes: setCanvasNodes, setConnections: setCanvasConnections } = useWorkflowStore.getState();
+          if (currentNodes.length === 0) {
+            const { mockNodes, mockConnections } = await import('./mock/mockData');
+            setCanvasNodes(mockNodes);
+            setCanvasConnections(mockConnections);
+          }
         }
       } catch (error) {
         uiLogger.error('[App] Failed to load project data:', error);

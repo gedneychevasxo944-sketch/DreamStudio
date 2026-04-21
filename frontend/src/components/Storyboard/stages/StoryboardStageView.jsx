@@ -1,5 +1,3 @@
-import { motion } from 'framer-motion';
-import { Sparkles } from 'lucide-react';
 import AssetGrid from '../AssetGrid';
 import AssetDetailPanel from '../AssetDetailPanel';
 
@@ -19,8 +17,6 @@ import AssetDetailPanel from '../AssetDetailPanel';
  * - onAddNew: () => void
  * - onUpload: () => void
  * - onBatchGenerate: () => void
- * - onAIGenerate: () => void
- * - isParsing: boolean
  */
 const StoryboardStageView = ({
   assets,
@@ -35,25 +31,9 @@ const StoryboardStageView = ({
   onAddNew,
   onUpload,
   onBatchGenerate,
-  onAIGenerate,
-  isParsing,
 }) => {
   return (
     <div className="storyboard-content storyboard-stage-content">
-      {/* AI 生成分镜按钮 */}
-      <div className="stage-action-bar">
-        <motion.button
-          className="ai-generate-btn"
-          onClick={onAIGenerate}
-          disabled={isParsing}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-        >
-          <Sparkles size={16} />
-          {isParsing ? '生成中...' : 'AI 生成分镜'}
-        </motion.button>
-      </div>
-
       <div className="storyboard-split-view">
         {/* 左侧：资产网格 */}
         <aside className="assets-panel">

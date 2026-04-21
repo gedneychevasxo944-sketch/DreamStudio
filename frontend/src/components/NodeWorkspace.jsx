@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FileText, MessageCircle, History, Lock, Unlock, Check, X, Target, Loader2, ChevronRight, List, Palette, Video, Code, Play, BookOpen, Maximize2 } from 'lucide-react';
+import { FileText, MessageCircle, History, Lock, Unlock, Check, X, Target, Loader2, ChevronRight, List, Palette, Video, Code, Play, BookOpen, Maximize2, Users, Image, Layers, Upload } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { parseScript } from '../utils/scriptUtils';
 import { canvasLogger } from '../utils/logger';
@@ -9,6 +9,22 @@ import { nodeVersionApi, chatApi } from '../services/api';
 import { useWorkflowStore } from '../stores';
 import './NodeWorkspace.css';
 import './ChatConversation.css';
+
+// ============ 工具函数 ============
+
+// 处理 TXT 文件上传
+const handleFileUpload = (e, onInputChange) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+
+  if (file.type === 'text/plain' || file.name.endsWith('.txt')) {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      onInputChange?.(event.target.result);
+    };
+    reader.readAsText(file);
+  }
+};
 
 // ============ 子组件 ============
 
@@ -23,8 +39,8 @@ const InputArea = ({ node, upstreamNodes = [], onInputChange, inputValue }) => {
     );
   }
 
-  // producer 和 content 节点特殊处理
-  if (node.type === 'producer' || node.type === 'content') {
+  // producer、content 和 visual 节点特殊处理
+  if (node.type === 'producer' || node.type === 'content' || node.type === 'visual') {
     const hasUpstream = upstreamNodes && upstreamNodes.length > 0;
     const upstream = hasUpstream ? upstreamNodes[0] : null;
 
@@ -50,6 +66,29 @@ const InputArea = ({ node, upstreamNodes = [], onInputChange, inputValue }) => {
                 value={inputValue || ''}
                 onChange={(e) => onInputChange?.(e.target.value)}
               />
+            </div>
+          ) : node.type === 'visual' ? (
+            <div className="visual-input-area">
+              <div className="visual-input-hint">
+                <FileText size={14} />
+                <span>请输入剧本内容，AI将智能提取角色、场景、道具</span>
+              </div>
+              <textarea
+                className="input-textarea"
+                placeholder="输入或粘贴剧本内容..."
+                value={inputValue || ''}
+                onChange={(e) => onInputChange?.(e.target.value)}
+              />
+              <label className="visual-upload-btn">
+                <Upload size={14} />
+                <span>上传 TXT 文件</span>
+                <input
+                  type="file"
+                  accept=".txt"
+                  style={{ display: 'none' }}
+                  onChange={(e) => handleFileUpload(e, onInputChange)}
+                />
+              </label>
             </div>
           ) : (
             <textarea
@@ -351,14 +390,196 @@ const ContentReader = ({ chapters, onClose }) => {
 
 // Visual 节点结果
 const VisualResult = ({ displayData }) => {
-  return (
-    <div className="result-section">
-      <div className="section-header">
-        <Palette size={14} />
-        <span>视觉风格</span>
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewCategory, setPreviewCategory] = useState(null);
+  const [previewImages, setPreviewImages] = useState([]);
+  const [previewStartIndex, setPreviewStartIndex] = useState(0);
+
+  const handleOpenPreview = (category, items, startIndex = 0) => {
+    setPreviewCategory(category);
+    setPreviewImages(items);
+    setPreviewStartIndex(startIndex);
+    setPreviewOpen(true);
+  };
+
+  const renderSection = (title, icon, items, category) => {
+    if (!items || items.length === 0) return null;
+    return (
+      <div className="visual-result-section">
+        <div className="section-header">
+          {icon}
+          <span>{title}</span>
+        </div>
+        <div className="character-table">
+          <div className="character-table-header">
+            <span>姓名</span>
+            <span>描述</span>
+            <span>缩略图</span>
+          </div>
+          {items.map((item, idx) => (
+            <div key={idx} className="character-table-row">
+              <span className="char-name">{item.name}</span>
+              <span className="char-desc">{item.description}</span>
+              {item.thumbnail && (
+                <img
+                  src={item.thumbnail}
+                  alt={item.name}
+                  className="table-thumb"
+                  onClick={() => handleOpenPreview(category, items, idx)}
+                />
+              )}
+            </div>
+          ))}
+        </div>
       </div>
-      <textarea className="result-textarea readonly" value={displayData.overallStyle || ''} readOnly />
-    </div>
+    );
+  };
+
+  return (
+    <>
+      <div className="result-section">
+        {displayData.overallStyle && (
+          <div className="visual-result-section">
+            <div className="section-header">
+              <Palette size={14} />
+              <span>整体风格</span>
+            </div>
+            <textarea
+              className="result-textarea readonly"
+              value={displayData.overallStyle}
+              readOnly
+            />
+          </div>
+        )}
+
+        {renderSection(
+          `角色 (${displayData.characters?.length || 0})`,
+          <Users size={14} />,
+          displayData.characters,
+          'characters'
+        )}
+        {renderSection(
+          `场景 (${displayData.scenes?.length || 0})`,
+          <Image size={14} />,
+          displayData.scenes,
+          'scenes'
+        )}
+        {renderSection(
+          `物品 (${displayData.props?.length || 0})`,
+          <Layers size={14} />,
+          displayData.props,
+          'props'
+        )}
+
+        {!displayData.overallStyle && !displayData.characters?.length && !displayData.scenes?.length && !displayData.props?.length && (
+          <div className="result-empty"><p>暂无结果内容</p></div>
+        )}
+      </div>
+
+      {/* 图片预览弹窗 */}
+      <AnimatePresence>
+        {previewOpen && (
+          <ImagePreviewModal
+            category={previewCategory}
+            images={previewImages}
+            initialIndex={previewStartIndex}
+            onClose={() => setPreviewOpen(false)}
+          />
+        )}
+      </AnimatePresence>
+    </>
+  );
+};
+
+// 图片预览弹窗 - 现代照片查看器风格
+const ImagePreviewModal = ({ images, onClose, initialIndex = 0 }) => {
+  const [currentIndex, setCurrentIndex] = useState(initialIndex);
+  const [isLoading, setIsLoading] = useState(true);
+  const current = images[currentIndex];
+
+  const handlePrev = () => {
+    if (currentIndex > 0) {
+      setIsLoading(true);
+      setCurrentIndex(currentIndex - 1);
+    }
+  };
+
+  const handleNext = () => {
+    if (currentIndex < images.length - 1) {
+      setIsLoading(true);
+      setCurrentIndex(currentIndex + 1);
+    }
+  };
+
+  // 键盘导航
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') onClose();
+      if (e.key === 'ArrowLeft') handlePrev();
+      if (e.key === 'ArrowRight') handleNext();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentIndex]);
+
+  const handleImageLoad = () => setIsLoading(false);
+
+  return (
+    <motion.div
+      className="photo-viewer-overlay"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+    >
+      {/* 顶部工具栏 */}
+      <div className="photo-viewer-toolbar" onClick={(e) => e.stopPropagation()}>
+        <span className="photo-viewer-title">{current?.name}</span>
+        <span className="photo-viewer-counter">{currentIndex + 1} / {images.length}</span>
+        <button className="photo-viewer-close" onClick={onClose}>
+          <X size={20} />
+        </button>
+      </div>
+
+      {/* 图片区域 */}
+      <div className="photo-viewer-content" onClick={(e) => e.stopPropagation()}>
+        <button
+          className="photo-viewer-nav prev"
+          onClick={handlePrev}
+          disabled={currentIndex === 0}
+        >
+          <ChevronRight size={24} style={{ transform: 'rotate(180deg)' }} />
+        </button>
+
+        <div className="photo-viewer-image-wrap">
+          {isLoading && (
+            <div className="photo-viewer-loading">
+              <Loader2 size={32} className="spin" />
+            </div>
+          )}
+          <img
+            src={current?.thumbnail || current?.url}
+            alt={current?.name}
+            className="photo-viewer-image"
+            onLoad={handleImageLoad}
+            style={{ opacity: isLoading ? 0 : 1 }}
+          />
+        </div>
+
+        <button
+          className="photo-viewer-nav next"
+          onClick={handleNext}
+          disabled={currentIndex === images.length - 1}
+        >
+          <ChevronRight size={24} />
+        </button>
+      </div>
+
+      {/* 底部信息 */}
+      <div className="photo-viewer-footer" onClick={(e) => e.stopPropagation()}>
+        <p className="photo-viewer-desc">{current?.description}</p>
+      </div>
+    </motion.div>
   );
 };
 
