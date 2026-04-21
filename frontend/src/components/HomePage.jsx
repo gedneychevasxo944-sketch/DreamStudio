@@ -94,18 +94,6 @@ const FEATURES = [
   },
 ];
 
-// Mock 案例数据（当 API 无返回时使用）
-const MOCK_DEMOS = [
-  { id: 'mock-1', title: '赛博朋克之夜', description: '霓虹灯光下的都市追逐，高科技与低生活的完美融合', thumbnail: 'https://picsum.photos/seed/cyber1/800/500', duration: '3:24', views: 12580, tags: ['赛博朋克', '动作'] },
-  { id: 'mock-2', title: '星际穿越者', description: '宇宙飞船穿越虫洞，探索未知星系的史诗之旅', thumbnail: 'https://picsum.photos/seed/space1/800/500', duration: '4:12', views: 8932, tags: ['科幻', '冒险'] },
-  { id: 'mock-3', title: '古风仙侠传', description: '御剑飞行于云海之间，道法自然的修仙故事', thumbnail: 'https://picsum.photos/seed/xianxia1/800/500', duration: '2:58', views: 15670, tags: ['古风', '仙侠'] },
-  { id: 'mock-4', title: '都市物语', description: '繁忙都市中普通人的温情故事，平凡却真实', thumbnail: 'https://picsum.photos/seed/city1/800/500', duration: '2:15', views: 6780, tags: ['都市', '温情'] },
-  { id: 'mock-5', title: '深海探险', description: '潜入未知深海，发现失落文明的惊险历程', thumbnail: 'https://picsum.photos/seed/ocean1/800/500', duration: '3:45', views: 9234, tags: ['探险', '神秘'] },
-  { id: 'mock-6', title: '机械觉醒', description: '人工智能觉醒意识，开始思考存在的意义', thumbnail: 'https://picsum.photos/seed/robot1/800/500', duration: '3:08', views: 11230, tags: ['科幻', '人工智能'] },
-  { id: 'mock-7', title: '奇幻森林', description: '魔法生物栖息的古老森林，冒险从这里开始', thumbnail: 'https://picsum.photos/seed/forest1/800/500', duration: '2:52', views: 7890, tags: ['奇幻', '冒险'] },
-  { id: 'mock-8', title: '末日逃亡', description: '丧尸围城，人类最后的避难所在何方', thumbnail: 'https://picsum.photos/seed/zombie1/800/500', duration: '3:33', views: 14560, tags: ['末日', '惊悚'] },
-];
-
 // 转换后端团队数据为前端演示案例格式
 const transformTemplateToDemo = (template) => ({
   id: template.id || template.projectId,
@@ -266,22 +254,15 @@ const HomePage = ({ onEnter }) => {
     try {
       const templatesRes = await homePageApi.getTemplates();
       if (templatesRes.code === 200 && templatesRes.data) {
-        const transformedDemos = (templatesRes.data.templates || []).map(transformTemplateToDemo);
-        // 如果 API 返回不足 4 个，使用 mock 数据补充
-        if (transformedDemos.length < 4) {
-          setDemoTemplates([...transformedDemos, ...MOCK_DEMOS]);
-        } else {
-          setDemoTemplates(transformedDemos);
-        }
+        const demos = (templatesRes.data.templates || []).map(transformTemplateToDemo);
+        setDemoTemplates(demos);
       } else {
-        // API 无数据时使用 mock 数据
-        setDemoTemplates(MOCK_DEMOS);
+        setDemoTemplates([]);
       }
     } catch (err) {
       uiLogger.error('[HomePage] Failed to load data:', err);
-      // 失败时也使用 mock 数据作为后备
-      setDemoTemplates(MOCK_DEMOS);
-      setError(null); // 不显示错误，用 mock 数据
+      setError(err.message || '加载失败');
+      setDemoTemplates([]);
     } finally {
       setLoading(false);
     }

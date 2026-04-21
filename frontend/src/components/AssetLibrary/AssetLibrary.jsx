@@ -77,85 +77,6 @@ const formatTimeDiff = (createTime) => {
  */
 
 /**
- * 模拟数据 - 按项目分组
- * @type {Asset[]}
- */
-const MOCK_ASSETS = [
-  {
-    id: 'asset-001',
-    projectId: 'proj-001',
-    name: '红发女黑客',
-    type: ASSET_TYPES.CHARACTER,
-    content: '红发女黑客，霓虹灯光下身穿战术外套，眼神坚定',
-    thumbnail: 'https://picsum.photos/seed/cyberchar1/400/300',
-    createTime: new Date(Date.now() - 10 * 60000).toISOString(),
-  },
-  {
-    id: 'asset-002',
-    projectId: 'proj-001',
-    name: '数据中心办公室',
-    type: ASSET_TYPES.SCENE,
-    content: '高科技数据中心，满墙服务器，蓝色LED灯光，窗外霓虹夜景',
-    thumbnail: 'https://picsum.photos/seed/datacenter1/400/300',
-    createTime: new Date(Date.now() - 30 * 60000).toISOString(),
-  },
-  {
-    id: 'asset-003',
-    projectId: 'proj-001',
-    name: '服务器终端',
-    type: ASSET_TYPES.PROP,
-    content: '复古CRT显示器风格的终端，绿色字符滚动，显示入侵警告',
-    thumbnail: 'https://picsum.photos/seed/terminal1/400/300',
-    createTime: new Date(Date.now() - 60 * 60000).toISOString(),
-  },
-  {
-    id: 'asset-004',
-    projectId: 'proj-001',
-    name: '第1集：潜入开始',
-    type: ASSET_TYPES.SCRIPT,
-    content: '红发女黑客潜入数据中心，目标是三层加密的财务数据库...',
-    thumbnail: null,
-    createTime: new Date(Date.now() - 2 * 3600000).toISOString(),
-  },
-  {
-    id: 'asset-005',
-    projectId: 'proj-001',
-    name: '追逐场景A',
-    type: ASSET_TYPES.VIDEO,
-    content: '红发女在走廊奔跑，安保在后面追赶，镜头跟随视角',
-    thumbnail: 'https://picsum.photos/seed/chase1/400/300',
-    createTime: new Date(Date.now() - 3 * 3600000).toISOString(),
-  },
-  {
-    id: 'asset-006',
-    projectId: 'proj-001',
-    name: '安保人员A',
-    type: ASSET_TYPES.CHARACTER,
-    content: '身穿黑色制服的安保人员，手持电击棍，表情严肃',
-    thumbnail: 'https://picsum.photos/seed/guard1/400/300',
-    createTime: new Date(Date.now() - 4 * 3600000).toISOString(),
-  },
-  {
-    id: 'asset-007',
-    projectId: 'proj-002',
-    name: '霓虹雨夜街道',
-    type: ASSET_TYPES.SCENE,
-    content: '赛博朋克风格雨夜街道，霓虹灯牌倒映在积水，远处摩天楼',
-    thumbnail: 'https://picsum.photos/seed/neonstreet/400/300',
-    createTime: new Date(Date.now() - 5 * 3600000).toISOString(),
-  },
-  {
-    id: 'asset-008',
-    projectId: 'proj-002',
-    name: '城市追车片段',
-    type: ASSET_TYPES.VIDEO,
-    content: '摩托车在城市街道疾驰，无人机追踪，镜头环绕旋转',
-    thumbnail: 'https://picsum.photos/seed/chase2/400/300',
-    createTime: new Date(Date.now() - 24 * 3600000).toISOString(),
-  },
-];
-
-/**
  * @typedef {Object} AssetLibraryProps
  * @property {boolean} isOpen
  * @property {() => void} onClose
@@ -430,7 +351,7 @@ const AssetLibrary = ({
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [showDetail, setShowDetail] = useState(false);
 
-  const allAssets = externalAssets || MOCK_ASSETS;
+  const allAssets = externalAssets || [];
 
   // 按项目分组
   const groupedAssets = useMemo(() => {

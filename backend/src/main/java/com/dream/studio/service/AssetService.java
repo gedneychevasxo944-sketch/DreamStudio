@@ -134,17 +134,18 @@ public class AssetService {
                 .nodeId(asset.getNodeId())
                 .nodeVersionId(asset.getNodeVersionId())
                 .agentId(asset.getAgentId())
-                .assetType(asset.getAssetType())
+                .type(asset.getAssetType())
                 .assetRole(asset.getAssetRole())
-                .title(asset.getTitle())
+                .name(asset.getTitle())
                 .uri(asset.getUri())
-                .coverUri(asset.getCoverUri())
+                .thumbnail(asset.getCoverUri())
                 .mimeType(asset.getMimeType())
                 .fileSize(asset.getFileSize())
                 .metadataJson(asset.getMetadataJson())
                 .isCurrent(asset.getIsCurrent())
                 .status(asset.getStatus())
-                .createdAt(asset.getCreatedTime() != null ? asset.getCreatedTime().format(DATE_FORMATTER) : null)
+                .createTime(asset.getCreatedTime() != null ? asset.getCreatedTime().format(DATE_FORMATTER) : null)
+                .content(asset.getMetadataJson())  // metadataJson 作为 content 返回
                 .build();
     }
 }

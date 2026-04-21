@@ -3,7 +3,25 @@ import { parseApiError, handleNetworkError, ErrorType } from '../utils/errorHand
 import { AUTH_ERROR_MESSAGES } from '../constants/authConstants';
 import { authStorage } from '../utils/authStorage';
 
-const API_BASE_URL = 'http://localhost:8080/api';
+// 使用相对路径，通过 Vite proxy 转发到后端
+const API_BASE_URL = '/api';
+const ADEPTIFY_BASE_URL = '/adeptify/v1';
+
+/**
+ * Java String.hashCode() 的 JavaScript 实现
+ * 用于生成与后端一致的 sessionId
+ */
+function javaHashCode(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  // Java's Integer.toHexString returns unsigned hex string
+  const unsigned = hash >>> 0;
+  return unsigned.toString(16);
+}
 
 // 检查是否是认证错误
 function isAuthErrorLocal(errorMessage) {
@@ -186,6 +204,101 @@ function createSSEConnectionForExecution(url, body, onMessage, onError) {
                   // 所有事件类型都通过 onMessage 传递
                   onMessage?.(eventWithType);
                 }
+              } catch (e) {
+                apiLogger.warn('[SSE] Parse error:', e, 'dataStr:', dataStr);
+              }
+            }
+          }
+        }
+
+        read();
+      }).catch(error => {
+        if (!closed) {
+          onError?.(error);
+        }
+      });
+    }
+
+    read();
+  })
+  .catch(error => {
+    if (!closed) {
+      onError?.(error);
+    }
+  });
+
+  return {
+    close: () => {
+      closed = true;
+      if (reader) {
+        reader.cancel();
+      }
+    },
+  };
+}
+
+/**
+ * Adeptify SSE 流式请求 (用于工作流执行)
+ */
+function createAdeptifySSEConnection(url, body, onMessage, onError) {
+  const token = authStorage.getToken();
+  const userId = authStorage.getUserId();
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(userId && { 'X-User-Id': userId }),
+    ...(token && { 'Authorization': `Bearer ${token}` }),
+  };
+
+  let closed = false;
+  let reader = null;
+
+  fetch(`${ADEPTIFY_BASE_URL}${url}`, {
+    method: 'POST',
+    headers,
+    body,
+  })
+  .then(response => {
+    if (!response.ok) {
+      closed = true;
+      response.json().then(errData => {
+        const errorMessage = errData.message || `HTTP error! status: ${response.status}`;
+        handleAuthError(errorMessage);
+        onError?.({ message: errorMessage });
+      }).catch(() => {
+        const errorMessage = `HTTP error! status: ${response.status}`;
+        handleAuthError(errorMessage);
+        onError?.({ message: errorMessage });
+      });
+      return;
+    }
+
+    reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let eventType = 'message';
+
+    function read() {
+      if (closed) return;
+
+      reader.read().then(({ done, value }) => {
+        if (done || closed) {
+          return;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+
+        for (const line of lines) {
+          if (line.startsWith('event:')) {
+            eventType = line.slice(6).trim();
+          } else if (line.startsWith('data:')) {
+            const dataStr = line.slice(5).trim();
+            if (dataStr) {
+              try {
+                const data = JSON.parse(dataStr);
+                const eventWithType = { ...data, eventType: eventType };
+                onMessage?.(eventWithType);
               } catch (e) {
                 apiLogger.warn('[SSE] Parse error:', e, 'dataStr:', dataStr);
               }
@@ -431,70 +544,167 @@ function createSSEStream(url, options, callbacks) {
 }
 
 /**
- * 发送聊天消息并处理 SSE 流式响应
+ * Adeptify SSE 流式请求
+ */
+function createAdeptifySSEStream(url, body, callbacks) {
+  const token = authStorage.getToken();
+  const userId = authStorage.getUserId();
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(userId && { 'X-User-Id': userId }),
+    ...(token && { 'Authorization': `Bearer ${token}` }),
+  };
+
+  let closed = false;
+  let reader = null;
+
+  fetch(`${ADEPTIFY_BASE_URL}${url}`, {
+    method: 'POST',
+    headers,
+    body,
+  })
+    .then(response => {
+      if (!response.ok) {
+        closed = true;
+        response.json().then(errData => {
+          const errorMessage = errData.message || `HTTP error! status: ${response.status}`;
+          handleAuthError(errorMessage);
+          callbacks.onError?.({ message: errorMessage });
+        }).catch(() => {
+          const errorMessage = `HTTP error! status: ${response.status}`;
+          handleAuthError(errorMessage);
+          callbacks.onError?.({ message: errorMessage });
+        });
+        return;
+      }
+
+      reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let eventType = 'message';
+
+      function read() {
+        if (closed) return;
+
+        reader.read().then(({ done, value }) => {
+          if (done || closed) return;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop();
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+
+            if (trimmed.startsWith('event:')) {
+              eventType = trimmed.slice(6).trim();
+            } else if (trimmed.startsWith('data:')) {
+              const dataStr = trimmed.slice(5).trim();
+              if (!dataStr) continue;
+              try {
+                const data = JSON.parse(dataStr);
+                const eventWithType = { ...data, eventType };
+                callbacks.onEvent?.(eventType, eventWithType, data);
+              } catch (e) {
+                apiLogger.warn('[SSE] Parse error:', e, 'dataStr:', dataStr);
+              }
+            }
+          }
+
+          read();
+        }).catch(error => {
+          if (!closed) callbacks.onError?.({ message: error.message });
+        });
+      }
+
+      read();
+    })
+    .catch(error => {
+      if (!closed) callbacks.onError?.({ message: error.message });
+    });
+
+  return {
+    close: () => {
+      closed = true;
+      if (reader) reader.cancel();
+    },
+  };
+}
+
+/**
+ * 发送聊天消息并处理 SSE 流式响应 (Adeptify 新接口)
  * @param {Object} params - 请求参数
  * @param {string} params.projectId - 项目ID
- * @param {string} params.projectVersion - 项目版本
- * @param {string} params.agentId - 智能体ID
- * @param {string} params.agentName - 智能体名称
+ * @param {string} params.sessionId - 会话ID (可选，不传则后端自动生成)
+ * @param {string} params.contextType - 上下文类型: node | global | asset
+ * @param {string} params.contextId - 上下文ID (如节点ID)
+ * @param {string} params.characterId - 角色ID
  * @param {string} params.message - 消息内容
  * @param {Object} callbacks - 回调函数
- * @param {Function} callbacks.onThinking - 思考步骤回调 (data) => void
- * @param {Function} callbacks.onResult - 结果回调 (data) => void
- * @param {Function} callbacks.onWorkflowCreated - 工作流创建回调 (nodes, edges) => void
- * @param {Function} callbacks.onComplete - 完成回调 (data) => void
- * @param {Function} callbacks.onError - 错误回调 (data) => void
  * @returns {Object} 包含 close 方法的对象
  */
 export function sendChatMessageStream(params, callbacks) {
-  const { projectId, projectVersion, agentId, agentName, message, nodeId, generation } = params;
+  const { projectId, sessionId, contextType, contextId, characterId, message, generation } = params;
 
   const body = JSON.stringify({
+    sessionId: sessionId || null,
     projectId,
-    projectVersion,
-    agentId,
-    agentName: agentId,
-    message: message.trim(),
-    nodeId,
+    account: authStorage.getUserId() || 'anonymous',
+    contextType: contextType || 'global',
+    contextId: contextId || 'default',
+    message: {
+      content: message.trim(),
+      metadata: {
+        attachments: [],
+        context: {
+          projectId: String(projectId),
+          assetUrls: [],
+          characterId: characterId,
+        }
+      }
+    }
   });
 
   let closed = false;
   let currentGeneration = generation;
+  let storedSessionId = sessionId;
 
-  const sse = createSSEStream(`/v1/agents/${agentId}/chat/stream`, { body }, {
+  const sse = createAdeptifySSEStream('/chat/completions', body, {
     onEvent: (eventType, eventWithType, data) => {
+      // 首次收到 message_start 时，存储返回的 sessionId
+      if (eventType === 'message_start' && data.sessionId && !storedSessionId) {
+        storedSessionId = data.sessionId;
+        apiLogger.info('[Chat] SessionId assigned:', storedSessionId);
+      }
+
       switch (eventType) {
-        case 'init':
+        case 'message_start':
           callbacks.onInit?.(eventWithType);
           break;
         case 'thinking':
           callbacks.onThinking?.(eventWithType);
           break;
-        case 'status':
-          callbacks.onStatus?.(eventWithType);
+        case 'content':
+          if (data.type === 'text') {
+            // 文本内容，转为 result 格式
+            callbacks.onResult?.({ ...data, resultType: 'text', result: data.delta });
+          } else if (data.type === 'batch_action') {
+            // 批量操作
+            callbacks.onData?.(eventWithType);
+          }
           break;
-        case 'result':
-          callbacks.onResult?.(eventWithType);
+        case 'metadata':
+          // token 统计，可忽略或传递给 onResult
           break;
-        case 'data':
-          callbacks.onData?.(eventWithType);
-          break;
-        case 'complete':
+        case 'message_end':
           callbacks.onComplete?.(eventWithType);
           break;
         case 'error':
           callbacks.onError?.(eventWithType);
           break;
         default:
-          if (data.step) {
-            callbacks.onThinking?.(eventWithType);
-          } else if (data.resultType !== undefined || data.result !== undefined) {
-            callbacks.onResult?.(eventWithType);
-          } else if (data.workflowCreated) {
-            callbacks.onWorkflowCreated?.(eventWithType.workflowNodes, eventWithType.workflowEdges);
-          } else {
-            callbacks.onMessage?.(eventWithType);
-          }
+          callbacks.onMessage?.(eventWithType);
       }
     },
     onError: callbacks.onError,
@@ -510,6 +720,7 @@ export function sendChatMessageStream(params, callbacks) {
       sse.close();
     },
     generation: currentGeneration,
+    getSessionId: () => storedSessionId,
   };
 }
 
@@ -523,19 +734,24 @@ export const chatApi = {
 
   /**
    * 获取对话历史
+   * 新接口：使用 ChatSession
    */
   getChatHistory: (projectId, version = null, agentId = null) => {
-    let url = `/workspace/chat?project_id=${projectId}`;
-    if (version) url += `&version=${version}`;
-    if (agentId) url += `&agent_id=${agentId}`;
-    return request(url);
+    // 生成与后端相同的 sessionId (全局对话)
+    const raw = projectId + ":global:default";
+    const sessionId = "sess_" + javaHashCode(raw);
+    return request(`/v1/chat/sessions/${sessionId}/messages?limit=100`);
   },
 
   /**
    * 获取节点的历史对话
+   * 新接口：使用 ChatSession
    */
   getNodeChatHistory: (projectId, nodeId) => {
-    return request(`/v1/projects/${projectId}/nodes/${nodeId}/chat-history`);
+    // 生成与后端相同的 sessionId (使用 Java 的 hashCode 算法)
+    const raw = projectId + ":node:" + nodeId;
+    const sessionId = "sess_" + javaHashCode(raw);
+    return request(`/v1/chat/sessions/${sessionId}/messages?limit=100`);
   },
 };
 
@@ -549,30 +765,21 @@ export const workSpaceApi = {
   },
 
   executeWorkflow: (projectId, executionId, projectVersion, nodes, connections, onMessage, onError, upstreamContext) => {
-    const dag = {
+    // 新格式：Adeptify 工作流执行
+    const body = JSON.stringify({
+      edges: connections.map(conn => ({
+        from: conn.from,
+        to: conn.to
+      })),
       nodes: nodes.map(node => ({
         nodeId: node.id,
-        agentId: node.agentId,
-        agentCode: node.agentCode || node.type,
-        inputParam: node.data || {}
-      })),
-      edges: connections.map(conn => ({
-        fromNodeId: conn.from,
-        toNodeId: conn.to
+        characterId: node.agentCode || node.type,
+        input: node.data || {}
       }))
-    };
-
-    const body = JSON.stringify({
-      dag,
-      edges: connections.map(conn => ({
-        fromNodeId: conn.from,
-        toNodeId: conn.to
-      })),
-      upstreamContext
     });
 
-    return createSSEConnectionForExecution(
-      `/v1/workflows/executions/stream?projectId=${projectId}`,
+    return createAdeptifySSEConnection(
+      '/workflows/run',
       body,
       onMessage,
       onError

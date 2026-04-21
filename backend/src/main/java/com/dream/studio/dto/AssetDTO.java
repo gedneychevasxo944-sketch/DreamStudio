@@ -14,6 +14,7 @@ public class AssetDTO {
 
     /**
      * 资产项
+     * 字段名与前端对齐
      */
     @Data
     @Builder
@@ -25,17 +26,18 @@ public class AssetDTO {
         private String nodeId;
         private Long nodeVersionId;
         private Long agentId;
-        private String assetType;
+        private String type;           // 前端期望: type (对应 assetType)
         private String assetRole;
-        private String title;
+        private String name;          // 前端期望: name (对应 title)
         private String uri;
-        private String coverUri;
+        private String thumbnail;     // 前端期望: thumbnail (对应 coverUri)
         private String mimeType;
         private Long fileSize;
         private String metadataJson;
         private Boolean isCurrent;
         private String status;
-        private String createdAt;
+        private String createTime;    // 前端期望: createTime (对应 createdAt)
+        private String content;        // 前端期望: content (资产内容/描述)
     }
 
     /**

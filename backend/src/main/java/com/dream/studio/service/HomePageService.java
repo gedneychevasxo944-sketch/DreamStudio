@@ -12,6 +12,7 @@ import com.dream.studio.exception.VersionNotFoundException;
 import com.dream.studio.repository.ProjectRepository;
 import com.dream.studio.repository.ProjectVersionRepository;
 import com.dream.studio.repository.TemplateRepository;
+import com.dream.studio.sim.MockDataCenter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +33,7 @@ public class HomePageService {
     private final ProjectVersionRepository projectVersionRepository;
     private final TemplateRepository templateRepository;
     private final ObjectMapper objectMapper;
+    private final MockDataCenter mockDataCenter;
 
     @PostConstruct
     public void initMockData() {
@@ -42,55 +44,23 @@ public class HomePageService {
     }
 
     private void initializeMockTemplates() {
-        // 1. 先创建3个项目作为模板来源
-        Project project1 = createTemplateProject(1L, "好莱坞工业流水线", "好莱坞官方模板项目");
-        Project project2 = createTemplateProject(2L, "极速概念片团队", "极速官方模板项目");
-        Project project3 = createTemplateProject(3L, "极简单兵模式", "单兵官方模板项目");
+        // 使用 MockDataCenter 获取模板数据
+        List<MockDataCenter.TemplateSimData> templateSims = mockDataCenter.getTemplates();
 
-        projectRepository.saveAll(List.of(project1, project2, project3));
-
-        // 2. 再创建模板，关联到这些项目
-        List<Template> templates = List.of(
-            createTemplate(1L, project1.getId(), "好莱坞工业流水线", "标准五组双子星节点完整流程",
-                "https://images.unsplash.com/photo-1485846234645-a62644f84728?w=800&h=500&fit=crop",
-                "好莱坞,工业流水线", 128),
-
-            createTemplate(2L, project2.getId(), "极速概念片团队", "AI原生工作流，文本直出视频，跳过传统美术",
-                "https://images.unsplash.com/photo-1535016120720-40c646be5580?w=800&h=500&fit=crop",
-                "极速,概念片", 89),
-
-            createTemplate(3L, project3.getId(), "极简单兵模式", "一人成军，AI全栈独立完成",
-                "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?w=800&h=500&fit=crop",
-                "单兵,简单", 256)
-        );
+        List<Template> templates = templateSims.stream()
+            .map(sim -> Template.builder()
+                .id(sim.id())
+                .projectId(null)  // 案例模板不关联项目
+                .name(sim.name())
+                .description(sim.description())
+                .coverImage(sim.coverImage())
+                .tags(sim.tags())
+                .useCount(sim.useCount())
+                .build())
+            .collect(Collectors.toList());
 
         templateRepository.saveAll(templates);
-        log.info("Mock templates initialized: {} templates with {} projects", templates.size(), 3);
-    }
-
-    private Project createTemplateProject(Long id, String title, String description) {
-        return Project.builder()
-                .id(id)
-                .title(title)
-                .description(description)
-                .status("DRAFT")
-                .account("system")
-                .config("{}")
-                .lastResult("{}")
-                .currentVersion(1)
-                .build();
-    }
-
-    private Template createTemplate(Long id, Long projectId, String name, String description, String coverImage, String tags, Integer useCount) {
-        return Template.builder()
-                .id(id)
-                .projectId(projectId)
-                .name(name)
-                .description(description)
-                .coverImage(coverImage)
-                .tags(tags)
-                .useCount(useCount)
-                .build();
+        log.info("Mock templates initialized: {} templates", templates.size());
     }
 
     @Transactional(readOnly = true)
@@ -234,16 +204,15 @@ public class HomePageService {
     public ProjectDTO.VersionListResponse getVersions(Long projectId, String account) {
         log.info("Getting versions for project: {} for account: {}", projectId, account);
 
-        // Validate project ownership
         projectRepository.findByIdAndAccount(projectId, account)
                 .orElseThrow(() -> new ProjectNotFoundException("Project not found or access denied: " + projectId));
 
         List<ProjectVersion> versions = projectVersionRepository.findByProjectIdOrderByVersionNumberDesc(projectId);
-        
+
         List<ProjectDTO.VersionResponse> versionList = versions.stream()
                 .map(this::convertToVersionResponse)
                 .collect(Collectors.toList());
-        
+
         return ProjectDTO.VersionListResponse.builder()
                 .versions(versionList)
                 .total((long) versionList.size())
@@ -254,13 +223,12 @@ public class HomePageService {
     public ProjectDTO.VersionResponse getVersion(Long projectId, Integer versionNumber, String account) {
         log.info("Getting version {} of project {} for account: {}", versionNumber, projectId, account);
 
-        // Validate project ownership
         projectRepository.findByIdAndAccount(projectId, account)
                 .orElseThrow(() -> new ProjectNotFoundException("Project not found or access denied: " + projectId));
 
         ProjectVersion version = projectVersionRepository.findByProjectIdAndVersionNumber(projectId, versionNumber)
                 .orElseThrow(() -> new VersionNotFoundException("Version not found: " + versionNumber));
-        
+
         return convertToVersionResponse(version);
     }
 
@@ -299,7 +267,7 @@ public class HomePageService {
                 throw new InvalidOperationException("Cannot delete the only version");
             }
             ProjectVersion previousVersion = versions.get(1);
-            
+
             project.setTitle(previousVersion.getTitle());
             project.setDescription(previousVersion.getDescription());
             project.setStatus(previousVersion.getStatus());
@@ -321,10 +289,7 @@ public class HomePageService {
         Project project = projectRepository.findByIdAndAccount(projectId, account)
                 .orElseThrow(() -> new ProjectNotFoundException("Project not found or access denied: " + projectId));
 
-        // Delete all versions first
         projectVersionRepository.deleteByProjectId(projectId);
-
-        // Delete the project
         projectRepository.delete(project);
     }
 

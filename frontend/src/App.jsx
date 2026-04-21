@@ -24,8 +24,6 @@ import { authStorage } from './utils/authStorage';
 import { eventBus, EVENT_TYPES } from './utils/eventBus';
 import { useProjectStore, useWorkflowStore, useUIStore, useStageStore, useChatStore, STAGES } from './stores';
 import { traverseConnectedNodes } from './utils/nodeUtils';
-import { mockModifications } from './mock/mockData';
-import { initializeMockData } from './mock/stagesMock';
 import './App.css';
 
 // 新增组件导入
@@ -175,19 +173,6 @@ function App() {
     if (prevLayer === 'node') {
       setSelectedNodeId(null);
     }
-
-    // 如果切换到故事板层，初始化 mock 数据
-    if (layer === 'storyboard') {
-      const { stageAssets } = useStageStore.getState();
-      // 检查是否已经初始化过
-      const hasInitialized = Object.values(stageAssets).some(arr => arr.length > 0);
-      if (!hasInitialized) {
-        const { setStageAssets, setStageCompletion } = useStageStore.getState();
-        import('./mock/stagesMock').then(({ initializeMockData }) => {
-          initializeMockData(setStageAssets, setStageCompletion);
-        });
-      }
-    }
   }, [currentLayer, projectName]);
 
   // 处理悬浮助手开关
@@ -217,38 +202,6 @@ function App() {
     // 设置焦点实体
     setFocusedEntity({ type: 'shot', id: shotId });
   }, []);
-
-  // P1: 处理钻取 - 打开钻取面板
-  const handleDrillDown = useCallback((message) => {
-    if (!message || !message.modificationId) return;
-
-    const modification = mockModifications[message.modificationId];
-    if (!modification) return;
-
-    setDrillPanelType(modification.type);
-    setDrillPanelData(modification);
-    setDrillPanelTitle(getDrillPanelTitle(modification));
-    setDrillPanelOpen(true);
-  }, []);
-
-  // P1: 获取钻取面板标题
-  const getDrillPanelTitle = (modification) => {
-    if (!modification) return '';
-    switch (modification.type) {
-      case 'text':
-        return `镜头${modification.targetId.replace('shot-', '')} · 背景描述`;
-      case 'asset':
-        return `镜头${modification.targetId.replace('shot-', '')} · 角色替换`;
-      case 'parameter':
-        return `场景美术Agent · 模型切换`;
-      case 'visual':
-        return `镜头${modification.targetId.replace('shot-', '')} · 构图优化`;
-      case 'batch':
-        return `批量修改 · 夜景→白天`;
-      default:
-        return '修改详情';
-    }
-  };
 
   // P1: 处理智能建议 - 打开故事板
   const handleOpenStoryboardFromSuggestion = useCallback(() => {
@@ -504,18 +457,6 @@ function App() {
     // 清空故事板资产（新项目不加载 mock）
     useStageStore.getState().resetAllStageAssets();
 
-    if (demoId) {
-      // Demo 模式加载 mock 数据
-      const { setStageAssets, setStageCompletion } = useStageStore.getState();
-      const { initializeMockData } = await import('./mock/stagesMock');
-      initializeMockData(setStageAssets, setStageCompletion);
-      setIsDemoMode(true);
-      setProjectName('Demo演示');
-      setCurrentView('workspace');
-      setCurrentLayer('node'); // Demo 默认显示节点层
-      return;
-    }
-
     if (projectId) {
       // 加载已有项目
       setCurrentProjectId(projectId);
@@ -539,22 +480,6 @@ function App() {
             }
           }
           await loadVersions(projectId);
-
-          // 如果项目没有资产，加载 mock 作为演示
-          const { stageAssets: currentAssets, setStageAssets: setAssets, setStageCompletion: setCompletion } = useStageStore.getState();
-          const hasAssets = Object.values(currentAssets).some(arr => arr.length > 0);
-          if (!hasAssets) {
-            const { initializeMockData } = await import('./mock/stagesMock');
-            initializeMockData(setAssets, setCompletion);
-          }
-
-          // 如果画布没有节点，加载 mockNodes 作为演示
-          const { nodes: currentNodes, setNodes: setCanvasNodes, setConnections: setCanvasConnections } = useWorkflowStore.getState();
-          if (currentNodes.length === 0) {
-            const { mockNodes, mockConnections } = await import('./mock/mockData');
-            setCanvasNodes(mockNodes);
-            setCanvasConnections(mockConnections);
-          }
         }
       } catch (error) {
         uiLogger.error('[App] Failed to load project data:', error);

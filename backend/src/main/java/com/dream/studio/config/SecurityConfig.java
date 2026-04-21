@@ -62,6 +62,8 @@ public class SecurityConfig {
                 .requestMatchers("/v1/agents/**").permitAll()
                 // 工作流执行SSE端点公开
                 .requestMatchers("/v1/workflows/executions/stream").permitAll()
+                // Adeptify AI 接口公开
+                .requestMatchers("/adeptify/**").permitAll()
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
                 .requestMatchers("/error").permitAll()
                 // OPTIONS 请求直接放行（CORS preflight）
@@ -109,8 +111,12 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        // 生产环境应该限制来源
-        configuration.setAllowedOriginPatterns(Arrays.asList("*"));
+        // 允许本地开发前端
+        configuration.setAllowedOriginPatterns(Arrays.asList(
+            "http://localhost:5173",
+            "http://localhost:3000",
+            "http://localhost:8080"
+        ));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setExposedHeaders(Arrays.asList("*"));

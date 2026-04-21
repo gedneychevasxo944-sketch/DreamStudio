@@ -49,10 +49,6 @@ public class Project {
     @Column(name = "current_version")
     private Integer currentVersion;
 
-    @Column(name = "phase", length = 32)
-    @Builder.Default
-    private String phase = "PLANNING";
-
     @Column(name = "mode", length = 32)
     private String mode;
 

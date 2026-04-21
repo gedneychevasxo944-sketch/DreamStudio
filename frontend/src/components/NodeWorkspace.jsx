@@ -847,7 +847,28 @@ const NodeWorkspace = ({
           return;
         }
 
-        if (res.data && Array.isArray(res.data)) {
+        if (res.data && res.data.messages && Array.isArray(res.data.messages)) {
+          canvasLogger.debug('[NodeWorkspace] [ChatHistory] Found', res.data.messages.length, 'records for node:', currentNodeId);
+          const historyMessages = [];
+          res.data.messages.forEach(record => {
+            if (record.role === 'user') {
+              historyMessages.push({
+                role: 'user',
+                content: record.content
+              });
+            } else if (record.role === 'assistant') {
+              historyMessages.push({
+                role: 'assistant',
+                content: record.content,
+                result: record.content,
+                thinking: record.thinking || null,
+                proposal: null
+              });
+            }
+          });
+          setChatMessages(historyMessages);
+        } else if (res.data && Array.isArray(res.data)) {
+          // 兼容旧格式
           canvasLogger.debug('[NodeWorkspace] [ChatHistory] Found', res.data.length, 'records for node:', currentNodeId);
           const historyMessages = [];
           res.data.forEach(record => {
@@ -1113,6 +1134,7 @@ const NodeWorkspace = ({
                 {activeDrawer === 'chat' && (
                   <ChatConversation
                     agentId={selectedNode?.agentId || selectedNode?.agentCode || selectedNode?.type}
+                    nodeId={selectedNode?.id}
                     projectId={projectId}
                     messages={chatMessages}
                     onMessagesChange={setChatMessages}

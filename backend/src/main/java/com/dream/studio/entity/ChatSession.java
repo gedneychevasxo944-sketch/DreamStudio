@@ -5,14 +5,19 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 
 /**
- * 聊天会话管理
+ * 对话会话
  */
 @Entity
-@Table(name = "chat_session")
+@Table(name = "chat_session", indexes = {
+    @Index(name = "idx_chat_session_project", columnList = "project_id"),
+    @Index(name = "idx_chat_session_updated", columnList = "updated_time")
+})
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -20,31 +25,27 @@ import java.time.LocalDateTime;
 public class ChatSession {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @Column(name = "id", length = 64)
+    private String id;
 
-    @Column(name = "message_id")
-    private Long messageId;
-
-    @Column(name = "agent_id", nullable = false)
-    private Long agentId;
+    @Column(name = "project_id", nullable = false)
+    private Long projectId;
 
     @Column(name = "account", length = 64)
     private String account;
 
-    @Column(name = "status", length = 32)
+    @Column(name = "message_count")
     @Builder.Default
-    private String status = "RUNNING";
+    private Integer messageCount = 0;
 
-    @Column(name = "start_time")
-    private LocalDateTime startTime;
+    @CreationTimestamp
+    @Column(name = "created_time", updatable = false)
+    private LocalDateTime createdTime;
 
-    @Column(name = "finish_time")
-    private LocalDateTime finishTime;
+    @UpdateTimestamp
+    @Column(name = "updated_time")
+    private LocalDateTime updatedTime;
 
-    @Column(name = "request", columnDefinition = "TEXT")
-    private String request;
-
-    @Column(name = "response", columnDefinition = "TEXT")
-    private String response;
+    @Column(name = "last_message_time")
+    private LocalDateTime lastMessageTime;
 }

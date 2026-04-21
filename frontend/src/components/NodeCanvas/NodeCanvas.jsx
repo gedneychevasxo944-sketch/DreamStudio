@@ -600,37 +600,35 @@ const NodeCanvas = ({
       const sseConnection = workSpaceApi.executeWorkflow(
         projectId, executionId, projectVersion, nodesToExecute, connectionsToSend,
         (event) => {
-          if (event.type === 'node_status' || event.type === 'status') {
+          // Adeptify 新事件格式适配
+          if (event.eventType === 'node_start') {
             if (event.nodeId) {
-              const status = event.status === 'completed' ? 'completed' : 'running';
-              updateNodeStatus(event.nodeId, status);
-              if (status === 'running') {
-                scrollToNode(event.nodeId);
-                // 自动跟随时同步右侧面板到运行节点
-                if (autoTrackEnabledRef.current) {
-                  const storeState = useWorkflowStore.getState();
-                  const runningNode = storeState.nodes.find(n => n.id === event.nodeId);
-                  if (runningNode) handleNodeSelect(runningNode);
-                }
-              }
+              updateNodeStatus(event.nodeId, 'running');
+              scrollToNode(event.nodeId);
             }
-          } else if (event.type === 'thinking') {
+          } else if (event.eventType === 'node_complete') {
+            if (event.nodeId) {
+              updateNodeStatus(event.nodeId, 'completed');
+            }
+          } else if (event.eventType === 'thinking') {
             if (event.nodeId) {
               const existingThinking = nodeThinkingMap.get(event.nodeId) || [];
               existingThinking.push(event.delta);
               nodeThinkingMap.set(event.nodeId, existingThinking);
               updateNodeData(event.nodeId, { thinking: [...existingThinking], thinkingIndex: existingThinking.length, isThinkingExpanded: true });
             }
-          } else if (event.type === 'result') {
-            if (event.nodeId) updateNodeResult(event.nodeId, event.delta, nodeThinkingMap.get(event.nodeId) || []);
-          } else if (event.type === 'data') {
-            if (event.nodeId && event.data) updateNodeData(event.nodeId, { ...event.data, hasResult: true });
-          } else if (event.type === 'videos') {
-            if (event.nodeId && event.videos) updateNodeData(event.nodeId, { videos: event.videos, hasResult: true });
-          } else if (event.type === 'complete') {
+          } else if (event.eventType === 'content') {
+            if (event.nodeId) {
+              if (event.type === 'text') {
+                updateNodeResult(event.nodeId, event.delta, nodeThinkingMap.get(event.nodeId) || []);
+              } else if (event.delta && typeof event.delta === 'object') {
+                updateNodeData(event.nodeId, { ...event.delta, hasResult: true });
+              }
+            }
+          } else if (event.eventType === 'execution_end') {
             setIsRunning(false);
             sseConnection.close();
-          } else if (event.type === 'error') {
+          } else if (event.eventType === 'error') {
             setIsRunning(false);
             sseConnection.close();
           }
@@ -892,48 +890,51 @@ const NodeCanvas = ({
       const sseConnection = workSpaceApi.executeWorkflow(
         projectId, executionId, projectVersion, currentNodes, currentConnections,
         (event) => {
-          if (event.type === 'init') {
-            localStorage.setItem(`execution_${projectId}`, (event.workflowExecutionId || event.executionId || '').toString());
-            if (event.completedNodes?.length > 0) {
-              batchUpdateNodes(event.completedNodes.map(c => ({
-                id: c.nodeId, status: 'completed',
-                data: { ...c, thinking: c.thinking || [], result: c.result || '', hasResult: !!c.result, isThinkingExpanded: true, isResultExpanded: true }
-              })));
-            }
-          } else if (event.type === 'node_status' || event.type === 'status') {
+          // Adeptify 新事件格式适配
+          // event.eventType = SSE事件类型 (execution_start, node_start, thinking, content, execution_end)
+          // event.type = 数据类型 (text, batch_action, component)
+          if (event.eventType === 'execution_start') {
+            localStorage.setItem(`execution_${projectId}`, (event.executionId || '').toString());
+          } else if (event.eventType === 'node_start') {
+            // 节点开始执行
             if (event.nodeId) {
-              const status = event.status === 'completed' ? 'completed' : 'running';
-              updateNodeStatus(event.nodeId, status);
-              if (status === 'running') {
-                scrollToNode(event.nodeId);
-                // 自动跟随时同步右侧面板到运行节点
-                if (autoTrackEnabledRef.current) {
-                  const storeState = useWorkflowStore.getState();
-                  const runningNode = storeState.nodes.find(n => n.id === event.nodeId);
-                  if (runningNode) handleNodeSelect(runningNode);
-                }
+              updateNodeStatus(event.nodeId, 'running');
+              scrollToNode(event.nodeId);
+              // 自动跟随时同步右侧面板到运行节点
+              if (autoTrackEnabledRef.current) {
+                const storeState = useWorkflowStore.getState();
+                const runningNode = storeState.nodes.find(n => n.id === event.nodeId);
+                if (runningNode) handleNodeSelect(runningNode);
               }
             }
-          } else if (event.type === 'thinking') {
+          } else if (event.eventType === 'node_complete') {
+            // 节点执行完成
+            if (event.nodeId) {
+              updateNodeStatus(event.nodeId, 'completed');
+            }
+          } else if (event.eventType === 'thinking') {
             if (event.nodeId) {
               const existingThinking = nodeThinkingMap.get(event.nodeId) || [];
               existingThinking.push(event.delta);
               nodeThinkingMap.set(event.nodeId, existingThinking);
               updateNodeData(event.nodeId, { thinking: [...existingThinking], thinkingIndex: existingThinking.length, isThinkingExpanded: true });
             }
-          } else if (event.type === 'result') {
-            if (event.nodeId) updateNodeResult(event.nodeId, event.delta, nodeThinkingMap.get(event.nodeId) || []);
-          } else if (event.type === 'data') {
-            if (event.nodeId && event.data) updateNodeData(event.nodeId, { ...event.data, hasResult: true });
-          } else if (event.type === 'videos') {
-            if (event.nodeId && event.videos) updateNodeData(event.nodeId, { videos: event.videos, hasResult: true });
-          } else if (event.type === 'complete') {
+          } else if (event.eventType === 'content') {
+            if (event.nodeId) {
+              if (event.type === 'text') {
+                updateNodeResult(event.nodeId, event.delta, nodeThinkingMap.get(event.nodeId) || []);
+              } else if (event.delta && typeof event.delta === 'object') {
+                // component 或其他类型的数据
+                updateNodeData(event.nodeId, { ...event.delta, hasResult: true });
+              }
+            }
+          } else if (event.eventType === 'execution_end') {
             setIsRunning(false);
             localStorage.removeItem(`execution_${projectId}`);
             sseConnection.close();
             // 派发工作流完成事件，让 NodeWorkspace 刷新版本列表
             document.dispatchEvent(new CustomEvent('workflowComplete'));
-          } else if (event.type === 'error') {
+          } else if (event.eventType === 'error') {
             setIsRunning(false);
             sseConnection.close();
           }

@@ -354,6 +354,7 @@ export const SimpleAssistantMessage = ({ message }) => {
 
 const ChatConversation = forwardRef(({
   agentId,
+  nodeId,  // 节点ID，用于 Adeptify contextId
   projectId,
   projectVersion,
   messages = [],
@@ -470,49 +471,54 @@ const ChatConversation = forwardRef(({
     sseConnectionRef.current = chatApi.sendMessageStream(
       {
         projectId,
-        projectVersion,
-        agentId,
+        contextType: 'node',
+        contextId: nodeId || 'default',
+        characterId: agentId,
         message: messageContent.trim(),
-        attachments: attachments.map(f => ({ name: f.name, type: f.type, size: f.size })),
       },
       {
-        onMessage: (data) => {
-          if (data.type === 'thinking') {
-            updateMessages(prev => prev.map(msg =>
-              msg.id === assistantMsgId
-                ? { ...msg, thinking: (msg.thinking || '') + data.content }
-                : msg
-            ));
-          } else if (data.type === 'result') {
-            updateMessages(prev => prev.map(msg =>
-              msg.id === assistantMsgId
-                ? { ...msg, result: (msg.result || '') + data.content }
-                : msg
-            ));
-          } else if (data.type === 'resultType') {
-            updateMessages(prev => prev.map(msg =>
-              msg.id === assistantMsgId
-                ? { ...msg, resultType: data.resultType }
-                : msg
-            ));
-          } else if (data.type === 'imageUrls') {
-            updateMessages(prev => prev.map(msg =>
-              msg.id === assistantMsgId
-                ? { ...msg, imageUrls: data.imageUrls }
-                : msg
-            ));
-          } else if (data.type === 'videoItems') {
-            updateMessages(prev => prev.map(msg =>
-              msg.id === assistantMsgId
-                ? { ...msg, videoItems: data.videoItems }
-                : msg
-            ));
-          } else if (data.type === 'proposal' && data.proposal) {
-            updateMessages(prev =>prev.map(msg =>
-              msg.id === assistantMsgId
-                ? { ...msg, proposal: data.proposal }
-                : msg
-            ));
+        onThinking: (event) => {
+          // Adeptify: eventType === 'thinking', content in delta
+          updateMessages(prev => prev.map(msg =>
+            msg.id === assistantMsgId
+              ? { ...msg, thinking: (msg.thinking || '') + (event.delta || '') }
+              : msg
+          ));
+        },
+
+        onResult: (event) => {
+          // Adeptify: eventType === 'content', type === 'text', content in delta
+          updateMessages(prev => prev.map(msg =>
+            msg.id === assistantMsgId
+              ? { ...msg, result: (msg.result || '') + (event.delta || '') }
+              : msg
+          ));
+        },
+
+        onData: (event) => {
+          // Adeptify: batch_action events - could contain proposals, assets etc
+          if (event.delta && typeof event.delta === 'object') {
+            if (event.delta.proposal) {
+              updateMessages(prev => prev.map(msg =>
+                msg.id === assistantMsgId
+                  ? { ...msg, proposal: event.delta.proposal }
+                  : msg
+              ));
+            }
+            if (event.delta.imageUrls) {
+              updateMessages(prev => prev.map(msg =>
+                msg.id === assistantMsgId
+                  ? { ...msg, imageUrls: event.delta.imageUrls }
+                  : msg
+              ));
+            }
+            if (event.delta.videoItems) {
+              updateMessages(prev => prev.map(msg =>
+                msg.id === assistantMsgId
+                  ? { ...msg, videoItems: event.delta.videoItems }
+                  : msg
+              ));
+            }
           }
         },
 
@@ -520,9 +526,10 @@ const ChatConversation = forwardRef(({
           setLoading(false);
           sseConnectionRef.current = null;
 
-          if (data.plan && onPlanReceived) {
+          // 检查是否有 plan 或 workflow 数据
+          if (data && data.plan && onPlanReceived) {
             onPlanReceived(data.plan);
-          } else if (data.workflowCreated && onWorkflowCreated) {
+          } else if (data && data.workflowCreated && onWorkflowCreated) {
             onWorkflowCreated(data.workflowNodes || data.nodes, data.workflowEdges || data.edges);
           }
         },
@@ -540,7 +547,7 @@ const ChatConversation = forwardRef(({
         },
       }
     );
-  }, [loading, updateMessages, projectId, projectVersion, agentId, onWorkflowCreated, onPlanReceived, attachments]);
+  }, [loading, updateMessages, projectId, agentId, nodeId, onWorkflowCreated, onPlanReceived]);
 
   // 暴露 sendMessage 和 injectMessage 方法
   useImperativeHandle(ref, () => ({
