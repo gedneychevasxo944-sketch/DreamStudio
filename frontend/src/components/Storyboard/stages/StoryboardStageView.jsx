@@ -31,6 +31,7 @@ const StoryboardStageView = ({
   onAddNew,
   onUpload,
   onBatchGenerate,
+  saveStatus,
 }) => {
   return (
     <div className="storyboard-content storyboard-stage-content">
@@ -58,6 +59,7 @@ const StoryboardStageView = ({
               onDelete={onDeleteAsset}
               onGenerate={onGenerate}
               onAIDialog={onAIDialog}
+              saveStatus={saveStatus}
             />
           </section>
         )}

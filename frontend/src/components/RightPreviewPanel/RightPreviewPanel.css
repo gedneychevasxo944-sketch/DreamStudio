@@ -528,6 +528,32 @@
   padding: 16px;
 }
 
+/* 剧本标题 */
+.script-display-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.script-display-title h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.script-display-title .title-detected {
+  padding: 2px 8px;
+  background: rgba(6, 182, 212, 0.1);
+  border: 1px solid rgba(6, 182, 212, 0.2);
+  border-radius: 4px;
+  font-size: 10px;
+  color: var(--accent-cyan);
+}
+
 .script-content {
   flex: 1;
   padding: 16px;
@@ -653,6 +679,63 @@
 .script-scene-content {
   padding: 0 14px 14px 36px;
   font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.8;
+  white-space: pre-wrap;
+  margin: 0;
+}
+
+/* 目录提示 */
+.script-toc-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: rgba(6, 182, 212, 0.1);
+  border: 1px solid rgba(6, 182, 212, 0.2);
+  border-radius: 6px;
+  font-size: 11px;
+  color: var(--accent-cyan);
+  margin-bottom: 12px;
+}
+
+.toc-refresh-btn {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--accent-cyan);
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+
+.toc-refresh-btn:hover {
+  opacity: 1;
+  background: rgba(6, 182, 212, 0.2);
+}
+
+/* 剧集标签的场景数量 */
+.script-episode-tab .episode-scene-count {
+  margin-left: 4px;
+  padding: 2px 6px;
+  background: rgba(6, 182, 212, 0.15);
+  border-radius: 10px;
+  font-size: 10px;
+}
+
+/* 无目录时的纯文本显示 */
+.script-plain-content {
+  padding: 12px;
+}
+
+.script-plain-content pre {
+  font-size: 13px;
   color: var(--text-secondary);
   line-height: 1.8;
   white-space: pre-wrap;

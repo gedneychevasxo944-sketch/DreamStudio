@@ -35,6 +35,7 @@ const ScriptStageView = ({
   onParseConfirm,
   onParseCancel,
   onParseRetry,
+  saveStatus,
 }) => {
   const isScriptEmpty = !scriptAsset?.content;
 
@@ -76,6 +77,7 @@ const ScriptStageView = ({
             content: '',
           }}
           onUpdate={onUpdateAsset}
+          saveStatus={saveStatus}
         />
 
         {/* 底部按钮栏 */}

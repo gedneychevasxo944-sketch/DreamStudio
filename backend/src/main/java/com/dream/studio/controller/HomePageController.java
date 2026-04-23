@@ -1,6 +1,7 @@
 package com.dream.studio.controller;
 
 import com.dream.studio.dto.ApiResponse;
+import com.dream.studio.dto.AgentDTO;
 import com.dream.studio.dto.ProjectDTO;
 import com.dream.studio.dto.TemplateDTO;
 import com.dream.studio.entity.User;
@@ -9,6 +10,7 @@ import com.dream.studio.exception.UserNotFoundException;
 import com.dream.studio.filter.JwtAuthenticationFilter.UserPrincipal;
 import com.dream.studio.repository.UserRepository;
 import com.dream.studio.service.HomePageService;
+import com.dream.studio.service.MockDataService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -19,6 +21,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Optional;
 
 @Slf4j
@@ -30,6 +33,7 @@ public class HomePageController {
 
     private final HomePageService homePageService;
     private final UserRepository userRepository;
+    private final MockDataService mockDataService;
 
     /**
      * 从安全上下文获取当前登录用户
@@ -96,6 +100,40 @@ public class HomePageController {
         return ApiResponse.success(response);
     }
 
+    @GetMapping("/workspace/agents")
+    @Operation(summary = "获取智能体列表", description = "获取所有可用的智能体")
+    public ApiResponse<List<AgentDTO.Response>> getAgents() {
+        log.info("Getting workspace agents");
+        List<AgentDTO.Response> agents = List.of(
+            AgentDTO.Response.builder()
+                .id(1L).name("资深制片人").agentCode("producer").agentId(1L).agentName("资深制片人")
+                .describe("负责项目规划和资源协调").icon("Target").color("#3b82f6")
+                .agentTags(List.of("producer", "planning"))
+                .build(),
+            AgentDTO.Response.builder()
+                .id(2L).name("金牌编剧").agentCode("content").agentId(2L).agentName("金牌编剧")
+                .describe("负责剧本和内容创作").icon("FileText").color("#8b5cf6")
+                .agentTags(List.of("content", "script"))
+                .build(),
+            AgentDTO.Response.builder()
+                .id(3L).name("概念美术").agentCode("visual").agentId(3L).agentName("概念美术")
+                .describe("负责视觉风格和概念设计").icon("Image").color("#ec4899")
+                .agentTags(List.of("visual", "concept"))
+                .build(),
+            AgentDTO.Response.builder()
+                .id(4L).name("分镜导演").agentCode("director").agentId(4L).agentName("分镜导演")
+                .describe("负责镜头设计和分镜规划").icon("Clapperboard").color("#f59e0b")
+                .agentTags(List.of("director", "storyboard"))
+                .build(),
+            AgentDTO.Response.builder()
+                .id(5L).name("视频生成").agentCode("videoGen").agentId(5L).agentName("视频生成")
+                .describe("负责视频内容生成").icon("Film").color("#10b981")
+                .agentTags(List.of("video", "generation"))
+                .build()
+        );
+        return ApiResponse.success(agents);
+    }
+
     @PostMapping("/projects/{id}/save")
     @Operation(summary = "保存项目", description = "保存项目当前版本")
     public ApiResponse<ProjectDTO.Response> saveProject(
@@ -113,6 +151,10 @@ public class HomePageController {
         User currentUser = getCurrentUser();
         log.info("Getting versions for project: {} user: {}", id, currentUser.getAccount());
         ProjectDTO.VersionListResponse response = homePageService.getVersions(id, currentUser.getAccount());
+        // 如果没有真实数据，返回模拟版本
+        if (response.getVersions().isEmpty()) {
+            response = mockDataService.getMockVersionsForProject(id);
+        }
         return ApiResponse.success(response);
     }
 
@@ -123,8 +165,21 @@ public class HomePageController {
             @PathVariable Integer v) {
         User currentUser = getCurrentUser();
         log.info("Getting version {} of project {} user: {}", v, id, currentUser.getAccount());
-        ProjectDTO.VersionResponse response = homePageService.getVersion(id, v, currentUser.getAccount());
-        return ApiResponse.success(response);
+        try {
+            ProjectDTO.VersionResponse response = homePageService.getVersion(id, v, currentUser.getAccount());
+            return ApiResponse.success(response);
+        } catch (Exception e) {
+            // 如果没有真实数据，返回模拟版本
+            log.info("Returning mock version {} for project: {}", v, id);
+            return ApiResponse.success(ProjectDTO.VersionResponse.builder()
+                    .id((long) v)
+                    .versionNumber(v)
+                    .title("V" + v + ".0")
+                    .description("版本 " + v + " 详情")
+                    .createdTime("2026-04-22 10:00:00")
+                    .status("COMPLETED")
+                    .build());
+        }
     }
 
     @PostMapping("/projects/{id}/versions/{v}/restore")

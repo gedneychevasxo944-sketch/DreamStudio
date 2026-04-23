@@ -38,6 +38,7 @@ const AssetStageView = ({
   onCloseAIDialog,
   onAddNew,
   onUpload,
+  saveStatus,
 }) => {
   return (
     <div className="asset-stage-layout">
@@ -64,6 +65,7 @@ const AssetStageView = ({
               onDelete={onDeleteAsset}
               onGenerate={onGenerate}
               onAIDialog={onAIDialog}
+              saveStatus={saveStatus}
             />
           )}
         </section>

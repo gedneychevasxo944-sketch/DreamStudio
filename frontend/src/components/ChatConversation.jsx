@@ -471,10 +471,9 @@ const ChatConversation = forwardRef(({
     sseConnectionRef.current = chatApi.sendMessageStream(
       {
         projectId,
+        message: messageContent.trim(),
         contextType: 'node',
         contextId: nodeId || 'default',
-        characterId: agentId,
-        message: messageContent.trim(),
       },
       {
         onThinking: (event) => {

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import {
   Sparkles, Trash2, Play, Settings,
   Image, Film, FileText, User, MapPin, Box,
@@ -24,6 +24,7 @@ const AssetDetailPanel = ({
   onDelete,
   onGenerate,
   onAIDialog,
+  saveStatus = 'idle', // 'idle' | 'saving' | 'saved'
 }) => {
   const { currentStage } = useStageStore();
 
@@ -36,208 +37,115 @@ const AssetDetailPanel = ({
   // 使用 key={asset.id} 确保切换资产时重新挂载编辑器，以同步新资产的数据
   switch (currentStage) {
     case STAGES.SCRIPT:
-      return <ScriptEditor key={asset.id} asset={asset} onUpdate={onUpdate} />;
+      return <ScriptEditor key={asset.id} asset={asset} onUpdate={onUpdate} saveStatus={saveStatus} />;
     case STAGES.CHARACTER:
-      return <CharacterEditor key={asset.id} asset={asset} onUpdate={onUpdate} onDelete={onDelete} onGenerate={onGenerate} onAIDialog={onAIDialog} />;
+      return <CharacterEditor key={asset.id} asset={asset} onUpdate={onUpdate} onDelete={onDelete} onGenerate={onGenerate} onAIDialog={onAIDialog} saveStatus={saveStatus} />;
     case STAGES.SCENE:
-      return <SceneEditor key={asset.id} asset={asset} onUpdate={onUpdate} onDelete={onDelete} onGenerate={onGenerate} onAIDialog={onAIDialog} />;
+      return <SceneEditor key={asset.id} asset={asset} onUpdate={onUpdate} onDelete={onDelete} onGenerate={onGenerate} onAIDialog={onAIDialog} saveStatus={saveStatus} />;
     case STAGES.PROP:
-      return <PropEditor key={asset.id} asset={asset} onUpdate={onUpdate} onDelete={onDelete} onGenerate={onGenerate} onAIDialog={onAIDialog} />;
+      return <PropEditor key={asset.id} asset={asset} onUpdate={onUpdate} onDelete={onDelete} onGenerate={onGenerate} onAIDialog={onAIDialog} saveStatus={saveStatus} />;
     case STAGES.STORYBOARD:
-      return <StoryboardEditor key={asset.id} asset={asset} onUpdate={onUpdate} onDelete={onDelete} onGenerate={onGenerate} onAIDialog={onAIDialog} />;
+      return <StoryboardEditor key={asset.id} asset={asset} onUpdate={onUpdate} onDelete={onDelete} onGenerate={onGenerate} onAIDialog={onAIDialog} saveStatus={saveStatus} />;
     case STAGES.VIDEO:
-      return <VideoEditor key={asset.id} asset={asset} onUpdate={onUpdate} onGenerate={onGenerate} onAIDialog={onAIDialog} />;
+      return <VideoEditor key={asset.id} asset={asset} onUpdate={onUpdate} onGenerate={onGenerate} onAIDialog={onAIDialog} saveStatus={saveStatus} />;
     case STAGES.CLIP:
-      return <ClipEditor key={asset.id} asset={asset} onUpdate={onUpdate} onDelete={onDelete} />;
+      return <ClipEditor key={asset.id} asset={asset} onUpdate={onUpdate} onDelete={onDelete} saveStatus={saveStatus} />;
     default:
       return <DefaultEditor key={asset.id} asset={asset} />;
   }
 };
 
 // ============ 剧本编辑器 ============
-const ScriptEditor = ({ asset, onUpdate }) => {
-  // 剧本内容（纯文本）
+const ScriptEditor = ({ asset, onUpdate, saveStatus }) => {
   const [content, setContent] = useState(asset.content || '');
+  const [showToc, setShowToc] = useState(true);
+  const [expandedChapters, setExpandedChapters] = useState({});
 
-  // 当内容变化时同步到 store
+  // 当内容变化时触发保存
   useEffect(() => {
-    const timer = setTimeout(() => {
+    if (content !== asset.content) {
       onUpdate?.(asset.id, { content });
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [content, asset.id, onUpdate]);
-
-  // 是否已生成目录
-  const [hasGeneratedToc, setHasGeneratedToc] = useState(false);
-
-  // 剧本目录数据结构（生成后才有）
-  const [scriptData, setScriptData] = useState(null);
-
-  // 当前选中位置
-  const [selectedPath, setSelectedPath] = useState(null);
-  const [expandedActs, setExpandedActs] = useState([]);
-  const [expandedScenes, setExpandedScenes] = useState([]);
-
-  // 当前编辑的内容
-  const [currentContent, setCurrentContent] = useState('');
-
-  // 基于规则生成剧本导航
-  const handleGenerateToc = () => {
-    // 模拟 AI 生成目录结构
-    const generated = {
-      acts: [
-        {
-          id: 'act-1',
-          name: '第一集',
-          scenes: [
-            {
-              id: 'scene-1',
-              name: '场景 1',
-              paragraphs: [
-                { id: 'para-1', label: '开场', content: '在一个雷雨交加的夜晚...' },
-                { id: 'para-2', label: '发展', content: '主角出现了...' }
-              ]
-            }
-          ]
-        }
-      ]
-    };
-    setScriptData(generated);
-    setHasGeneratedToc(true);
-    setExpandedActs(['act-1']);
-    setExpandedScenes(['scene-1']);
-    setSelectedPath({ actId: 'act-1', sceneId: 'scene-1', paraId: 'para-1' });
-    setCurrentContent('在一个雷雨交加的夜晚...\n\n主角出现了...');
-  };
-
-  // 切换集数展开/折叠
-  const toggleAct = (actId) => {
-    setExpandedActs(prev =>
-      prev.includes(actId) ? prev.filter(id => id !== actId) : [...prev, actId]
-    );
-  };
-
-  // 切换场景展开/折叠
-  const toggleScene = (sceneId) => {
-    setExpandedScenes(prev =>
-      prev.includes(sceneId) ? prev.filter(id => id !== sceneId) : [...prev, sceneId]
-    );
-  };
-
-  // 选择段落
-  const selectParagraph = (actId, sceneId, paraId) => {
-    setSelectedPath({ actId, sceneId, paraId });
-    // 找到对应段落内容
-    if (scriptData) {
-      const act = scriptData.acts.find(a => a.id === actId);
-      if (act) {
-        const scene = act.scenes.find(s => s.id === sceneId);
-        if (scene) {
-          const para = scene.paragraphs.find(p => p.id === paraId);
-          if (para) {
-            setCurrentContent(para.content);
-          }
-        }
-      }
     }
+  }, [content, asset.id, onUpdate, asset.content]);
+
+  // 解析目录
+  const { toc, title: scriptTitle } = useMemo(() => {
+    return parseScriptTocFull(content);
+  }, [content]);
+
+  // 切换章节展开/折叠
+  const toggleChapter = (chapterId) => {
+    setExpandedChapters(prev => ({
+      ...prev,
+      [chapterId]: !prev[chapterId],
+    }));
   };
 
-  // 保存剧本
-  const handleSave = () => {
-    onUpdate?.(asset.id, { content });
+  // 全选/全收
+  const toggleAll = (expand) => {
+    const allExpanded = {};
+    toc.forEach(ch => { allExpanded[ch.id] = expand; });
+    setExpandedChapters(allExpanded);
   };
 
-  // 判断是否选中
-  const isParaSelected = (actId, sceneId, paraId) => {
-    return selectedPath?.actId === actId && selectedPath?.sceneId === sceneId && selectedPath?.paraId === paraId;
-  };
-
-  // 计算段落数量
-  const getTotalParagraphs = () => {
-    if (!scriptData) return 0;
-    return scriptData.acts.reduce((sum, act) => {
-      return sum + act.scenes.reduce((sceneSum, scene) => {
-        return sceneSum + scene.paragraphs.length;
-      }, 0);
-    }, 0);
-  };
-
-  // 如果还没生成目录，显示简化视图
-  if (!hasGeneratedToc) {
-    return (
-      <div className="detail-panel-content script-editor-simple">
-        <div className="panel-header">
-          <FileText size={18} />
-          <h3>剧本编辑器</h3>
-        </div>
-
-        <div className="panel-body">
-          <textarea
-            className="script-textarea-full"
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            placeholder="在此输入剧本内容..."
-          />
-        </div>
-      </div>
-    );
-  }
-
-  // 生成后显示带目录的视图
   return (
     <div className="detail-panel-content script-editor">
-      {/* 左侧目录 */}
+      {/* 左侧目录面板 */}
       <div className="script-toc-panel">
         <div className="script-toc-header">
-          <h4>剧本目录</h4>
-          <span className="toc-stats">{scriptData?.acts.length || 0} 集 / {getTotalParagraphs()} 段落</span>
+          <div className="script-toc-title-row">
+            <FileText size={16} />
+            <h4>{scriptTitle || '剧本目录'}</h4>
+          </div>
+          <button
+            className="toc-toggle-btn"
+            onClick={() => setShowToc(!showToc)}
+            title={showToc ? '收起目录' : '展开目录'}
+          >
+            {showToc ? '◀' : '▶'}
+          </button>
         </div>
 
-        <div className="script-toc-content">
-          {scriptData?.acts.map((act) => (
-            <div key={act.id} className="toc-act">
-              <div className="toc-act-header" onClick={() => toggleAct(act.id)}>
-                <span className={`toc-expand-icon ${expandedActs.includes(act.id) ? 'expanded' : ''}`}>
-                  ▶
-                </span>
-                <span className="toc-act-name">{act.name}</span>
-              </div>
-
-              {expandedActs.includes(act.id) && (
-                <div className="toc-scenes">
-                  {act.scenes.map((scene) => (
-                    <div key={scene.id} className="toc-scene">
-                      <div className="toc-scene-header" onClick={() => toggleScene(scene.id)}>
-                        <span className={`toc-expand-icon ${expandedScenes.includes(scene.id) ? 'expanded' : ''}`}>
-                          ▶
-                        </span>
-                        <span className="toc-scene-name">{scene.name}</span>
-                      </div>
-
-                      {expandedScenes.includes(scene.id) && (
-                        <div className="toc-paragraphs">
-                          {scene.paragraphs.map((para) => (
-                            <div
-                              key={para.id}
-                              className={`toc-paragraph ${isParaSelected(act.id, scene.id, para.id) ? 'selected' : ''}`}
-                              onClick={() => selectParagraph(act.id, scene.id, para.id)}
-                            >
-                              <span className="para-label">{para.label}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
+        {showToc && (
+          <>
+            <div className="script-toc-content">
+              {toc.length === 0 ? (
+                <div className="toc-empty">暂无目录</div>
+              ) : (
+                toc.map((chapter) => (
+                  <div key={chapter.id} className="toc-chapter">
+                    <div
+                      className="toc-chapter-header"
+                      onClick={() => toggleChapter(chapter.id)}
+                    >
+                      <span className={`toc-expand-icon ${expandedChapters[chapter.id] ? 'expanded' : ''}`}>
+                        ▶
+                      </span>
+                      <span className="toc-chapter-title">{chapter.title}</span>
                     </div>
-                  ))}
-                </div>
+
+                    {expandedChapters[chapter.id] && chapter.scenes?.length > 0 && (
+                      <div className="toc-scenes">
+                        {chapter.scenes.map((scene) => (
+                          <div key={scene.id} className="toc-scene">
+                            <span className="toc-scene-title">{scene.title}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))
               )}
             </div>
-          ))}
-        </div>
 
-        <button className="add-act-btn" onClick={handleGenerateToc}>
-          重新生成导航
-        </button>
+            {toc.length > 1 && (
+              <div className="toc-actions">
+                <button className="toc-action-btn" onClick={() => toggleAll(true)}>全部展开</button>
+                <button className="toc-action-btn" onClick={() => toggleAll(false)}>全部收起</button>
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       {/* 右侧编辑区 */}
@@ -245,49 +153,162 @@ const ScriptEditor = ({ asset, onUpdate }) => {
         <div className="panel-header">
           <FileText size={18} />
           <h3>剧本编辑</h3>
-          {selectedPath && (
-            <span className="current-location">
-              {scriptData?.acts.find(a => a.id === selectedPath.actId)?.name} / {' '}
-              {scriptData?.acts.find(a => a.id === selectedPath.actId)?.scenes.find(s => s.id === selectedPath.sceneId)?.name} / {' '}
-              {selectedPath.paraId}
-            </span>
+          {saveStatus !== 'idle' && (
+            <span className="save-status">{saveStatus === 'saving' ? '保存中...' : '已保存'}</span>
           )}
         </div>
 
         <div className="panel-body">
           <textarea
             className="script-edit-textarea"
-            value={currentContent}
-            onChange={(e) => setCurrentContent(e.target.value)}
-            placeholder="选择左侧目录中的段落开始编辑..."
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            placeholder="输入剧本内容，支持 Markdown 格式自动解析目录..."
           />
-        </div>
-
-        <div className="panel-footer">
-          <button className="btn-secondary" onClick={() => setHasGeneratedToc(false)}>
-            返回纯文本
-          </button>
         </div>
       </div>
     </div>
   );
 };
 
+// 解析剧本目录（完整版，返回目录和标题）
+function parseScriptTocFull(content) {
+  if (!content) return { toc: [], title: null };
+
+  const lines = content.split('\n');
+  const toc = [];
+  let scriptTitle = null;
+  let currentChapter = null;
+  let chapterIndex = 0;
+
+  for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+    const line = lines[lineIdx];
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    // Markdown 一级标题 -> 剧本标题
+    if (!scriptTitle && trimmed.startsWith('# ')) {
+      scriptTitle = trimmed.slice(2).trim();
+      continue;
+    }
+
+    // Markdown 二级标题 -> 章节
+    if (trimmed.startsWith('## ')) {
+      chapterIndex++;
+      currentChapter = {
+        id: `chapter-${chapterIndex}`,
+        title: trimmed.slice(3).trim(),
+        scenes: [],
+      };
+      toc.push(currentChapter);
+      continue;
+    }
+
+    // 普通章节格式
+    const chapterPatterns = [
+      /^(第[一二三四五六七八九十百千万\d]+[章节集部话篇])\s*[:：]?\s*(.*)/i,
+      /^(Chapter|Chapter\s*\d+)\s*[:：]?\s*(.*)/i,
+    ];
+
+    let matched = false;
+    for (const pattern of chapterPatterns) {
+      const match = trimmed.match(pattern);
+      if (match) {
+        chapterIndex++;
+        currentChapter = {
+          id: `chapter-${chapterIndex}`,
+          title: match[0],
+          scenes: [],
+        };
+        toc.push(currentChapter);
+        matched = true;
+        break;
+      }
+    }
+    if (matched) continue;
+
+    // 场景（归属于当前章节）
+    if (currentChapter) {
+      const sceneMatch = trimmed.match(/^(场景[境]?\d+)\s*[:：]\s*(.*)/i);
+      if (sceneMatch) {
+        currentChapter.scenes.push({
+          id: `scene-${lineIdx}`,
+          title: sceneMatch[1],
+          content: sceneMatch[2] || '',
+        });
+        continue;
+      }
+
+      // 数字列表
+      const numMatch = trimmed.match(/^(\d+)[\.、:：]\s*(.*)/);
+      if (numMatch) {
+        currentChapter.scenes.push({
+          id: `scene-${lineIdx}`,
+          title: numMatch[1],
+          content: numMatch[2] || '',
+        });
+        continue;
+      }
+
+      // 普通段落（归属于最后一个场景）
+      if (currentChapter.scenes.length > 0) {
+        const lastScene = currentChapter.scenes[currentChapter.scenes.length - 1];
+        if (lastScene.content) {
+          lastScene.content += '\n' + trimmed;
+        } else {
+          lastScene.content = trimmed;
+        }
+      }
+    }
+  }
+
+  // 如果没有匹配到任何结构，按段落分隔
+  if (toc.length === 0 && content.length > 0) {
+    const paragraphs = content.split(/\n\n+/).filter(p => p.trim());
+    if (paragraphs.length > 0) {
+      toc.push({
+        id: 'chapter-1',
+        title: '剧本内容',
+        scenes: paragraphs.map((p, i) => ({
+          id: `scene-${i}`,
+          title: `段落 ${i + 1}`,
+          content: p.trim(),
+        })),
+      });
+    }
+  }
+
+  return { toc, title: scriptTitle };
+}
+
 // ============ 角色编辑器 ============
-const CharacterEditor = ({ asset, onUpdate, onDelete, onGenerate, onAIDialog }) => {
+const CharacterEditor = ({ asset, onUpdate, onDelete, onGenerate, onAIDialog, saveStatus }) => {
   const [name, setName] = useState(asset.name || '');
   const [description, setDescription] = useState(asset.description || '');
   const [prompt, setPrompt] = useState(asset.prompt || '');
+  const initialNameRef = useRef(asset.name || '');
+  const initialDescRef = useRef(asset.description || '');
+  const initialPromptRef = useRef(asset.prompt || '');
 
-  const handleSave = () => {
-    onUpdate?.(asset.id, { name, description, prompt });
-  };
+  // 立即触发保存（debounce 在 handleUpdateAsset 中统一处理）
+  useEffect(() => {
+    // 只有真正变化了才触发保存
+    if (name !== initialNameRef.current || description !== initialDescRef.current || prompt !== initialPromptRef.current) {
+      onUpdate?.(asset.id, { name, description, prompt });
+      initialNameRef.current = name;
+      initialDescRef.current = description;
+      initialPromptRef.current = prompt;
+    }
+  }, [name, description, prompt, asset.id, onUpdate]);
 
   return (
     <div className="detail-panel-content">
       <div className="panel-header">
         <User size={18} />
         <h3>角色设计</h3>
+        {saveStatus !== 'idle' && (
+          <span className="save-status">{saveStatus === 'saving' ? '保存中...' : '已保存'}</span>
+        )}
         <button className="btn-icon-danger" onClick={() => onDelete?.(asset.id)}>
           <Trash2 size={16} />
         </button>
@@ -352,20 +373,32 @@ const CharacterEditor = ({ asset, onUpdate, onDelete, onGenerate, onAIDialog }) 
 };
 
 // ============ 场景编辑器 ============
-const SceneEditor = ({ asset, onUpdate, onDelete, onGenerate, onAIDialog }) => {
+const SceneEditor = ({ asset, onUpdate, onDelete, onGenerate, onAIDialog, saveStatus }) => {
   const [name, setName] = useState(asset.name || '');
   const [description, setDescription] = useState(asset.description || '');
   const [prompt, setPrompt] = useState(asset.prompt || '');
+  const initialNameRef = useRef(asset.name || '');
+  const initialDescRef = useRef(asset.description || '');
+  const initialPromptRef = useRef(asset.prompt || '');
 
-  const handleSave = () => {
-    onUpdate?.(asset.id, { name, description, prompt });
-  };
+  // 立即触发保存（debounce 在 handleUpdateAsset 中统一处理）
+  useEffect(() => {
+    if (name !== initialNameRef.current || description !== initialDescRef.current || prompt !== initialPromptRef.current) {
+      onUpdate?.(asset.id, { name, description, prompt });
+      initialNameRef.current = name;
+      initialDescRef.current = description;
+      initialPromptRef.current = prompt;
+    }
+  }, [name, description, prompt, asset.id, onUpdate]);
 
   return (
     <div className="detail-panel-content">
       <div className="panel-header">
         <MapPin size={18} />
         <h3>场景设计</h3>
+        {saveStatus !== 'idle' && (
+          <span className="save-status">{saveStatus === 'saving' ? '保存中...' : '已保存'}</span>
+        )}
         <button className="btn-icon-danger" onClick={() => onDelete?.(asset.id)}>
           <Trash2 size={16} />
         </button>
@@ -429,20 +462,32 @@ const SceneEditor = ({ asset, onUpdate, onDelete, onGenerate, onAIDialog }) => {
 };
 
 // ============ 道具编辑器 ============
-const PropEditor = ({ asset, onUpdate, onDelete, onGenerate, onAIDialog }) => {
+const PropEditor = ({ asset, onUpdate, onDelete, onGenerate, onAIDialog, saveStatus }) => {
   const [name, setName] = useState(asset.name || '');
   const [description, setDescription] = useState(asset.description || '');
   const [prompt, setPrompt] = useState(asset.prompt || '');
+  const initialNameRef = useRef(asset.name || '');
+  const initialDescRef = useRef(asset.description || '');
+  const initialPromptRef = useRef(asset.prompt || '');
 
-  const handleSave = () => {
-    onUpdate?.(asset.id, { name, description, prompt });
-  };
+  // 立即触发保存（debounce 在 handleUpdateAsset 中统一处理）
+  useEffect(() => {
+    if (name !== initialNameRef.current || description !== initialDescRef.current || prompt !== initialPromptRef.current) {
+      onUpdate?.(asset.id, { name, description, prompt });
+      initialNameRef.current = name;
+      initialDescRef.current = description;
+      initialPromptRef.current = prompt;
+    }
+  }, [name, description, prompt, asset.id, onUpdate]);
 
   return (
     <div className="detail-panel-content">
       <div className="panel-header">
         <Box size={18} />
         <h3>道具设计</h3>
+        {saveStatus !== 'idle' && (
+          <span className="save-status">{saveStatus === 'saving' ? '保存中...' : '已保存'}</span>
+        )}
         <button className="btn-icon-danger" onClick={() => onDelete?.(asset.id)}>
           <Trash2 size={16} />
         </button>
@@ -518,7 +563,7 @@ const STYLE_OPTIONS = [
   { value: 'sci-fi', label: '科幻' },
 ];
 
-const StoryboardEditor = ({ asset, onUpdate, onDelete, onGenerate, onAIDialog }) => {
+const StoryboardEditor = ({ asset, onUpdate, onDelete, onGenerate, onAIDialog, saveStatus }) => {
   const { stageAssets: allAssets } = useStageStore();
 
   // 分镜编辑状态 - 初始化自 asset，仅在 asset.id 变化时重新创建（通过 key）
@@ -541,21 +586,18 @@ const StoryboardEditor = ({ asset, onUpdate, onDelete, onGenerate, onAIDialog })
     last: asset.frames?.last || null,
   });
 
-  // 处理保存
-  const handleSave = useCallback(() => {
-    onUpdate?.(asset.id, {
-      style,
-      cameraMovement,
-      shotType,
-      duration,
-      prompt,
-      scriptParagraph,
-      characterIds: selectedCharacterIds,
-      sceneId: selectedSceneId,
-      propsIds: selectedPropIds,
-      frames,
-    });
-  }, [asset, style, cameraMovement, shotType, duration, prompt, scriptParagraph, selectedCharacterIds, selectedSceneId, selectedPropIds, frames, onUpdate]);
+  // 初始值 refs
+  const initialRef = useRef({ style: asset.style, cameraMovement: asset.cameraMovement, shotType: asset.shotType, duration: asset.duration, prompt: asset.prompt, scriptParagraph: asset.scriptParagraph, characterIds: asset.characterIds, sceneId: asset.sceneId, propsIds: asset.propsIds, frames: asset.frames });
+
+  // 立即触发保存（debounce 在 handleUpdateAsset 中统一处理）
+  useEffect(() => {
+    const current = { style, cameraMovement, shotType, duration, prompt, scriptParagraph, characterIds: selectedCharacterIds, sceneId: selectedSceneId, propsIds: selectedPropIds, frames };
+    const initial = initialRef.current;
+    if (JSON.stringify(current) !== JSON.stringify(initial)) {
+      onUpdate?.(asset.id, current);
+      initialRef.current = current;
+    }
+  }, [style, cameraMovement, shotType, duration, prompt, scriptParagraph, selectedCharacterIds, selectedSceneId, selectedPropIds, frames, asset.id, onUpdate]);
 
   // 处理预览帧点击（生成单个帧）
   const handleFrameGenerate = (frameType) => {
@@ -620,6 +662,9 @@ const StoryboardEditor = ({ asset, onUpdate, onDelete, onGenerate, onAIDialog })
         <Film size={18} />
         <h3>{asset?.label || asset?.name || '分镜编辑'}</h3>
         {asset?.status && getStatusBadge(asset.status)}
+        {saveStatus !== 'idle' && (
+          <span className="save-status">{saveStatus === 'saving' ? '保存中...' : '已保存'}</span>
+        )}
       </div>
 
       <div className="panel-body">
@@ -763,7 +808,7 @@ const QUALITY_OPTIONS = [
   { value: 'ultra', label: '高清' },
 ];
 
-const VideoEditor = ({ asset, onUpdate, onGenerate, onAIDialog }) => {
+const VideoEditor = ({ asset, onUpdate, onGenerate, onAIDialog, saveStatus }) => {
   const { stageAssets: allAssets } = useStageStore();
 
   // 视频参数状态
@@ -799,25 +844,27 @@ const VideoEditor = ({ asset, onUpdate, onGenerate, onAIDialog }) => {
     return prop?.name || '';
   }).filter(Boolean).join('、');
 
-  // 处理保存参数
-  const handleSave = useCallback(() => {
-    onUpdate?.(asset.id, {
-      aspectRatio,
-      duration,
-      quality,
-      prompt,
-      scriptParagraph,
-      characterIds,
-      sceneId,
-      propIds,
-    });
-  }, [asset, aspectRatio, duration, quality, prompt, scriptParagraph, characterIds, sceneId, propIds, onUpdate]);
+  // 初始值 refs
+  const initialRef = useRef({ aspectRatio: asset.aspectRatio, duration: asset.duration, quality: asset.quality, prompt: asset.prompt, scriptParagraph: asset.scriptParagraph, characterIds: asset.characterIds, sceneId: asset.sceneId, propIds: asset.propIds });
+
+  // 立即触发保存（debounce 在 handleUpdateAsset 中统一处理）
+  useEffect(() => {
+    const current = { aspectRatio, duration, quality, prompt, scriptParagraph, characterIds, sceneId, propIds };
+    const initial = initialRef.current;
+    if (JSON.stringify(current) !== JSON.stringify(initial)) {
+      onUpdate?.(asset.id, current);
+      initialRef.current = current;
+    }
+  }, [aspectRatio, duration, quality, prompt, scriptParagraph, characterIds, sceneId, propIds, asset.id, onUpdate]);
 
   return (
     <div className="detail-panel-content video-editor-v2">
       <div className="panel-header">
         <Film size={18} />
         <h3>{asset?.label || asset?.name || '视频预览'}</h3>
+        {saveStatus !== 'idle' && (
+          <span className="save-status">{saveStatus === 'saving' ? '保存中...' : '已保存'}</span>
+        )}
       </div>
 
       <div className="panel-body">
@@ -943,7 +990,7 @@ const VideoEditor = ({ asset, onUpdate, onGenerate, onAIDialog }) => {
 };
 
 // ============ 剪辑编辑器 ============
-const ClipEditor = ({ asset, onUpdate, onDelete }) => {
+const ClipEditor = ({ asset, onUpdate, onDelete, saveStatus }) => {
   // 裁剪状态 - 初始化自 asset
   const [startTime, setStartTime] = useState(asset.startTime || 0);
   const [endTime, setEndTime] = useState(asset.endTime || 5);
@@ -970,6 +1017,9 @@ const ClipEditor = ({ asset, onUpdate, onDelete }) => {
       <div className="panel-header">
         <Scissors size={18} />
         <h3>{asset?.label || asset?.name || '视频片段'}</h3>
+        {saveStatus !== 'idle' && (
+          <span className="save-status">{saveStatus === 'saving' ? '保存中...' : '已保存'}</span>
+        )}
       </div>
 
       <div className="panel-body">

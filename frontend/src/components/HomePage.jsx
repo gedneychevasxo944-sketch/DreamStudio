@@ -11,62 +11,44 @@ import { authStorage } from '../utils/authStorage';
 import useThemeStore from '../stores/themeStore';
 import './HomePage.css';
 
-// 产品流程步骤（详细）
-const WORKFLOW_STEPS = [
+// 产品流程步骤（主线：剧本 → 分镜 → 视频）
+const WORKFLOW_MAIN_STEPS = [
   {
     icon: <FileText size={20} />,
-    label: '剧本',
+    label: 'STEP 1',
     title: '导入剧本',
-    description: '上传剧本文件或直接输入，AI 自动识别故事结构',
-    points: [
-      '支持多种格式：txt、fountain、json',
-      '自动解析场景、角色、对话',
-      'AI 润色与改写辅助',
-    ],
+    description: '上传剧本文件或输入台词，AI 自动解析故事结构、角色、场景',
+    highlights: ['智能解析角色与场景', '自动拆解分镜单元', '多格式支持'],
   },
+  {
+    icon: <Layers size={20} />,
+    label: 'STEP 2',
+    title: 'AI 生成分镜',
+    description: 'AI 根据剧本内容生成完整分镜，包含角色位置、运镜方式、画面描述',
+    highlights: ['一键生成分镜', '可调式镜头语言', '角色场景关联'],
+  },
+  {
+    icon: <Video size={20} />,
+    label: 'STEP 3',
+    title: '视频生成',
+    description: '选择分镜片段，一键生成视频片段，支持批量生成与导出',
+    highlights: ['端到端生成', '批量高效', '多格式导出'],
+  },
+];
+
+// 素材创作（支线）
+const WORKFLOW_SUB_STEPS = [
   {
     icon: <User size={20} />,
     label: '角色',
-    title: '角色生成',
-    description: '根据剧本自动识别并生成角色形象',
-    points: [
-      'AI 解析角色外貌特征',
-      '支持形象调整与重新生成',
-      '角色维度管理，统一视觉风格',
-    ],
+    title: 'AI 生成角色',
+    description: '根据剧本描述生成角色形象，支持风格定制与迭代优化',
   },
   {
     icon: <Layers size={20} />,
     label: '场景',
-    title: '场景构建',
-    description: '生成剧本中描述的场景环境',
-    points: [
-      '还原剧本场景描述',
-      '支持环境光、氛围调节',
-      '素材库快速复用',
-    ],
-  },
-  {
-    icon: <Film size={20} />,
-    label: '分镜',
-    title: '分镜编辑',
-    description: '编排镜头序列，配置镜头参数',
-    points: [
-      '景别、运镜、时长精细控制',
-      '角色/场景/道具关联',
-      'Prompt 优化与调试',
-    ],
-  },
-  {
-    icon: <Video size={20} />,
-    label: '视频',
-    title: '视频生成',
-    description: '端到端视频生成，支持批量导出',
-    points: [
-      '一键生成完整视频',
-      '批量处理高效产出',
-      '多格式导出（MP4、MOV）',
-    ],
+    title: 'AI 生成场景',
+    description: '根据剧本场景描述生成场景素材，支持环境氛围调节',
   },
 ];
 
@@ -519,7 +501,7 @@ const HomePage = ({ onEnter }) => {
         )}
       </motion.div>
 
-      {/* 创作流程 */}
+      {/* 创作流程 - 主线 */}
       <motion.div
         className="workflow-section"
         id="workflow-section"
@@ -528,28 +510,42 @@ const HomePage = ({ onEnter }) => {
         transition={{ delay: 0.5, duration: 0.6 }}
       >
         <h2 className="section-title">创作流程</h2>
-        <p className="section-subtitle">从剧本到视频，5 步完成你的故事</p>
-        <div className="workflow-steps">
-          {WORKFLOW_STEPS.map((step, index) => (
-            <div key={step.label} className="workflow-step-card">
-              <div className="step-header">
-                <div className="step-icon">{step.icon}</div>
-                <div className="step-info">
-                  <h3 className="step-title">{step.title}</h3>
-                  <span className="step-label">{step.label}</span>
-                </div>
-                {index < WORKFLOW_STEPS.length - 1 && (
-                  <ChevronRight size={20} className="step-arrow" />
-                )}
-              </div>
+        <p className="section-subtitle">从剧本到视频，三步完成你的故事</p>
+        <div className="workflow-main-steps">
+          {WORKFLOW_MAIN_STEPS.map((step, index) => (
+            <div key={step.label} className="workflow-main-step">
+              <div className="step-number">{step.label}</div>
+              <div className="step-icon-main">{step.icon}</div>
+              <h3 className="step-title">{step.title}</h3>
               <p className="step-description">{step.description}</p>
-              <ul className="step-points">
-                {step.points.map((point, i) => (
-                  <li key={i}>{point}</li>
+              <ul className="step-highlights">
+                {step.highlights.map((h, i) => (
+                  <li key={i}>{h}</li>
                 ))}
               </ul>
+              {index < WORKFLOW_MAIN_STEPS.length - 1 && (
+                <div className="step-connector">
+                  <ChevronRight size={24} />
+                </div>
+              )}
             </div>
           ))}
+        </div>
+
+        {/* 素材创作支线 */}
+        <div className="workflow-sub-section">
+          <div className="workflow-sub-title">素材创作（可选）</div>
+          <div className="workflow-sub-steps">
+            {WORKFLOW_SUB_STEPS.map((step) => (
+              <div key={step.label} className="workflow-sub-step">
+                <div className="step-icon-small">{step.icon}</div>
+                <div className="step-info">
+                  <h4 className="step-title-small">{step.title}</h4>
+                  <p className="step-desc-small">{step.description}</p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </motion.div>
 

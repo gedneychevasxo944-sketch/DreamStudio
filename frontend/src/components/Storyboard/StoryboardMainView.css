@@ -1335,3 +1335,17 @@
   background: rgba(239, 68, 68, 0.1);
   color: #ef4444;
 }
+
+/* 草稿保存状态指示器 */
+.save-status-indicator {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  padding: 8px 16px;
+  background: rgba(0, 0, 0, 0.8);
+  color: #888;
+  font-size: 12px;
+  border-radius: 4px;
+  z-index: 1000;
+  pointer-events: none;
+}

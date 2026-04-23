@@ -54,11 +54,6 @@ function App() {
     target: null, // project id for switchProject
   });
 
-  // 未保存修改详情（示例，实际应从 store 获取）
-  const [unsavedChanges, setUnsavedChanges] = useState([
-    { stage: '剧本阶段', description: '台词已修改' },
-  ]);
-
   // ============================================================================
   // 原有状态（保留）
   // ============================================================================
@@ -146,6 +141,22 @@ function App() {
     setShowSkillMarket,
     setLeftWidth,
   } = useUIStore();
+
+  // 未保存修改详情 - 动态计算（需要 canvasNodes 和 canvasConnections）
+  const unsavedChanges = useMemo(() => {
+    const changes = [];
+    // 如果项目名称有变化
+    if (savedProjectState && projectName !== savedProjectState.name) {
+      changes.push({ stage: '项目', description: `项目名称已修改为"${projectName}"` });
+    }
+    // 如果节点或连接有变化
+    if (savedProjectState && canvasNodes.length !== (savedProjectState.nodes?.length || 0)) {
+      changes.push({ stage: '节点画布', description: '节点数量有变化' });
+    } else if (savedProjectState && canvasConnections.length !== (savedProjectState.connections?.length || 0)) {
+      changes.push({ stage: '节点画布', description: '连接数量有变化' });
+    }
+    return changes;
+  }, [canvasNodes, canvasConnections, projectName, savedProjectState]);
 
   // ============================================================================
   // P0 新增：层切换处理
@@ -491,9 +502,17 @@ function App() {
       try {
         const createResponse = await homePageApi.createProject(projectTitle, null, {});
         if (createResponse.data) {
-          setCurrentProjectId(createResponse.data.id);
+          const newProjectId = createResponse.data.id;
+          setCurrentProjectId(newProjectId);
           setVersions([]);
           setCurrentVersion(null);
+          // 初始化保存状态，用于检测未保存更改
+          setSavedProjectState({
+            nodes: [],
+            connections: [],
+            viewport: null,
+            name: projectTitle
+          });
         }
       } catch (error) {
         uiLogger.error('[App] Failed to create project:', error);

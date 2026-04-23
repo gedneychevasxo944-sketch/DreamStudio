@@ -127,6 +127,79 @@ public class AssetService {
         return assetRepository.save(asset);
     }
 
+    /**
+     * 更新资产
+     */
+    @Transactional
+    public Asset updateAsset(Long projectId, Long assetId, AssetDTO.AssetUpdateRequest request) {
+        log.info("Updating asset: {} for project: {}", assetId, projectId);
+
+        Asset asset = assetRepository.findByIdAndProjectId(assetId, projectId)
+                .orElseThrow(() -> new InvalidOperationException("Asset not found: " + assetId));
+
+        // 更新字段
+        if (request.getName() != null) {
+            asset.setTitle(request.getName());
+        }
+        if (request.getDescription() != null || request.getPrompt() != null) {
+            String metadata = buildMetadataJson(asset.getMetadataJson(), request.getDescription(), request.getPrompt());
+            asset.setMetadataJson(metadata);
+        }
+        if (request.getThumbnail() != null) {
+            asset.setCoverUri(request.getThumbnail());
+        }
+        if (request.getUri() != null) {
+            asset.setUri(request.getUri());
+        }
+        if (request.getStatus() != null) {
+            asset.setStatus(request.getStatus());
+        }
+
+        return assetRepository.save(asset);
+    }
+
+    /**
+     * 删除资产
+     */
+    @Transactional
+    public void deleteAsset(Long projectId, Long assetId) {
+        log.info("Deleting asset: {} for project: {}", assetId, projectId);
+
+        Asset asset = assetRepository.findByIdAndProjectId(assetId, projectId)
+                .orElseThrow(() -> new InvalidOperationException("Asset not found: " + assetId));
+
+        assetRepository.delete(asset);
+    }
+
+    /**
+     * 构建 metadata JSON
+     */
+    private String buildMetadataJson(String existingMetadataJson, String description, String prompt) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("{");
+        if (description != null) {
+            sb.append("\"description\":\"").append(escapeJson(description)).append("\",");
+        }
+        if (prompt != null) {
+            sb.append("\"prompt\":\"").append(escapeJson(prompt)).append("\",");
+        }
+        // 移除末尾逗号
+        if (sb.length() > 1 && sb.charAt(sb.length() - 1) == ',') {
+            sb.setLength(sb.length() - 1);
+        }
+        sb.append("}");
+        return sb.toString();
+    }
+
+    private String escapeJson(String value) {
+        if (value == null) return "";
+        return value.replace("\\", "\\\\")
+                    .replace("\"", "\\\"")
+                    .replace("\n", "\\n")
+                    .replace("\r", "\\r")
+                    .replace("\t", "\\t");
+    }
+
     private AssetDTO.AssetItem toAssetItem(Asset asset) {
         return AssetDTO.AssetItem.builder()
                 .id(asset.getId())

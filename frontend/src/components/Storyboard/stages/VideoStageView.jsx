@@ -34,6 +34,7 @@ const VideoStageView = ({
   onUpload,
   onBatchGenerate,
   onExportVideos,
+  saveStatus,
 }) => {
   return (
     <div className="storyboard-content storyboard-stage-content">
@@ -73,6 +74,7 @@ const VideoStageView = ({
               onDelete={onDeleteAsset}
               onGenerate={onGenerate}
               onAIDialog={onAIDialog}
+              saveStatus={saveStatus}
             />
           </section>
         )}

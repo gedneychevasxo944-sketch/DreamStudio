@@ -45,12 +45,12 @@ public class AdeptifyService {
             .delayMs(0)
             .build());
 
-        // thinking 事件
+        // thinking 事件 - 测试计划格式: {"content": "正在分析..."}
         List<String> thinkingSteps = generateThinkingSteps(messageContent);
         for (String step : thinkingSteps) {
             consumer.accept(SSEEvent.builder()
                 .eventType("thinking")
-                .data(Map.of("messageId", messageId, "delta", step))
+                .data(Map.of("content", step))
                 .delayMs(mockDataCenter.getThinkingDelay())
                 .build());
         }
@@ -83,10 +83,10 @@ public class AdeptifyService {
             .delayMs(0)
             .build());
 
-        // message_end
+        // message_end - 测试计划格式: {"content": "完整内容"}
         consumer.accept(SSEEvent.builder()
             .eventType("message_end")
-            .data(Map.of("messageId", messageId, "finishReason", "stop"))
+            .data(Map.of("content", responseContent))
             .delayMs(0)
             .build());
 

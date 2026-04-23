@@ -75,4 +75,52 @@ public class AssetDTO {
         private List<String> affectedNodeIds;
         private String message;
     }
+
+    /**
+     * 创建资产请求 (测试计划格式)
+     */
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class AssetCreateRequest {
+        private String name;        // 资产名称
+        private String type;        // 资产类型: character, scene, prop, storyboard, video
+        private String description; // 资产描述
+        private String prompt;      // 生成 prompt
+        private String thumbnail;  // 缩略图 URL
+        private String uri;        // 资源 URL
+    }
+
+    /**
+     * 更新资产请求 (测试计划格式)
+     */
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class AssetUpdateRequest {
+        private String name;        // 资产名称
+        private String description; // 资产描述
+        private String prompt;      // 生成 prompt
+        private String thumbnail;   // 缩略图 URL
+        private String uri;         // 资源 URL
+        private String status;      // 状态
+    }
+
+    /**
+     * 资产响应
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class AssetResponse {
+        private Long id;
+        private String name;
+        private String type;
+        private String description;
+        private String prompt;
+        private String thumbnail;
+        private String status;
+        private String createTime;
+    }
 }

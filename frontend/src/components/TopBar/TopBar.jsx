@@ -33,7 +33,7 @@ const TopBar = ({
   // 从 store 获取
   const currentStage = useStageStore(state => state.currentStage);
   const { mode, toggle } = useThemeStore();
-  const { projects, switchProject, createProject, currentProjectId, projectName, setProjectName, currentVersion, versions, switchVersion } = useProjectStore();
+  const { projects, switchProject, createProject, currentProjectId, projectName, setProjectName, currentVersion, versions, switchVersion, loadProjects } = useProjectStore();
 
   // 编辑状态
   const [isEditingName, setIsEditingName] = useState(false);
@@ -52,6 +52,12 @@ const TopBar = ({
   const versionDropdownRef = useRef(null);
   const moreMenuRef = useRef(null);
   const layerDropdownRef = useRef(null);
+
+  // 打开项目下拉框时从后端加载项目列表
+  const handleOpenProjectDropdown = useCallback(() => {
+    setShowProjectDropdown(true);
+    loadProjects();
+  }, [loadProjects]);
 
   // 层选项
   const layerOptions = [
@@ -220,7 +226,7 @@ const TopBar = ({
           {/* 项目下拉按钮 */}
           <button
             className="dropdown-trigger"
-            onClick={() => setShowProjectDropdown(!showProjectDropdown)}
+            onClick={handleOpenProjectDropdown}
             aria-label="项目列表"
           >
             <ChevronDown size={14} className={`dropdown-arrow ${showProjectDropdown ? 'open' : ''}`} />
@@ -259,23 +265,33 @@ const TopBar = ({
 
                   {/* 项目列表 */}
                   <div className="project-list">
-                    {projects
-                      .filter(p => !projectSearchQuery || p.name.toLowerCase().includes(projectSearchQuery.toLowerCase()))
-                      .map(p => (
-                        <button
-                          key={p.id}
-                          className={`project-item ${p.id === currentProjectId ? 'active' : ''}`}
-                          onClick={() => { handleSwitchProject(p); setShowProjectDropdown(false); setProjectSearchQuery(''); }}
-                        >
-                          <Folder size={14} className="project-item-icon" />
-                          <span className="project-item-name">{p.name}</span>
-                          <span className="project-item-time">{p.updatedAt || ''}</span>
-                          {p.id === currentProjectId && <Check size={13} className="check-icon" />}
-                        </button>
-                      ))}
-                    {projects.filter(p => !projectSearchQuery || p.name.toLowerCase().includes(projectSearchQuery.toLowerCase())).length === 0 && (
-                      <div className="project-list-empty">暂无历史项目</div>
-                    )}
+                    {(() => {
+                      // 确保 projects 是数组
+                      const projectList = Array.isArray(projects) ? projects : [];
+
+                      if (projectList.length === 0) {
+                        return <div className="project-list-empty">暂无历史项目</div>;
+                      }
+
+                      // 去重：使用id作为key，保留最后一个
+                      const uniqueProjects = [...new Map(
+                        projectList.map(p => [p.id, p])
+                      ).values()];
+                      return uniqueProjects
+                        .filter(p => !projectSearchQuery || p.name.toLowerCase().includes(projectSearchQuery.toLowerCase()))
+                        .map(p => (
+                          <button
+                            key={p.id}
+                            className={`project-item ${p.id === currentProjectId ? 'active' : ''}`}
+                            onClick={() => { handleSwitchProject(p); setShowProjectDropdown(false); setProjectSearchQuery(''); }}
+                          >
+                            <Folder size={14} className="project-item-icon" />
+                            <span className="project-item-name">{p.name}</span>
+                            <span className="project-item-time">{p.updatedAt || ''}</span>
+                            {p.id === currentProjectId && <Check size={13} className="check-icon" />}
+                          </button>
+                        ));
+                    })()}
                   </div>
                 </motion.div>
               </>

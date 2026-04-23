@@ -41,12 +41,19 @@ function EmptyGuide({ onComplete }) {
   // 处理文件上传
   const handleUpload = async (file) => {
     console.log('[EmptyGuide] Upload file:', file.name);
+    // 读取文件内容
+    let fileContent = '';
+    try {
+      fileContent = await file.text();
+    } catch (err) {
+      console.error('[EmptyGuide] Read file error:', err);
+    }
     // 创建剧本资产
     const newAsset = {
       id: `script-${Date.now()}`,
       type: STAGES.SCRIPT,
       name: file.name.replace(/\.[^/.]+$/, ''),
-      content: '',
+      content: fileContent,
       description: '已上传剧本',
     };
     addStageAsset(STAGES.SCRIPT, newAsset);
@@ -138,6 +145,7 @@ function EmptyGuide({ onComplete }) {
         onTextSubmit={handleTextSubmit}
         accept="script"
         title="上传剧本"
+        stage={STAGES.SCRIPT}
       />
     </>
   );

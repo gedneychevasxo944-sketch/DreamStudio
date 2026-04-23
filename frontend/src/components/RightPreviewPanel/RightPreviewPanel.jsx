@@ -43,8 +43,10 @@ const detectPreviewMode = (assets, hasScript, hasSequence) => {
     return PREVIEW_MODE.SEQUENCE;
   }
 
-  // 判断是否是纯文本剧本（无视觉资产）
-  if (hasScript && assets.length === 0) {
+  // 判断是否是纯文本剧本（无视觉资产，或只有剧本资产）
+  const hasOnlyScript = assets.length === 0 ||
+    (assets.length === 1 && assets[0]?.type === 'script');
+  if (hasScript && hasOnlyScript) {
     return PREVIEW_MODE.SCRIPT_EDITOR;
   }
 

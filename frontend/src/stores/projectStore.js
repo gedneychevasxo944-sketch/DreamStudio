@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { homePageApi } from '../services/api';
 
 // localStorage keys
 const PROJECTS_KEY = 'dreamstudio_projects';
@@ -44,11 +45,18 @@ export const useProjectStore = create((set, get) => ({
   isSaving: false,
   saveSuccess: false,
 
-  // T069: 加载项目列表
-  loadProjects: () => {
-    const projects = loadProjectsFromStorage();
-    set({ projects });
-    return projects;
+  // T069: 从后端加载项目列表
+  loadProjects: async () => {
+    try {
+      const data = await homePageApi.getProjects();
+      const projects = data?.projects || data || [];
+      saveProjectsToStorage(projects);
+      set({ projects });
+      return projects;
+    } catch (error) {
+      console.error('Failed to load projects from backend:', error);
+      return [];
+    }
   },
 
   // T069: 创建新项目
