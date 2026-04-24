@@ -72,6 +72,42 @@ public class MockDataCenter {
             .textResult("视频剪辑完成\n\n成片信息：\n- 时长：2分30秒\n- 分辨率：1920x1080")
             .dataJson("{\"duration\":\"2分30秒\",\"resolution\":\"1920x1080\"}")
             .build());
+
+        // SCRIPT_PARSER - 剧本解析助手
+        CHARACTER_DATA.put(ComponentType.SCRIPT_PARSER, NodeSimulationData.builder()
+            .thinkingSteps(List.of("正在读取剧本内容...", "分析剧本结构...", "提取角色信息...", "识别场景和道具...", "生成提取结果..."))
+            .textResult("本剧《赛博黎明》共 12 场，涵盖数据中心、霓虹雨夜街道等 5 个主要场景，塑造零、安保人员A等 8 个角色，包含黑客终端、干扰器等 4 个关键道具。")
+            .markdownResult("# 赛博黎明\n\n## 第一幕：数据洪流\n\n### 场景1：数据中心\n\n**时间**：深夜\n**地点**：城市地下数据中心\n**角色**：零、安保人员A\n\n【开场】\n\n*雨声。霓虹灯在湿漉漉的街道上倒映出扭曲的光影。*\n\n*镜头缓缓推进，穿过层层叠叠的广告全息投影，停留在一个不起眼的地下通道入口。*\n\n**零**（画外音）：\n\"这座城市的每一个秘密，都藏在数据里。\"\n\n【场景2：霓虹雨夜街道】\n\n*零穿行在雨夜街道上，红色长发被雨水打湿，却依然张扬。她的目光扫过两旁的霓虹广告牌——上面正播放着AI管家的宣传片。*\n\n**零**（独白）：\n\"三年前，AI接管了一切。surveillance，无处不在。\"\n\n*她停下脚步，在一面破碎的霓虹灯箱前驻足。灯箱上写着：\"自由不是一个选择，而是一种本能。\"*\n\n**零**（低声）：\n\"而今晚，我们要打破这个选择。\"\n\n---\n\n## 第二幕：渗透\n\n### 场景3：数据中心外围\n\n*零和代号\"影子\"的搭档潜入数据中心外围。*\n\n**影子**：\n\"三分钟。最多三分钟。\"\n\n**零**：\n\"明白。\"\n\n*零从背包里取出一个便携式黑客终端，蓝色LED指示灯亮起。*\n\n---\n\n## 第三幕：入侵\n\n### 场景4：数据中心内部\n\n*零和影子成功渗透进数据中心内部，服务器机柜的蓝色LED灯带照亮他们的脸。*\n\n**零**（低声）：\n\"进入主数据库。目标：AI管家的核心代码。\"\n\n*她的手指在终端上飞速敲击，代码如瀑布般流淌。*\n\n**影子**：\n\"有巡逻！先隐蔽。\"\n\n*两人迅速闪身躲进服务器机柜的阴影中。*\n")
+            .build());
+        // STORYBOARD_GENERATOR - 分镜生成助手
+        CHARACTER_DATA.put(ComponentType.STORYBOARD_GENERATOR, NodeSimulationData.builder()
+            .thinkingSteps(List.of("正在分析剧本...", "理解场景氛围...", "设计镜头语言...", "规划运镜方案...", "生成分镜脚本..."))
+            .textResult("[{\"name\":\"镜头1\",\"description\":\"城市全景，俯拍雨夜霓虹灯\",\"duration\":5,\"characterIds\":[],\"sceneId\":\"scene-2\",\"shotType\":\"wide\",\"cameraMovement\":\"static\",\"prompt\":\"A wide shot of a cyberpunk city at night with neon lights reflecting on wet streets\"},{\"name\":\"镜头2\",\"description\":\"数据中心内部，中景\",\"duration\":4,\"characterIds\":[\"char-1\"],\"sceneId\":\"scene-1\",\"shotType\":\"medium\",\"cameraMovement\":\"tracking\",\"prompt\":\"A medium shot inside a high-tech data center with blue lighting\"}]")
+            .build());
+
+        // CHARACTER_OPTIMIZER - 角色优化助手
+        CHARACTER_DATA.put(ComponentType.CHARACTER_OPTIMIZER, NodeSimulationData.builder()
+            .thinkingSteps(List.of("正在分析角色描述...", "挖掘角色深度...", "优化角色设定...", "生成优化结果..."))
+            .textResult("{\"id\":\"char-1\",\"name\":\"零\",\"description\":\"林零，28岁女性，红发，身着黑色机能服。表面是自由黑客，实际是地下反抗组织核心成员。擅长渗透各类安保系统，内心渴望打破AI统治。\",\"generatePrompt\":\"年轻女性，红色长发，穿着流线型黑色战术服，带有赛博格植入物。赛博朋克美学，霓虹灯光，高细节，电影光效，8K画质\"}")
+            .build());
+
+        // SCENE_OPTIMIZER - 场景优化助手
+        CHARACTER_DATA.put(ComponentType.SCENE_OPTIMIZER, NodeSimulationData.builder()
+            .thinkingSteps(List.of("正在分析场景描述...", "构建空间细节...", "设计光线氛围...", "生成优化结果..."))
+            .textResult("{\"id\":\"scene-1\",\"name\":\"数据中心\",\"description\":\"位于城市地下的巨型数据中心，蓝色LED光带贯穿整个空间，服务器机柜整齐排列，冷气机低沉嗡鸣。墙壁上全息屏幕显示着实时数据流。\",\"generatePrompt\":\"巨大的地下数据中心，成排的服务器机柜被蓝色LED灯带照亮。全息屏幕显示实时数据流。冷却系统喷出的冷气营造出科幻氛围，电影感构图，8K画质\"}")
+            .build());
+
+        // PROP_OPTIMIZER - 道具优化助手
+        CHARACTER_DATA.put(ComponentType.PROP_OPTIMIZER, NodeSimulationData.builder()
+            .thinkingSteps(List.of("正在分析道具描述...", "挖掘道具细节...", "优化道具设定...", "生成优化结果..."))
+            .textResult("{\"id\":\"prop-1\",\"name\":\"黑客终端\",\"description\":\"便携式黑客工具，约15x8cm，哑光黑色外壳，侧边有蓝色LED指示灯。配备折叠式全息投影键盘，可接入任何数据端口进行渗透。\",\"generatePrompt\":\"便携式黑客设备，哑光黑色外壳，约15x8cm。侧面有蓝色LED指示灯。配有折叠式全息投影键盘。赛博朋克科技美学，特写镜头，8K画质\"}")
+            .build());
+
+        // SHOT_GENERATOR - 镜头生成助手
+        CHARACTER_DATA.put(ComponentType.SHOT_GENERATOR, NodeSimulationData.builder()
+            .thinkingSteps(List.of("正在分析分镜需求...", "设计镜头构图...", "生成图像提示词...\n"))
+            .textResult("A cinematic medium shot of a red-haired woman in black tactical gear standing in front of a high-tech data center control panel, blue LED lights casting dramatic shadows on her face, cyberpunk aesthetic, film grain, 8k quality")
+            .build());
     }
 
     /**
@@ -97,11 +133,19 @@ public class MockDataCenter {
     private ComponentType fromCharacterId(String characterId) {
         if (characterId == null) return null;
         return switch (characterId) {
+            // 旧版 character ID（向后兼容）
             case "char_script_001" -> ComponentType.CONTENT;
             case "char_director_001" -> ComponentType.DIRECTOR;
             case "char_visual_001" -> ComponentType.VISUAL;
             case "char_technical_001" -> ComponentType.TECHNICAL;
             case "char_videogen_001" -> ComponentType.VIDEO_GEN;
+            // 前端统一 AI 角色 ID
+            case "character_script" -> ComponentType.SCRIPT_PARSER;
+            case "character_storyboard" -> ComponentType.STORYBOARD_GENERATOR;
+            case "character_character" -> ComponentType.CHARACTER_OPTIMIZER;
+            case "character_scene" -> ComponentType.SCENE_OPTIMIZER;
+            case "character_prop" -> ComponentType.PROP_OPTIMIZER;
+            case "character_shot" -> ComponentType.SHOT_GENERATOR;
             default -> null;
         };
     }

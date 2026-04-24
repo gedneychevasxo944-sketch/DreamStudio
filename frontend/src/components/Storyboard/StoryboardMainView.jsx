@@ -15,7 +15,7 @@ import { useStageStore, STAGES } from '../../stores/stageStore';
 import { useChatStore } from '../../stores/chatStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { ASSISTANT_AGENT_ID } from '../../constants/ComponentType';
-import { assetApi } from '../../services/api';
+import { assetApi, aiApi } from '../../services/api';
 import './StoryboardMainView.css';
 
 // Stage components
@@ -38,8 +38,8 @@ const StoryboardMainView = () => {
 
   // 草稿保存状态（固定位置显示）
   const [saveStatus, setSaveStatus] = useState('idle'); // 'idle' | 'saving' | 'saved'
-  const saveDebounceRef = useRef(null); // API 保存 debounce 定时器
-  const pendingSaveRef = useRef(null); // 追踪待保存的资产 { assetId, updates }
+  const saveTimerRef = useRef(null); // 5秒自动保存定时器
+  const pendingSaveRef = useRef(null); // 待保存的数据 { assetId, updates, stage }
   const prevStageRef = useRef(null); // 追踪上一个阶段
 
   // T072: 资产修改影响提示状态
@@ -56,9 +56,9 @@ const StoryboardMainView = () => {
 
   // AI 对话面板状态 - 按阶段独立存储
   const [aiDialogs, setAiDialogs] = useState({
-    [STAGES.CHARACTER]: { isOpen: false, asset: null, messages: [] },
-    [STAGES.SCENE]: { isOpen: false, asset: null, messages: [] },
-    [STAGES.PROP]: { isOpen: false, asset: null, messages: [] },
+    [STAGES.CHARACTER]: { isOpen: false, asset: null, messages: [], hasAutoSent: false },
+    [STAGES.SCENE]: { isOpen: false, asset: null, messages: [], hasAutoSent: false },
+    [STAGES.PROP]: { isOpen: false, asset: null, messages: [], hasAutoSent: false },
   });
 
   const {
@@ -76,44 +76,8 @@ const StoryboardMainView = () => {
     getImpactedStoryboards,
   } = useStageStore();
 
-  // 切换阶段时重置保存状态
+  // 切换阶段时：清除定时器（让 debounce 自然触发，不强制的立即保存）
   useEffect(() => {
-    if (prevStageRef.current !== null && prevStageRef.current !== currentStage) {
-      // 如果有 pending 的保存，立即触发
-      if (pendingSaveRef.current) {
-        const pending = pendingSaveRef.current;
-        clearTimeout(saveDebounceRef.current);
-        saveDebounceRef.current = null;
-
-        // 立即执行保存
-        const doSave = async () => {
-          const currentAsset = useStageStore.getState().stageAssets[pending.stage]?.find(a => a.id === pending.assetId);
-          const projectId = useProjectStore.getState().currentProjectId;
-          if (projectId && currentAsset?.serverId) {
-            try {
-              setSaveStatus('saving');
-              await assetApi.updateAsset(projectId, currentAsset.serverId, {
-                name: pending.updates.name,
-                description: pending.updates.description,
-                prompt: pending.updates.prompt,
-                thumbnail: pending.updates.thumbnail,
-                status: pending.updates.status,
-                content: pending.updates.content,
-              });
-              setSaveStatus('saved');
-              setTimeout(() => setSaveStatus('idle'), 3000);
-            } catch (error) {
-              console.error('Failed to save on stage switch:', error);
-              setSaveStatus('idle');
-            }
-          }
-          pendingSaveRef.current = null;
-        };
-        doSave();
-      } else {
-        setSaveStatus('idle');
-      }
-    }
     prevStageRef.current = currentStage;
   }, [currentStage]);
 
@@ -335,15 +299,9 @@ const StoryboardMainView = () => {
 
   // T072: 处理资产更新并检查影响
   const handleUpdateAsset = useCallback((assetId, updates) => {
-    // 清除之前的 debounce 定时器
-    if (saveDebounceRef.current) {
-      clearTimeout(saveDebounceRef.current);
-    }
-
-    // 先获取受影响分镜（在更新前）- 立即执行
+    // 先获取受影响分镜（在更新前）
     const impacted = getImpactedStoryboards(assetId);
     if (impacted.length > 0) {
-      // 延迟显示 toast，在资产更新后显示
       setTimeout(() => {
         const asset = useStageStore.getState().stageAssets[currentStage]?.find(a => a.id === assetId);
         setImpactToast({
@@ -354,44 +312,55 @@ const StoryboardMainView = () => {
       }, 0);
     }
 
-    // 执行更新（先更新本地，UI 立即响应）
+    // 获取当前资产，检查是否有实际变化
+    const currentAsset = useStageStore.getState().stageAssets[currentStage]?.find(a => a.id === assetId);
+    const hasActualChanges = Object.keys(updates).some(key => {
+      const newVal = updates[key];
+      const currVal = currentAsset?.[key];
+      if (newVal === undefined || newVal === null) return false;
+      if (currVal === undefined || currVal === null) return newVal !== '';
+      return String(newVal) !== String(currVal);
+    });
+
+    // 如果没有实际变化，不保存
+    if (!hasActualChanges) {
+      return;
+    }
+
+    // 更新本地状态
     updateStageAsset(currentStage, assetId, updates);
 
-    // 追踪待保存的资产
+    // 设置待保存
     pendingSaveRef.current = { assetId, updates, stage: currentStage };
 
-    // 5秒 debounce 后调用后端 API
-    saveDebounceRef.current = setTimeout(async () => {
+    // 清除旧定时器，启动新的 5 秒定时
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+    }
+    saveTimerRef.current = setTimeout(() => {
       const pending = pendingSaveRef.current;
       if (!pending) return;
-      pendingSaveRef.current = null;
 
-      // 在 debounce 执行时获取最新的资产数据
       const currentAsset = useStageStore.getState().stageAssets[pending.stage]?.find(a => a.id === pending.assetId);
       const projectId = useProjectStore.getState().currentProjectId;
 
-      // 只有已有 serverId 的资产才调用 API（包括剧本）
       if (projectId && currentAsset?.serverId) {
-        try {
-          setSaveStatus('saving');
-          const apiUpdates = {
-            name: pending.updates.name,
-            description: pending.updates.description,
-            prompt: pending.updates.prompt,
-            thumbnail: pending.updates.thumbnail,
-            status: pending.updates.status,
-            content: pending.updates.content,
-          };
-          await assetApi.updateAsset(projectId, currentAsset.serverId, apiUpdates);
-          setSaveStatus('saved');
-        } catch (error) {
-          console.error('Failed to update asset on server:', error);
-          setSaveStatus('idle');
-        }
+        setSaveStatus('saving');
+        assetApi.updateAsset(projectId, currentAsset.serverId, pending.updates)
+          .then(() => {
+            setSaveStatus('saved');
+            pendingSaveRef.current = null;
+            setTimeout(() => setSaveStatus('idle'), 3000);
+          })
+          .catch((error) => {
+            console.error('Save failed:', error);
+            setSaveStatus('idle');
+            pendingSaveRef.current = null;
+          });
+      } else {
+        // 没有 serverId，不需要保存
+        pendingSaveRef.current = null;
       }
-
-      // 3秒后恢复 idle
-      setTimeout(() => setSaveStatus('idle'), 3000);
     }, 5000);
   }, [currentStage, updateStageAsset, getImpactedStoryboards]);
 
@@ -459,14 +428,15 @@ const StoryboardMainView = () => {
     if (asset) {
       setAiDialogs(prev => {
         const currentDialog = prev[currentStage];
-        // 如果是同一个资产，保持对话；如果是不同资产，开启新对话
+        // 如果是同一个资产，保持对话；如果是不同资产，开启新对话并重置 hasAutoSent
         const isSameAsset = currentDialog?.asset?.id === assetId;
         return {
           ...prev,
           [currentStage]: {
             isOpen: true,
             asset,
-            messages: isSameAsset ? (currentDialog?.messages || []) : []
+            messages: isSameAsset ? (currentDialog?.messages || []) : [],
+            hasAutoSent: isSameAsset ? currentDialog?.hasAutoSent : false,
           }
         };
       });
@@ -482,11 +452,17 @@ const StoryboardMainView = () => {
   }, [currentStage]);
 
   // 更新 AI 对话消息
-  const handleAIMessagesChange = useCallback((newMessages) => {
-    setAiDialogs(prev => ({
-      ...prev,
-      [currentStage]: { ...prev[currentStage], messages: newMessages }
-    }));
+  const handleAIMessagesChange = useCallback((valueOrUpdater) => {
+    setAiDialogs(prev => {
+      const currentMessages = prev[currentStage]?.messages || [];
+      const newMessages = typeof valueOrUpdater === 'function'
+        ? valueOrUpdater(currentMessages)
+        : valueOrUpdater;
+      return {
+        ...prev,
+        [currentStage]: { ...prev[currentStage], messages: newMessages }
+      };
+    });
   }, [currentStage]);
 
   // P1: 右键菜单
@@ -558,6 +534,63 @@ const StoryboardMainView = () => {
     setUploadModal({ isOpen: true, accept: 'image' });
   }, []);
 
+  // T050: AI 操作前确保资产已保存到服务器
+  const ensureAssetServerId = useCallback(async (stage, assetId) => {
+    const projectId = useProjectStore.getState().currentProjectId;
+    if (!projectId) {
+      return null;
+    }
+
+    // 如果有待保存的，立即执行保存
+    if (pendingSaveRef.current) {
+      const pending = pendingSaveRef.current;
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+
+      const currentAsset = useStageStore.getState().stageAssets[pending.stage]?.find(a => a.id === pending.assetId);
+      if (currentAsset?.serverId) {
+        try {
+          setSaveStatus('saving');
+          await assetApi.updateAsset(projectId, currentAsset.serverId, pending.updates);
+          setSaveStatus('saved');
+          setTimeout(() => setSaveStatus('idle'), 3000);
+        } catch (error) {
+          console.error('Save pending failed:', error);
+          setSaveStatus('idle');
+        }
+      }
+      pendingSaveRef.current = null;
+    }
+
+    // 获取资产，检查是否有 serverId
+    const asset = useStageStore.getState().stageAssets[stage]?.find(a => a.id === assetId);
+    if (!asset) {
+      return null;
+    }
+
+    if (asset.serverId) {
+      return asset.serverId;
+    }
+
+    // 没有 serverId，先创建
+    try {
+      const response = await assetApi.createAsset(projectId, {
+        name: asset.name,
+        type: stage,
+        description: asset.description || '',
+        prompt: asset.prompt || '',
+        content: asset.content || '',
+      });
+      if (response?.data?.id) {
+        updateStageAsset(stage, assetId, { serverId: response.data.id });
+        return response.data.id;
+      }
+    } catch (error) {
+      console.error('Create asset failed:', error);
+    }
+    return null;
+  }, [updateStageAsset]);
+
   // T058/T062: 处理实际上传
   // options: { enableAI: boolean }
   const handleUpload = useCallback(async (file, options = {}) => {
@@ -582,6 +615,11 @@ const StoryboardMainView = () => {
     // 添加到阶段资产
     addStageAsset(currentStage, newAsset);
     selectAsset(newAssetId);
+
+    // 立即保存到服务器，获取 serverId（非 AI 模式需要立即保存）
+    if (!enableAI) {
+      await ensureAssetServerId(currentStage, newAssetId);
+    }
 
     if (enableAI) {
       toast?.success?.(`已上传 ${file.name}，AI 解析中...`);
@@ -627,7 +665,7 @@ const StoryboardMainView = () => {
       toast?.success?.(`已上传 ${file.name}`);
       setUploadModal({ isOpen: false, accept: 'image' });
     }
-  }, [currentStage, addStageAsset, selectAsset, updateStageAsset]);
+  }, [currentStage, addStageAsset, selectAsset, updateStageAsset, ensureAssetServerId]);
 
   // T058: 处理文本剧本提交
   const handleTextSubmit = useCallback(async (text) => {
@@ -646,9 +684,12 @@ const StoryboardMainView = () => {
     addStageAsset(STAGES.SCRIPT, newAsset);
     selectAsset(newAssetId);
 
+    // 立即保存到服务器，获取 serverId
+    await ensureAssetServerId(STAGES.SCRIPT, newAssetId);
+
     toast?.success?.('剧本已保存');
     setUploadModal({ isOpen: false, accept: 'image' });
-  }, [addStageAsset, selectAsset]);
+  }, [addStageAsset, selectAsset, ensureAssetServerId]);
 
   // T072: 处理重新生成受影响分镜
   const handleRegenerateImpacted = useCallback(() => {
@@ -663,45 +704,43 @@ const StoryboardMainView = () => {
     setImpactToast(null);
   }, [impactToast, handleGenerate]);
 
-  // T072: 处理忽略提示
-  const handleDismissImpact = useCallback(() => {
-    setImpactToast(null);
-  }, []);
-
   // T050: 处理 AI 解析剧本
   const handleAIParse = useCallback(async () => {
     setIsParsing(true);
     try {
-      // TODO: 调用实际的 AI 解析接口
-      // 模拟解析结果
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // 获取当前剧本资产
+      const scriptAssets = useStageStore.getState().stageAssets[STAGES.SCRIPT] || [];
+      const scriptAsset = scriptAssets[0];
 
-      // 简单的关键词匹配模拟解析
-      const mockParseResult = {
-        characters: [
-          { id: 'parsed-char-1', name: '零', description: '红发女黑客，主角' },
-          { id: 'parsed-char-2', name: '安保人员A', description: '男性安保人员' },
-          { id: 'parsed-char-3', name: 'AI管理员', description: '数据中心中控AI' },
-        ],
-        scenes: [
-          { id: 'parsed-scene-1', name: '数据中心', description: '高科技数据中心场景' },
-          { id: 'parsed-scene-2', name: '霓虹雨夜街道', description: '赛博朋克风格雨夜街道' },
-        ],
-        props: [
-          { id: 'parsed-prop-1', name: '黑客终端', description: '便携式黑客设备' },
-          { id: 'parsed-prop-2', name: '干扰器', description: '电磁脉冲干扰装置' },
-        ],
-      };
+      if (!scriptAsset) {
+        toast?.error?.('请先上传剧本');
+        return;
+      }
 
-      setParseResult(mockParseResult);
+      // 确保资产已保存到服务器（触发 pending 保存 + 创建 serverId）
+      const serverId = await ensureAssetServerId(STAGES.SCRIPT, scriptAsset.id);
+      if (!serverId) {
+        toast?.error?.('剧本保存失败，请重试');
+        return;
+      }
+
+      const result = await aiApi.parseScript(
+        currentProjectId,
+        serverId,
+        '提取角色、场景、道具'
+      );
+
+      // 解析返回的 JSON 内容
+      const parsed = JSON.parse(result);
+      setParseResult(parsed);
       setShowScriptParser(true);
     } catch (error) {
       console.error('解析失败:', error);
-      alert('剧本解析失败，请重试');
+      toast?.error?.('剧本解析失败，请重试');
     } finally {
       setIsParsing(false);
     }
-  }, []);
+  }, [currentProjectId]);
 
   // T050: 处理解析结果确认导入
   const handleParseConfirm = useCallback((importData) => {
@@ -723,46 +762,57 @@ const StoryboardMainView = () => {
   const handleAIGenerateStoryboard = useCallback(async () => {
     setIsParsing(true);
     try {
-      // TODO: 调用实际的 AI 分镜生成接口
-      // 模拟生成
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // 获取剧本资产
+      const scriptAssets = useStageStore.getState().stageAssets[STAGES.SCRIPT] || [];
+      const scriptAsset = scriptAssets[0];
 
-      // 基于现有角色和场景生成分镜
-      const characters = stageAssets[STAGES.CHARACTER] || [];
-      const scenes = stageAssets[STAGES.SCENE] || [];
-
-      // 生成 3 个示例镜头
-      const newShots = [];
-      for (let i = 0; i < 3; i++) {
-        newShots.push({
-          id: `shot-gen-${Date.now()}-${i}`,
-          type: STAGES.STORYBOARD,
-          name: `镜头 ${i + 1}`,
-          description: `自动生成的分镜描述 ${i + 1}`,
-          thumbnail: `https://picsum.photos/seed/shot${Date.now()}${i}/400/225`,
-          duration: 5 + i * 2,
-          status: 'pending',
-          characterIds: characters.slice(0, 1).map(c => c.id),
-          sceneId: scenes[i % scenes.length]?.id || null,
-          shotType: 'medium',
-          cameraMovement: 'static',
-          prompt: `A cinematic shot of ${characters[0]?.name || 'character'} in ${scenes[0]?.name || 'scene'}`,
-        });
+      if (!scriptAsset) {
+        toast?.error?.('请先上传剧本');
+        return;
       }
 
+      // 确保资产已保存到服务器
+      const serverId = await ensureAssetServerId(STAGES.SCRIPT, scriptAsset.id);
+      if (!serverId) {
+        toast?.error?.('剧本保存失败，请重试');
+        return;
+      }
+
+      const result = await aiApi.generateStoryboard(
+        currentProjectId,
+        serverId,
+        '基于剧本生成分镜'
+      );
+
+      // 解析返回的 JSON 内容
+      const parsed = JSON.parse(result);
+
       // 添加到分镜阶段
-      newShots.forEach(shot => {
-        addStageAsset(STAGES.STORYBOARD, shot);
+      parsed.forEach(shot => {
+        addStageAsset(STAGES.STORYBOARD, {
+          id: `shot-gen-${Date.now()}-${Math.random()}`,
+          type: STAGES.STORYBOARD,
+          name: shot.name || shot.description || '未命名镜头',
+          description: shot.description || '',
+          thumbnail: shot.thumbnail || '',
+          duration: shot.duration || 5,
+          status: 'pending',
+          characterIds: shot.characterIds || [],
+          sceneId: shot.sceneId || null,
+          shotType: shot.shotType || 'medium',
+          cameraMovement: shot.cameraMovement || 'static',
+          prompt: shot.prompt || '',
+        });
       });
 
-      toast?.success?.(`已生成 ${newShots.length} 个分镜`);
+      toast?.success?.(`已生成 ${parsed.length} 个分镜`);
     } catch (error) {
       console.error('生成分镜失败:', error);
-      alert('生成分镜失败，请重试');
+      toast?.error?.('生成分镜失败，请重试');
     } finally {
       setIsParsing(false);
     }
-  }, [stageAssets, addStageAsset]);
+  }, [currentProjectId, addStageAsset]);
 
   // T057: 剪辑阶段辅助函数
   const totalDuration = clipAssets.reduce((sum, clip) => sum + (clip.endTime - clip.startTime), 0) || 1;
@@ -1082,6 +1132,12 @@ const StoryboardMainView = () => {
             onAIDialog={handleAIDialog}
             onAIMessagesChange={handleAIMessagesChange}
             onCloseAIDialog={handleCloseAIDialog}
+            onHasAutoSentChange={(value) => {
+              setAiDialogs(prev => ({
+                ...prev,
+                [currentStage]: { ...prev[currentStage], hasAutoSent: value }
+              }));
+            }}
             onAddNew={handleAddNew}
             onUpload={handleOpenUpload}
             saveStatus={saveStatus}

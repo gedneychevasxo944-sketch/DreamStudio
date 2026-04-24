@@ -668,11 +668,18 @@
 /* 左侧目录面板 */
 .script-toc-panel {
   width: 240px;
-  min-width: 200px;
+  min-width: 240px;
   display: flex;
   flex-direction: column;
   background: var(--bg-secondary, #16162a);
   border-right: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  transition: width 0.2s ease, min-width 0.2s ease;
+  overflow: hidden;
+}
+
+.script-toc-panel.collapsed {
+  width: 0;
+  min-width: 0;
 }
 
 .script-toc-header {
@@ -721,6 +728,11 @@
 .toc-chapter-header:hover,
 .toc-act-header:hover {
   background: var(--bg-tertiary, #252538);
+}
+
+.toc-chapter-header.active {
+  background: rgba(59, 130, 246, 0.2);
+  border-left: 2px solid #3b82f6;
 }
 
 .toc-expand-icon {
@@ -932,6 +944,33 @@
   color: var(--text-primary, #ffffff);
 }
 
+/* 收起时显示的展开按钮 */
+.toc-expand-btn {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 60px;
+  background: var(--bg-secondary, #16162a);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  border-left: none;
+  border-radius: 0 6px 6px 0;
+  color: var(--text-secondary, #8b8b9e);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  transition: all 0.15s ease;
+  z-index: 10;
+}
+
+.toc-expand-btn:hover {
+  background: var(--bg-tertiary, #252538);
+  color: var(--text-primary, #ffffff);
+}
+
 /* 章节列表 */
 .toc-chapter {
   margin-bottom: 4px;
@@ -1025,7 +1064,6 @@
 }
 
 .script-edit-panel .panel-header h3 {
-  flex: 0;
 }
 
 .current-location {
@@ -1035,26 +1073,70 @@
   font-weight: normal;
 }
 
-.script-edit-textarea {
-  width: 100%;
+/* Tiptap 编辑器容器 */
+.tiptap-body {
   flex: 1;
-  min-height: 300px;
+  min-height: 0;
+  overflow-y: auto;
   padding: 16px;
-  background: var(--bg-tertiary, #252538);
-  border: none;
-  border-radius: 8px;
+}
+
+/* Tiptap 编辑器样式 */
+.tiptap-editor {
+  min-height: 100%;
   color: var(--text-primary, #ffffff);
   font-size: 14px;
   line-height: 1.8;
-  resize: none;
 }
 
-.script-edit-textarea:focus {
+.tiptap-editor .tiptap {
+  min-height: 300px;
   outline: none;
 }
 
-.script-edit-textarea::placeholder {
+.tiptap-editor .tiptap p {
+  margin: 8px 0;
+}
+
+.tiptap-editor .tiptap h1 {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 20px 0 12px 0;
+  color: #ffffff;
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 8px;
+  cursor: pointer;
+}
+
+.tiptap-editor .tiptap h2 {
+  font-size: 16px;
+  font-weight: 500;
+  margin: 16px 0 10px 0;
+  color: #e0e0e0;
+  cursor: pointer;
+}
+
+.tiptap-editor .tiptap ul {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+
+.tiptap-editor .tiptap li {
+  margin: 4px 0;
+}
+
+.tiptap-editor .tiptap .scene-marker {
+  color: #60a5fa;
+  font-weight: 500;
+  margin: 12px 0 8px 0;
+}
+
+.tiptap-editor .tiptap p.is-editor-empty:first-child::before {
   color: var(--text-disabled, #4a4a5e);
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
 }
 
 /* 滚动条 */

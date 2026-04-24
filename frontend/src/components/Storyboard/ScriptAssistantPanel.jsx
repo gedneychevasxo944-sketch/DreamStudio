@@ -1,16 +1,15 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { X, Check, Trash2 } from 'lucide-react';
-import ChatConversation, { UserMessage, SimpleAssistantMessage } from '../ChatConversation';
+import { X } from 'lucide-react';
+import ChatConversation, { UserMessage, AssistantMessage } from '../ChatConversation';
 import { useProjectStore } from '../../stores/projectStore';
 import './ScriptAssistantPanel.css';
 
 /**
  * ScriptAssistantPanel - 剧本生成助手面板
  *
- * 使用 ChatConversation 通用容器，通过 render props 实现：
- * - 代码块形式展示生成的剧本
- * - [接受]/[拒绝] 按钮
+ * 使用 ChatConversation 通用容器，复用 AssistantMessage 统一样式
+ * 接受/拒绝按钮已在 AssistantMessage 内部实现
  */
 const ScriptAssistantPanel = ({
   isOpen,
@@ -44,69 +43,18 @@ const ScriptAssistantPanel = ({
     }
   }, [isOpen, scriptContent]);
 
-  // 自定义消息渲染 - 代码块模式
-  const renderCodeBlockMessage = ({ msg, index }) => {
-    if (msg.role === 'user') {
-      return <UserMessage key={msg.id || index} message={msg} />;
+  // 处理接受 - 把 markdown 内容填入编辑器
+  const handleApplySuggestion = useCallback((suggestionId) => {
+    const lastMsg = messages.filter(m => m.role === 'assistant').pop();
+    if (lastMsg?.content) {
+      onAccept?.(lastMsg.content);
     }
+  }, [messages, onAccept]);
 
-    // 检查是否是剧本生成结果（有 result 且是代码块格式）
-    if (msg.result && msg.isCodeBlock) {
-      return (
-        <div key={msg.id || index} className="cc-chat-message assistant">
-          <div className="cc-message-wrapper assistant">
-            <div className="cc-message-header-row assistant">
-              <div className="cc-message-avatar assistant">
-                <span>🤖</span>
-              </div>
-              <span className="cc-message-sender">助手</span>
-              <span className="cc-message-time">{msg.timestamp}</span>
-            </div>
-            <div className="cc-message-body">
-              <div className="cc-script-code-block">
-                <div className="script-code-header">
-                  <span>生成的剧本</span>
-                </div>
-                <pre className="script-code-content">{msg.result}</pre>
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    // 普通助手消息
-    return <SimpleAssistantMessage key={msg.id || index} message={msg} />;
-  };
-
-  // 底部操作栏 - 接受/拒绝按钮
-  const renderAcceptRejectFooter = ({ message }) => {
-    if (message?.isCodeBlock && message?.result) {
-      return (
-        <div className="script-assistant-footer">
-          <button
-            className="btn-accept"
-            onClick={() => {
-              onAccept?.(message.result);
-            }}
-          >
-            <Check size={16} />
-            接受
-          </button>
-          <button
-            className="btn-reject"
-            onClick={() => {
-              onReject?.();
-            }}
-          >
-            <Trash2 size={16} />
-            拒绝
-          </button>
-        </div>
-      );
-    }
-    return null;
-  };
+  // 处理拒绝 - 仅标记状态，保留对话内容
+  const handleRejectSuggestion = useCallback((suggestionId) => {
+    onReject?.();
+  }, [onReject]);
 
   // 头部内容
   const headerContent = (
@@ -130,15 +78,15 @@ const ScriptAssistantPanel = ({
     >
       <ChatConversation
         ref={chatRef}
-        agentId={3}
+        nodeId="character_script"
         projectId={currentProjectId}
         messages={messages}
         onMessagesChange={setMessages}
         headerContent={headerContent}
-        renderMessage={renderCodeBlockMessage}
-        renderFooter={renderAcceptRejectFooter}
-        placeholder="描述你的故事想法..."
+        placeholder="描述你的故事想法，或直接接受上方生成的剧本..."
         inputMode="textarea"
+        onApplySuggestion={handleApplySuggestion}
+        onRejectSuggestion={handleRejectSuggestion}
       />
     </motion.div>
   );

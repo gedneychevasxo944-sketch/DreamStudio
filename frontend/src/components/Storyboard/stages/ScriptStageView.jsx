@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { FileText, Sparkles } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import AssetDetailPanel from '../AssetDetailPanel';
 import ScriptAssistantPanel from '../ScriptAssistantPanel';
 import ScriptParser from '../ScriptParser';
@@ -42,7 +42,7 @@ const ScriptStageView = ({
   // 剧本助手面板回调
   const handleScriptAccept = (content) => {
     onUpdateAsset(scriptAsset?.id || 'script-main', { content });
-    onCloseScriptAssistant();
+    // 接受后保留对话框，用户可继续对话
   };
 
   const handleScriptReject = () => {
@@ -83,14 +83,9 @@ const ScriptStageView = ({
         {/* 底部按钮栏 */}
         <div className="script-bottom-actions">
           <div className="left-actions">
-            <button
-              className="action-btn"
-              onClick={onOpenScriptAssistant}
-              disabled={isScriptEmpty}
-            >
-              <FileText size={16} className="icon" />
-              生成目录
-            </button>
+            {/* 空出左侧空间 */}
+          </div>
+          <div className="right-actions">
             <button
               className="action-btn"
               onClick={onAIParse}
@@ -99,8 +94,6 @@ const ScriptStageView = ({
               <Sparkles size={16} className="icon" />
               {isParsing ? '提取中...' : 'AI提取素材'}
             </button>
-          </div>
-          <div className="right-actions">
             <button
               className="action-btn primary"
               onClick={onOpenScriptAssistant}

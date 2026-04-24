@@ -22,7 +22,7 @@ import { WORKFLOW_LAYOUT } from './constants/layoutConstants';
 import { uiLogger } from './utils/logger';
 import { authStorage } from './utils/authStorage';
 import { eventBus, EVENT_TYPES } from './utils/eventBus';
-import { useProjectStore, useWorkflowStore, useUIStore, useStageStore, useChatStore, STAGES } from './stores';
+import { useProjectStore, useWorkflowStore, useUIStore, useStageStore, useChatStore, STAGES, STAGE_LABELS } from './stores';
 import { traverseConnectedNodes } from './utils/nodeUtils';
 import './App.css';
 
@@ -142,21 +142,46 @@ function App() {
     setLeftWidth,
   } = useUIStore();
 
-  // 未保存修改详情 - 动态计算（需要 canvasNodes 和 canvasConnections）
-  const unsavedChanges = useMemo(() => {
+  // 未保存修改详情 - 基于 stageStore 的资产状态检测
+  // 使用函数直接计算，确保每次都能获取最新状态
+  const getUnsavedChanges = () => {
     const changes = [];
-    // 如果项目名称有变化
-    if (savedProjectState && projectName !== savedProjectState.name) {
-      changes.push({ stage: '项目', description: `项目名称已修改为"${projectName}"` });
+    const stageStore = useStageStore.getState();
+
+    console.log('[App] Computing unsavedChanges, hasPendingAssets:', stageStore.hasPendingAssets);
+    console.log('[App] stageAssets:', JSON.stringify(stageStore.stageAssets));
+    console.log('[App] savedStageAssets:', JSON.stringify(stageStore.savedStageAssets));
+
+    // 如果有新增但未保存到后端的资产
+    if (stageStore.hasPendingAssets) {
+      changes.push({ stage: '资产', description: '有新增资产尚未保存' });
     }
-    // 如果节点或连接有变化
-    if (savedProjectState && canvasNodes.length !== (savedProjectState.nodes?.length || 0)) {
-      changes.push({ stage: '节点画布', description: '节点数量有变化' });
-    } else if (savedProjectState && canvasConnections.length !== (savedProjectState.connections?.length || 0)) {
-      changes.push({ stage: '节点画布', description: '连接数量有变化' });
+
+    // 比较各阶段资产数量是否有变化
+    if (stageStore.savedStageAssets) {
+      Object.keys(STAGES).forEach(stage => {
+        const current = stageStore.stageAssets[stage] || [];
+        const saved = stageStore.savedStageAssets[stage] || [];
+        if (current.length !== saved.length) {
+          const stageLabel = STAGE_LABELS[stage] || stage;
+          if (current.length > saved.length) {
+            changes.push({ stage: stageLabel, description: `新增了 ${current.length - saved.length} 个资产` });
+          } else {
+            changes.push({ stage: stageLabel, description: `删除了 ${saved.length - current.length} 个资产` });
+          }
+        }
+      });
     }
+
+    console.log('[App] Computed unsavedChanges:', changes);
     return changes;
-  }, [canvasNodes, canvasConnections, projectName, savedProjectState]);
+  };
+
+  // 当弹窗打开时重新计算
+  const unsavedChanges = useMemo(() => {
+    console.log('[App] unsavedChanges recomputing, unsavedDialog.isOpen:', unsavedDialog.isOpen);
+    return getUnsavedChanges();
+  }, [unsavedDialog.isOpen]);
 
   // ============================================================================
   // P0 新增：层切换处理
@@ -306,8 +331,9 @@ function App() {
     };
   }, [canvasNodes, canvasConnections, selectedNode]);
 
-  // 脏状态检测
+  // 脏状态检测 - 统一检测 Canvas + stageStore
   useEffect(() => {
+    let canvasDirty = false;
     if (savedProjectState) {
       const currentState = JSON.stringify({
         nodes: canvasNodes,
@@ -316,10 +342,21 @@ function App() {
         name: projectName
       });
       const savedState = JSON.stringify(savedProjectState);
-      setHasUnsavedChanges(currentState !== savedState);
+      canvasDirty = currentState !== savedState;
     } else if (canvasNodes.length > 0 || canvasConnections.length > 0 || projectName !== '未命名项目') {
-      setHasUnsavedChanges(true);
+      canvasDirty = true;
     }
+
+    // 检查 stageStore 是否有未保存资产
+    const stageStore = useStageStore.getState();
+    const stageDirty = stageStore.hasPendingAssets || Object.keys(STAGES).some(stage => {
+      const current = stageStore.stageAssets[stage] || [];
+      const saved = stageStore.savedStageAssets?.[stage] || [];
+      return current.length !== saved.length;
+    });
+
+    console.log('[App] Dirty check: canvasDirty=', canvasDirty, 'stageDirty=', stageDirty);
+    setHasUnsavedChanges(canvasDirty || stageDirty);
   }, [canvasNodes, canvasConnections, canvasViewport, projectName, savedProjectState, setHasUnsavedChanges]);
 
   // 点击版本下拉框外部关闭
@@ -420,8 +457,44 @@ function App() {
         throw new Error('Failed to create project');
       }
 
+      // 从 stageStore 获取故事板资产，生成故事板节点
+      const stageAssets = useStageStore.getState().stageAssets;
+      const storyboardNodes = [];
+      const yOffset = {
+        [STAGES.SCRIPT]: 200,
+        [STAGES.CHARACTER]: 300,
+        [STAGES.SCENE]: 400,
+        [STAGES.PROP]: 500,
+        [STAGES.STORYBOARD]: 600,
+        [STAGES.VIDEO]: 700,
+        [STAGES.CLIP]: 800,
+      };
+      let xBase = 100;
+
+      Object.entries(stageAssets).forEach(([stage, assets]) => {
+        assets.forEach((asset, index) => {
+          if (asset.serverId) {
+            // 只保存已有 serverId 的资产（已保存到后端的）
+            storyboardNodes.push({
+              id: `sb-${stage}-${asset.serverId}`,
+              type: stage,
+              layer: 'storyboard',
+              x: xBase + index * 150,
+              y: yOffset[stage] || 300,
+              data: {
+                assetId: asset.serverId,
+                name: asset.name,
+              },
+            });
+          }
+        });
+      });
+
+      // 合并画布节点和故事板节点
+      const allNodes = [...canvasNodes, ...storyboardNodes];
+
       const config = {
-        nodes: canvasNodes,
+        nodes: allNodes,
         connections: canvasConnections,
         viewport: canvasViewport
       };
@@ -439,11 +512,14 @@ function App() {
       await loadVersions(projectId);
 
       markSaved({
-        nodes: canvasNodes,
+        nodes: allNodes,
         connections: canvasConnections,
         viewport: canvasViewport,
         name: projectName
       });
+
+      // 标记资产已保存
+      useStageStore.getState().markAssetsSaved();
 
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 2000);
@@ -454,7 +530,7 @@ function App() {
       setIsSaving(false);
     }
   }, [
-    currentProjectId, projectName, canvasNodes, canvasConnections, canvasViewport,
+    currentProjectId, projectName, canvasNodes, canvasConnections, canvasViewport, STAGES,
     setCurrentProjectId, setIsSaving, setCurrentVersion, loadVersions, markSaved, setSaveSuccess
   ]);
 
@@ -475,9 +551,10 @@ function App() {
         const projectResponse = await homePageApi.getProject(projectId);
         if (projectResponse.data) {
           setProjectName(projectResponse.data.title || '未命名项目');
+          let config = { nodes: [], connections: [], viewport: {} };
           if (projectResponse.data.config) {
             try {
-              const config = typeof projectResponse.data.config === 'string'
+              config = typeof projectResponse.data.config === 'string'
                 ? JSON.parse(projectResponse.data.config)
                 : projectResponse.data.config;
               incrementCanvasKey();
@@ -490,6 +567,8 @@ function App() {
               uiLogger.error('[App] Failed to parse project config:', e);
             }
           }
+          // 加载故事板资产
+          await useStageStore.getState().loadProjectAssets(projectId, config);
           await loadVersions(projectId);
         }
       } catch (error) {
@@ -559,13 +638,16 @@ function App() {
 
   // 未保存确认弹窗 - 保存并离开
   const handleSaveAndLeave = useCallback(async () => {
+    console.log('[App] handleSaveAndLeave called, pendingAction:', unsavedDialog.pendingAction, 'target:', unsavedDialog.target);
     const { pendingAction, target } = unsavedDialog;
     setUnsavedDialog({ isOpen: false, pendingAction: null, target: null });
     await handleSaveProject();
     // 执行待处理动作
     if (pendingAction === 'goHome') {
+      console.log('[App] Executing goHome after save');
       handleCancelPlanning();
     } else if (pendingAction === 'switchProject' && target) {
+      console.log('[App] Executing switchProject after save, target:', target);
       const { switchProject } = useProjectStore.getState();
       switchProject(target);
     }
@@ -573,19 +655,23 @@ function App() {
 
   // 未保存确认弹窗 - 不保存离开
   const handleLeaveWithoutSaving = useCallback(() => {
+    console.log('[App] handleLeaveWithoutSaving called, pendingAction:', unsavedDialog.pendingAction, 'target:', unsavedDialog.target);
     const { pendingAction, target } = unsavedDialog;
     setUnsavedDialog({ isOpen: false, pendingAction: null, target: null });
     // 执行待处理动作（不保存）
     if (pendingAction === 'goHome') {
+      console.log('[App] Executing goHome without saving');
       handleCancelPlanning();
     } else if (pendingAction === 'switchProject' && target) {
+      console.log('[App] Executing switchProject without saving, target:', target);
       const { switchProject } = useProjectStore.getState();
       switchProject(target);
     }
-  }, [handleCancelPlanning]);
+  }, [handleCancelPlanning, unsavedDialog]);
 
   // 未保存确认弹窗 - 取消
   const handleCancelUnsaved = useCallback(() => {
+    console.log('[App] handleCancelUnsaved called, just closing dialog');
     setUnsavedDialog({ isOpen: false, pendingAction: null, target: null });
   }, []);
 

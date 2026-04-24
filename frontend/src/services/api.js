@@ -446,7 +446,7 @@ function createSSEStream(url, options, callbacks) {
  * @returns {Object} 包含 close 方法的对象
  */
 export function sendChatMessageStream(params, callbacks) {
-  const { projectId, sessionId, contextType, contextId, message, generation } = params;
+  const { projectId, sessionId, contextType, contextId, message, generation, responseType } = params;
 
   // 测试计划定义的请求体格式
   const body = JSON.stringify({
@@ -457,7 +457,7 @@ export function sendChatMessageStream(params, callbacks) {
     contextId: contextId || 'default',
     message: {
       content: message.trim(),
-      metadata: { attachments: [], context: {} }
+      metadata: { attachments: [], context: {}, responseType: responseType || 'text' }
     }
   });
 
@@ -465,8 +465,10 @@ export function sendChatMessageStream(params, callbacks) {
   let currentGeneration = generation;
 
   // 调用测试计划定义的端点: POST /adeptify/v1/chat/completions
+  console.log('[sendChatMessageStream] Calling API with:', { responseType });
   const sse = createSSEStream(`/adeptify/v1/chat/completions`, { body }, {
     onEvent: (eventType, eventWithType, data) => {
+      console.log('[sendChatMessageStream] Event:', eventType, data);
       switch (eventType) {
         case 'message_start':
           // 忽略 sessionId 存储
@@ -476,17 +478,20 @@ export function sendChatMessageStream(params, callbacks) {
           callbacks.onThinking?.({ delta: data.content || data.delta || '' });
           break;
         case 'content':
-          // 测试计划: {"type": "text", "delta": "..."}
-          if (data.type === 'text') {
-            callbacks.onResult?.({ delta: data.delta || '' });
+          // 测试计划: {"type": "text", "delta": "..."} 或 {"type": "image", "imageUrl": "...", "thumbnail": "..."}
+          if (data.type === 'text' || data.type === 'markdown') {
+            callbacks.onResult?.({ delta: data.delta || data.content || '', contentType: data.type });
+          } else if (data.type === 'image') {
+            // 图片类型
+            callbacks.onImage?.({ imageUrl: data.imageUrl, thumbnail: data.thumbnail });
           } else if (data.type === 'batch_action') {
             // 批量操作，包含资产更新等
             callbacks.onData?.(data.delta || {});
           }
           break;
         case 'message_end':
-          // 测试计划: {"content": "完整内容"}
-          callbacks.onComplete?.({ content: data.content });
+          // 空数据，仅标识结束
+          callbacks.onComplete?.({});
           break;
         case 'metadata':
           // 忽略元数据事件
@@ -806,7 +811,53 @@ export const assetApi = {
   getAssets: (projectId, type = null) => {
     let url = `/v1/projects/${projectId}/assets`;
     if (type) url += `?type=${type}`;
-    return request(url);
+    return request(url).then(response => ({
+      ...response,
+      data: {
+        ...response.data,
+        assets: (response.data?.assets || []).map(asset => ({
+          id: `local-${asset.id}`,
+          serverId: asset.id,
+          name: asset.name,
+          type: asset.type,
+          description: asset.description,
+          prompt: asset.prompt,
+          content: asset.content,
+          thumbnail: asset.thumbnail,
+          videoUrl: asset.uri,
+          metadata: parseMetadataJson(asset.metadataJson),
+          status: asset.status,
+          createdAt: asset.createTime,
+        }))
+      }
+    }));
+  },
+
+  // 批量获取资产
+  getAssetsByIds: (projectId, assetIds) => {
+    return request(`/v1/projects/${projectId}/assets/batch`, {
+      method: 'POST',
+      body: JSON.stringify(assetIds),
+    }).then(response => ({
+      ...response,
+      data: {
+        ...response.data,
+        assets: (response.data?.assets || []).map(asset => ({
+          id: `local-${asset.id}`,
+          serverId: asset.id,
+          name: asset.name,
+          type: asset.type,
+          description: asset.description,
+          prompt: asset.prompt,
+          content: asset.content,
+          thumbnail: asset.thumbnail,
+          videoUrl: asset.uri,
+          metadata: parseMetadataJson(asset.metadataJson),
+          status: asset.status,
+          createdAt: asset.createTime,
+        }))
+      }
+    }));
   },
 
   // 创建资产
@@ -820,6 +871,7 @@ export const assetApi = {
         prompt: data.prompt || '',
         thumbnail: data.thumbnail || null,
         uri: data.uri || null,
+        content: data.content || null,
       }),
     });
   },
@@ -835,6 +887,7 @@ export const assetApi = {
         thumbnail: data.thumbnail,
         uri: data.uri,
         status: data.status,
+        content: data.content,
       }),
     });
   },
@@ -854,6 +907,203 @@ export const assetApi = {
   },
 };
 
+// 解析 metadataJson 字符串为对象
+function parseMetadataJson(metadataJson) {
+  if (!metadataJson) return {};
+  try {
+    return JSON.parse(metadataJson);
+  } catch {
+    return {};
+  }
+}
+
+// ============ AI 服务接口 ============
+
+// AI actionType 枚举
+export const AI_ACTION_TYPE = {
+  // 剧本
+  SCRIPT_PARSE: 'script_parse',
+  SCRIPT_GENERATE: 'script_generate',
+  // 角色
+  CHARACTER_OPTIMIZE: 'character_optimize',
+  CHARACTER_GENERATE: 'character_generate',
+  // 场景
+  SCENE_OPTIMIZE: 'scene_optimize',
+  SCENE_GENERATE: 'scene_generate',
+  // 道具
+  PROP_OPTIMIZE: 'prop_optimize',
+  PROP_GENERATE: 'prop_generate',
+  // 分镜
+  SHOT_GENERATE: 'shot_generate',
+};
+
+// AI character ID 配置（与后端 AiService 对应）
+const AI_CHARACTER_IDS = {
+  SCRIPT_PARSE: 'character_script',
+  SCRIPT_GENERATE: 'character_storyboard',
+  CHARACTER_OPTIMIZE: 'character_character',
+  CHARACTER_GENERATE: 'character_character',
+  SCENE_OPTIMIZE: 'character_scene',
+  SCENE_GENERATE: 'character_scene',
+  PROP_OPTIMIZE: 'character_prop',
+  PROP_GENERATE: 'character_prop',
+  SHOT_GENERATE: 'character_shot',
+};
+
+// 内容类型
+const CONTENT_TYPE = {
+  TEXT: 'text',
+  IMAGE: 'image',
+  VIDEO: 'video',
+};
+
+// 资产类型映射到资源名称
+const ASSET_TYPE_NAME = {
+  script: '剧本',
+  character: '角色',
+  scene: '场景',
+  prop: '道具',
+  image: '图片',
+};
+
+export const aiApi = {
+  // 统一 AI 对话接口（非 SSE）
+  send: async ({ projectId, actionType, assetId, assetType, message, assets }) => {
+    // 构建 assets 数组
+    const assetList = assets || (assetId && assetType ? [{
+      name: ASSET_TYPE_NAME[assetType] || '资源',
+      assetId,
+      type: CONTENT_TYPE.TEXT,
+    }] : []);
+
+    // 构建 message（自动添加 [@引用]）
+    let fullMessage = message;
+    if (assetList.length > 0 && message && !message.includes('[@')) {
+      // 从 message 中提取 @引用 转为 [@引用]
+      fullMessage = message.replace(/@(\S+)/g, (match, refName) => {
+        const asset = assetList.find(a => a.name === refName);
+        return asset ? `[@${refName}]` : match;
+      });
+      // 如果没有显式引用，自动加第一个资源的引用
+      if (!fullMessage.includes('[@') && assetList.length > 0) {
+        const firstAsset = assetList[0];
+        fullMessage = `${fullMessage || ''}[@${firstAsset.name}]`;
+      }
+    }
+
+    const response = await request('/ai/chat', {
+      method: 'POST',
+      body: JSON.stringify({
+        projectId,
+        characterId: AI_CHARACTER_IDS[actionType.toUpperCase()] || AI_CHARACTER_IDS.SCRIPT_PARSE,
+        message: fullMessage,
+        assets: assetList,
+      }),
+    });
+
+    return response.data;
+  },
+
+  // 剧本解析
+  parseScript: (projectId, scriptAssetId, message) => {
+    return aiApi.send({
+      projectId,
+      actionType: AI_ACTION_TYPE.SCRIPT_PARSE,
+      assetId: scriptAssetId,
+      assetType: 'script',
+      message: message || '提取角色、场景、道具',
+    });
+  },
+
+  // 剧本生成分镜
+  generateStoryboard: (projectId, scriptAssetId, message) => {
+    return aiApi.send({
+      projectId,
+      actionType: AI_ACTION_TYPE.SCRIPT_GENERATE,
+      assetId: scriptAssetId,
+      assetType: 'script',
+      message: message || '生成分镜',
+    });
+  },
+
+  // 角色优化
+  optimizeCharacter: (projectId, characterAssetId, message) => {
+    return aiApi.send({
+      projectId,
+      actionType: AI_ACTION_TYPE.CHARACTER_OPTIMIZE,
+      assetId: characterAssetId,
+      assetType: 'character',
+      message: message || '优化描述',
+    });
+  },
+
+  // 角色生成图片
+  generateCharacterImage: (projectId, characterAssetId, message) => {
+    return aiApi.send({
+      projectId,
+      actionType: AI_ACTION_TYPE.CHARACTER_GENERATE,
+      assetId: characterAssetId,
+      assetType: 'character',
+      message: message || '生成图片',
+    });
+  },
+
+  // 场景优化
+  optimizeScene: (projectId, sceneAssetId, message) => {
+    return aiApi.send({
+      projectId,
+      actionType: AI_ACTION_TYPE.SCENE_OPTIMIZE,
+      assetId: sceneAssetId,
+      assetType: 'scene',
+      message: message || '优化描述',
+    });
+  },
+
+  // 场景生成图片
+  generateSceneImage: (projectId, sceneAssetId, message) => {
+    return aiApi.send({
+      projectId,
+      actionType: AI_ACTION_TYPE.SCENE_GENERATE,
+      assetId: sceneAssetId,
+      assetType: 'scene',
+      message: message || '生成图片',
+    });
+  },
+
+  // 道具优化
+  optimizeProp: (projectId, propAssetId, message) => {
+    return aiApi.send({
+      projectId,
+      actionType: AI_ACTION_TYPE.PROP_OPTIMIZE,
+      assetId: propAssetId,
+      assetType: 'prop',
+      message: message || '优化描述',
+    });
+  },
+
+  // 道具生成图片
+  generatePropImage: (projectId, propAssetId, message) => {
+    return aiApi.send({
+      projectId,
+      actionType: AI_ACTION_TYPE.PROP_GENERATE,
+      assetId: propAssetId,
+      assetType: 'prop',
+      message: message || '生成图片',
+    });
+  },
+
+  // 分镜生成图片
+  generateShotImage: (projectId, shotAssetId, message) => {
+    return aiApi.send({
+      projectId,
+      actionType: AI_ACTION_TYPE.SHOT_GENERATE,
+      assetId: shotAssetId,
+      assetType: 'shot',
+      message: message || '生成图片',
+    });
+  },
+};
+
 export default {
   authApi,
   homePageApi,
@@ -865,4 +1115,5 @@ export default {
   nodeVersionApi,
   proposalApi,
   assetApi,
+  aiApi,
 };

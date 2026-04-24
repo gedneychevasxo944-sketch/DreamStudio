@@ -24,6 +24,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Slf4j
 @RestController
@@ -245,7 +246,7 @@ public class NodeController {
                     .title(request.getName())
                     .coverUri(request.getThumbnail())
                     .uri(request.getUri())
-                    .metadataJson(buildMetadataJson(request.getDescription(), request.getPrompt()))
+                    .metadataJson(buildMetadataJson(request.getDescription(), request.getPrompt(), request.getContent()))
                     .status("READY")
                     .build();
 
@@ -335,7 +336,61 @@ public class NodeController {
     }
 
     /**
-     * 简单的 JSON 值提取（用于从 metadataJson 中获取 description/prompt）
+     * 批量获取资产
+     * POST /api/v1/projects/{projectId}/assets/batch
+     */
+    @PostMapping("/projects/{projectId}/assets/batch")
+    @Operation(summary = "批量获取资产", description = "根据 assetIds 批量获取资产")
+    public ApiResponse<AssetDTO.AssetListResponse> getAssetsByIds(
+            @PathVariable Long projectId,
+            @RequestBody List<Long> assetIds) {
+        log.info("Getting assets by ids for project: {}, count: {}", projectId, assetIds != null ? assetIds.size() : 0);
+        validateProjectOwnership(projectId);
+
+        try {
+            List<Asset> assets = assetService.getAssetsByIds(assetIds);
+
+            List<AssetDTO.AssetItem> items = assets.stream()
+                    .map(asset -> {
+                        String description = null;
+                        String prompt = null;
+                        String content = null;
+                        if (asset.getMetadataJson() != null && !asset.getMetadataJson().isEmpty()) {
+                            description = extractJsonValue(asset.getMetadataJson(), "description");
+                            prompt = extractJsonValue(asset.getMetadataJson(), "prompt");
+                            content = extractJsonValue(asset.getMetadataJson(), "content");
+                        }
+                        return AssetDTO.AssetItem.builder()
+                                .id(asset.getId())
+                                .projectId(asset.getProjectId())
+                                .type(asset.getAssetType())
+                                .name(asset.getTitle())
+                                .description(description)
+                                .prompt(prompt)
+                                .content(content)
+                                .thumbnail(asset.getCoverUri())
+                                .uri(asset.getUri())
+                                .status(asset.getStatus())
+                                .metadataJson(asset.getMetadataJson())
+                                .createTime(asset.getCreatedTime() != null ? asset.getCreatedTime().toString() : null)
+                                .build();
+                    })
+                    .collect(Collectors.toList());
+
+            AssetDTO.AssetListResponse response = AssetDTO.AssetListResponse.builder()
+                    .assets(items)
+                    .total(items.size())
+                    .build();
+
+            return ApiResponse.success(response);
+        } catch (Exception e) {
+            log.error("Failed to get assets by ids: {}", e.getMessage(), e);
+            return ApiResponse.error("Failed to get assets: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 简单的 JSON 值提取（用于从 metadataJson 中获取 description/prompt/content）
      */
     private String extractJsonValue(String json, String key) {
         if (json == null || json.isEmpty()) return null;
@@ -355,8 +410,8 @@ public class NodeController {
     /**
      * 构建 metadata JSON 字符串
      */
-    private String buildMetadataJson(String description, String prompt) {
-        if (description == null && prompt == null) return "{}";
+    private String buildMetadataJson(String description, String prompt, String content) {
+        if (description == null && prompt == null && content == null) return "{}";
         StringBuilder sb = new StringBuilder("{");
         boolean hasPrevious = false;
         if (description != null) {
@@ -366,6 +421,11 @@ public class NodeController {
         if (prompt != null) {
             if (hasPrevious) sb.append(",");
             sb.append("\"prompt\":\"").append(escapeJson(prompt)).append("\"");
+            hasPrevious = true;
+        }
+        if (content != null) {
+            if (hasPrevious) sb.append(",");
+            sb.append("\"content\":\"").append(escapeJson(content)).append("\"");
         }
         sb.append("}");
         return sb.toString();

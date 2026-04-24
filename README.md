@@ -1,366 +1,224 @@
 # DreamStudio 造梦AI
 
-AI驱动的智能电影制作平台。基于节点式可视化工作流，多Agent协作完成从剧本到成片的全流程。
+> AI驱动的智能电影制作平台。基于分镜工作台，多Agent协作完成从剧本到成片的全流程。
 
-## 技术栈
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.2.0-6DB33F?logo=springboot)](https://spring.io/projects/spring-boot)
+[![React](https://img.shields.io/badge/React-18-61DAFB?logo=react)](https://react.dev)
+[![Java 21](https://img.shields.io/badge/Java-21-007396?logo=java)](https://www.oracle.com/java/)
+[![Vite](https://img.shields.io/badge/Vite-5-646CFF?logo=vite)](https://vitejs.dev)
+[![License](https://img.shields.io/badge/License-MIT-FF6B6B?logo=mit)](LICENSE)
 
-### 前端
-- **框架**: React 18 + Vite
-- **动画**: Framer Motion
-- **状态管理**: Zustand
-- **图标**: Lucide React
-- **样式**: CSS Modules / CSS Variables
-- ** Markdown渲染**: React Markdown
-- **视频处理**: webcut
+## ✨ Features
 
-### 后端
-- **框架**: Spring Boot 3.2.0
-- **语言**: Java 21
-- **持久化**: JPA / Hibernate
-- **数据库**: H2 (开发) / MySQL (生产)
-- **认证**: JWT
+- **智能剧本解析** — 上传或输入剧本，AI自动识别角色、场景、道具
+- **多阶段分镜工作台** — 剧本 → 角色 → 场景 → 道具 → 分镜 → 视频 → 剪辑，7阶段完整管线
+- **AI对话式生成** — 自然语言描述需求，AI辅助创作各阶段资产
+- **资产版本管理** — 每个项目支持多版本，自动保存历史版本
+- **可视化画布** — 节点式工作流编辑器，自由搭建复杂创作流程
+- **多项目管理** — 支持多个项目，快速切换
+- **主题切换** — 支持浅色/深色主题，一键切换
 
-## 项目结构
+## 📁 Project Structure
 
 ```
 DreamStudio/
-├── frontend/                    # 前端源码
+├── frontend/                    # React 18 前端应用
 │   ├── src/
 │   │   ├── components/
-│   │   │   ├── NodeCanvas/      # 可视化工作流画布
-│   │   │   │   ├── NodeCanvas.jsx      # 画布主体（拖拽、缩放、连线）
-│   │   │   │   ├── RichAgentNode.jsx   # 节点组件（状态、输入输出）
-│   │   │   │   ├── NodeConnection.jsx  # SVG连接线
-│   │   │   │   ├── AgentLibrary.jsx    # 左侧智能体库
-│   │   │   │   ├── AgentNode.jsx       # 基础节点组件
-│   │   │   │   ├── PipelineTemplates.jsx
-│   │   │   │   ├── DraggingConnectionLine.jsx
-│   │   │   │   └── index.js
-│   │   │   ├── Canvas/          # 画布工具栏
-│   │   │   │   ├── CanvasToolbar.jsx
-│   │   │   │   ├── CanvasStatusBar.jsx
-│   │   │   │   ├── FullscreenToolbar.jsx
-│   │   │   │   ├── SaveTemplateDialog.jsx
-│   │   │   │   └── index.js
-│   │   │   ├── Console.jsx      # 左侧面板（对话/日志）
+│   │   │   ├── Storyboard/      # 分镜工作台
+│   │   │   │   ├── stages/            # 多阶段视图
+│   │   │   │   │   ├── ScriptStageView.jsx   # 剧本阶段
+│   │   │   │   │   ├── AssetStageView.jsx    # 角色/场景/道具阶段
+│   │   │   │   │   ├── VideoStageView.jsx    # 视频阶段
+│   │   │   │   │   └── ClipStageView.jsx     # 剪辑阶段
+│   │   │   │   ├── StoryboardMainView.jsx    # 分镜主视图
+│   │   │   │   ├── ScriptAssistantPanel.jsx  # AI脚本助手
+│   │   │   │   ├── ScriptParser.jsx          # 剧本解析器
+│   │   │   │   ├── AssetDetailPanel.jsx      # 资产详情面板
+│   │   │   │   ├── AssetAIDialog.jsx         # 资产AI生成弹窗
+│   │   │   │   └── StageNavigation.jsx        # 阶段导航
+│   │   │   ├── TopBar/           # 顶部导航栏
+│   │   │   ├── NodeCanvas/       # 可视化工作流画布
+│   │   │   ├── Console.jsx       # 左侧对话控制台
 │   │   │   ├── ChatConversation.jsx  # 对话组件
-│   │   │   ├── AssetPanel/      # 右侧资产面板
-│   │   │   ├── HomePage.jsx    # 首页
-│   │   │   ├── AuthModal/       # 登录/注册弹窗
-│   │   │   ├── SkillMarket/     # Skill市场
-│   │   │   ├── VideoEditor/     # 视频编辑器
-│   │   │   ├── ProjectCard.jsx  # 项目卡片
-│   │   │   ├── Toast/           # 提示组件
-│   │   │   ├── Modal.jsx        # 通用弹窗
-│   │   │   ├── ConfirmDialog/   # 确认对话框
-│   │   │   └── ErrorBoundary.jsx
-│   │   ├── services/
-│   │   │   └── api.js           # API调用封装（含SSE）
-│   │   ├── stores/
-│   │   │   ├── index.js
-│   │   │   ├── workflowStore.js  # 画布状态（节点、连线、运行状态）
-│   │   │   ├── projectStore.js  # 项目状态（版本、配置）
-│   │   │   └── uiStore.js       # UI状态（面板折叠、弹窗）
-│   │   ├── constants/
-│   │   │   └── ComponentType.js  # 节点类型常量
-│   │   ├── utils/
-│   │   │   ├── logger.js
-│   │   │   ├── errorHandler.js
-│   │   │   └── sseParser.js
-│   │   ├── App.jsx              # 根组件
-│   │   └── main.jsx
-│   ├── vite.config.js
-│   └── package.json
+│   │   │   └── ...
+│   │   ├── stores/               # Zustand 状态管理
+│   │   │   ├── projectStore.js   # 项目状态
+│   │   │   ├── stageStore.js     # 分镜阶段状态
+│   │   │   ├── workflowStore.js # 画布工作流状态
+│   │   │   ├── chatStore.js     # 对话状态
+│   │   │   ├── themeStore.js    # 主题状态
+│   │   │   └── uiStore.js       # UI状态
+│   │   ├── services/api.js       # API 调用封装
+│   │   └── App.jsx
+│   └── vite.config.js
 │
-├── backend/                     # 后端源码
-│   ├── src/main/java/com/dream/studio/
-│   │   ├── controller/          # REST接口
-│   │   │   ├── AuthController.java       # 用户认证
-│   │   │   ├── HomePageController.java   # 项目管理
-│   │   │   ├── WorkSpaceController.java  # 工作流执行
-│   │   │   ├── WorkflowController.java  # 工作流API
-│   │   │   └── TeamController.java       # 团队/模板
-│   │   ├── service/             # 业务逻辑
-│   │   │   ├── ChatService.java
-│   │   │   ├── WorkflowService.java
-│   │   │   ├── ExecutionService.java
-│   │   │   ├── HomePageService.java
-│   │   │   ├── UserService.java
-│   │   │   └── UpstreamAiClient.java    # 上游AI服务调用
-│   │   ├── entity/              # JPA实体
-│   │   ├── repository/          # 数据访问
-│   │   ├── dto/                # 数据传输对象
-│   │   ├── config/             # 配置类
-│   │   ├── filter/             # 过滤器（JWT认证）
-│   │   └── exception/           # 异常处理
-│   ├── pom.xml
-│   └── 上游服务接口文档.md
+├── backend/                     # Spring Boot 3.2 后端
+│   └── src/main/java/com/dream/studio/
+│       ├── controller/          # REST API 控制器
+│       │   ├── AuthController.java      # 用户认证
+│       │   ├── HomePageController.java  # 项目管理
+│       │   ├── AdeptifyController.java # AI生成
+│       │   ├── AiController.java       # AI对话
+│       │   ├── ChatSessionController.java  # 对话会话
+│       │   ├── NodeController.java      # 节点管理
+│       │   ├── PlanController.java      # 计划管理
+│       │   ├── TeamController.java      # 团队/模板
+│       │   ├── WorkflowController.java  # 工作流
+│       │   └── WorkSpaceController.java # 工作空间
+│       ├── service/             # 业务逻辑层
+│       ├── entity/              # JPA 实体
+│       ├── repository/          # 数据访问层
+│       ├── dto/                 # 数据传输对象
+│       ├── config/              # 配置类
+│       ├── filter/              # 过滤器 (JWT)
+│       └── exception/           # 异常处理
 │
-├── CLAUDE.md                    # 项目规范
+├── specs/                       # 需求规格文档
+│   └── 001-dreamstudio-storyboard/
+│       └── spec.md
+│
+├── CLAUDE.md                    # 项目开发规范
 └── README.md
 ```
 
-## 核心概念
+## 🏃 Quick Start
 
-### 节点类型 (Agent)
+### Prerequisites
 
-| Type | 名称 | 功能 |
-|------|------|------|
-| `producer` | 资深影视制片人 | 项目立项，可行性分析 |
-| `content` | 金牌编剧 | 剧本创作（分集分场景） |
-| `visual` | 概念美术总监 | 角色/场景/道具设计 |
-| `director` | 分镜导演 | 分镜脚本生成 |
-| `technical` | 视频提示词工程师 | 视频Prompt优化 |
-| `videoGen` | 视频生成 | 调用模型生成视频 |
-| `videoEditor` | 视频剪辑 | 剪辑成片 |
+- Node.js 18+
+- Java 21+
+- Maven 3.8+
 
-### 工作台布局
-
-```
-┌─────────────────────────────────────────────────────────┐
-│  Header: 项目名 / 版本切换 / 保存 / 新建 / 导航          │
-├────────────┬────────────────────────────┬──────────────┤
-│            │                            │              │
-│  Console   │      NodeCanvas            │   Asset      │
-│  (左侧)    │      (中心画布)             │   Panel      │
-│            │                            │   (右侧)     │
-│  - 智能助理│  - 节点拖拽/缩放/连线       │              │
-│  - 对话历史│  - 工作流执行可视化          │  - 资产浏览  │
-│  - 工作流  │  - 自动跟踪运行节点          │  - 导出功能  │
-│    创建    │                            │              │
-├────────────┴────────────────────────────┴──────────────┤
-│  StatusBar: 缩放比例 / 节点数 / 连线数                   │
-└─────────────────────────────────────────────────────────┘
-```
-
-### 工作流执行
-
-工作流通过DAG定义节点和依赖关系，执行时通过SSE流式返回事件：
-
-| 事件类型 | 说明 |
-|----------|------|
-| `init` | 初始化，返回executionId |
-| `node_status` / `status` | 节点状态变化（running/completed） |
-| `thinking` | 思考过程流式输出 |
-| `result` | 最终结果流式输出 |
-| `data` | 业务数据（图片、视频等） |
-| `complete` | 执行完成 |
-| `error` | 执行错误 |
-
-### 版本管理
-
-- 每个项目有多个版本，支持历史版本查看和恢复
-- 版本信息包含完整的画布配置（节点、连线、视口位置）
-
-## 快速启动
-
-### 前端
+### Install Dependencies
 
 ```bash
-cd frontend
-npm install
-npm run dev
+make install
 ```
 
-访问 `http://localhost:5173`，Vite 会自动代理 `/api` 请求到后端。
-
-### 后端
+### Start Services
 
 ```bash
-cd backend
-mvn spring-boot:run
+make start        # 同时启动前后端
+make stop         # 停止所有服务
+make status       # 查看服务状态
+# 或单独启动
+make backend      # 仅后端 (http://localhost:8080)
+make dev          # 仅前端 (http://localhost:5173)
 ```
 
-访问 `http://localhost:8080`
+访问 `http://localhost:5173`，Vite 开发服务器会自动代理 `/api/*` 请求到后端。
 
-### 开发数据库
+### Development Database
 
-- H2 控制台：`http://localhost:8080/h2-console`
-- JDBC URL：`jdbc:h2:mem:aimanjudb`
+- H2 控制台: `http://localhost:8080/h2-console`
+- JDBC URL: `jdbc:h2:mem:aimanjudb`
+- 默认用户名: `sa`，密码为空
 
-生产环境切换 MySQL，修改 `application.yml`。
+> 生产环境切换 MySQL，修改 `backend/src/main/resources/application.yml`
 
-## API 代理
+## 📖 Storyboard Workflow
 
-前端所有 `/api/*` 请求通过 Vite 代理到后端：
+分镜工作台是 DreamStudio 的核心创作界面，用户通过以下阶段完成从剧本到成片的创作：
 
-| 前端路径 | 后端路径 |
-|----------|----------|
-| `/api/*` | `http://localhost:8080/api/*` |
+```
+剧本 → 角色 → 场景 → 道具 → 分镜 → 视频 → 剪辑
+```
 
-## 接口文档
+### Stage Navigation
 
-- Swagger UI（后端启动后访问）：`http://localhost:8080/swagger-ui.html`
-- 上游服务接口文档：`backend/上游服务接口文档.md`
+| Stage | Description |
+|-------|-------------|
+| 剧本 | 上传或编写剧本，支持AI解析提取角色/场景/道具 |
+| 角色 | 管理角色资产，AI生成角色形象描述 |
+| 场景 | 管理场景资产，AI生成场景概念图 |
+| 道具 | 管理道具资产，AI生成道具设计 |
+| 分镜 | 生成镜头分镜，包含景别、运镜、时长等参数 |
+| 视频 | 根据分镜参数生成视频片段 |
+| 剪辑 | 将视频片段组装成完整成片 |
 
-## 状态管理
+## 🔌 API Reference
 
-项目使用 Zustand 管理状态，分为三个Store：
+### Authentication
 
-| Store | 职责 |
-|-------|------|
-| `workflowStore` | 画布数据（nodes, connections）、运行状态 |
-| `projectStore` | 项目信息（ID、名称、版本） |
-| `uiStore` | UI状态（面板宽度、弹窗、模态框） |
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/auth/login` | 用户登录 |
+| POST | `/api/auth/register` | 用户注册 |
+| POST | `/api/auth/send-code` | 发送验证码 |
 
-## 使用文档
+### Project Management
 
-### 首页操作
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/projects` | 获取项目列表 |
+| POST | `/api/projects` | 创建项目 |
+| GET | `/api/projects/{id}` | 获取项目详情 |
+| PUT | `/api/projects/{id}` | 更新项目 |
+| GET | `/api/projects/{id}/versions` | 获取版本历史 |
 
-#### 登录/注册
-1. 点击右上角「登录 / 注册」按钮
-2. 支持账号密码登录和注册
-3. 注册需要验证码
+### AI Generation
 
-#### 创建项目
-1. **方式一**：在搜索框输入创意想法，点击「生成」按钮，一键创建项目并进入工作台
-2. **方式二**：点击「工作台」按钮，直接进入空白工作台
-3. **方式三**：从案例演示选择一个模板，点击「使用此模板创建」
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/adeptify/generate` | AI生成资产 |
+| POST | `/api/ai/chat` | AI对话 |
+| POST | `/api/ai/parse-script` | 解析剧本 |
 
-#### 查看和管理项目
-- 登录后显示「最近项目」列表
-- 点击项目卡片进入对应的工作台
-- 支持分页查看所有项目
+### Workflow
 
----
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/workflows` | 获取工作流列表 |
+| POST | `/api/workflows` | 创建工作流 |
+| POST | `/api/workflows/run` | 运行工作流 |
 
-### 工作台操作
+Swagger UI: `http://localhost:8080/swagger-ui.html`
 
-#### 智能体库（添加节点）
+## 🏗️ Architecture
 
-1. 点击顶部工具栏的「+」按钮，打开智能体库
-2. 支持分类浏览：
-   - **官方认证**：系统预置的智能体
-   - **我的私有**：用户自定义的智能体
-3. 添加方式：
-   - **拖拽**：拖动智能体卡片到画布上
-   - **点击**：点击智能体卡片，自动添加到画布中心
+### Frontend State Management (Zustand)
 
-#### 节点操作
+```
+projectStore      → 项目信息 (ID, 名称, 版本)
+stageStore        → 当前阶段、阶段数据
+workflowStore     → 画布节点、连线、运行状态
+chatStore         → 对话消息、会话
+themeStore        → 主题偏好 (localStorage 持久化)
+uiStore           → UI状态 (面板折叠、弹窗)
+```
 
-| 操作 | 说明 |
-|------|------|
-| 添加节点 | 从智能体库拖拽或点击添加到画布 |
-| 移动节点 | 鼠标拖拽节点 |
-| 删除节点 | 选中节点后按 Delete 键，或点击删除按钮 |
-| 编辑节点 | 双击节点打开设置面板 |
-| 连接节点 | 从输出端口拖拽到另一个节点的输入端口 |
-| 删除连线 | 选中连线后按 Delete 键 |
-| 缩放画布 | 鼠标滚轮（Mac触控板双指缩放） |
-| 拖动画布 | 点击空白区域拖拽 |
+### Backend Layer
 
-#### 运行工作流
+```
+Controller → Service → Repository → Database
+              ↓
+         UpstreamAiClient (调用外部AI服务)
+```
 
-1. 点击顶部工具栏的「运行」按钮
-2. 工作流开始执行，节点状态变化：
-   - `idle` → 空闲（初始状态）
-   - `running` → 运行中（高亮显示）
-   - `completed` → 已完成（显示结果）
-3. 运行过程中：
-   - 画布自动跟踪当前运行的节点
-   - 用户手动滚动画布会退出自动跟踪模式
-   - 思考过程和结果实时流式显示在节点上
+## ⚙️ Configuration
 
-#### 全屏模式
-- 点击「全屏」按钮进入全屏工作台
-- ESC 键退出全屏
+### Frontend Environment
 
----
+```env
+VITE_API_BASE_URL=http://localhost:8080
+```
 
-### 左侧面板 - Console（控制台）
+### Backend Application Properties
 
-#### 智能助理对话
-1. 在输入框输入消息
-2. 发送后会调用 AI 进行对话
-3. 支持 markdown 格式显示
-4. 支持复制回答内容
+```yaml
+# application.yml
+spring:
+  datasource:
+    url: jdbc:h2:mem:aimanjudb  # 开发环境
+    # url: jdbc:mysql://localhost:3306/dreamstudio  # 生产环境
+  h2:
+    console:
+      enabled: true
+  jpa:
+    show-sql: false
+```
 
-#### 工作流创建
-1. 通过对话描述需求
-2. AI 会自动生成工作流
-3. 生成的工作流节点会同步显示在画布上
+## 📝 License
 
-#### 功能特点
-- 对话历史自动保存
-- 支持图片预览和视频播放
-- 流式输出（打字机效果）
-
----
-
-### 右侧面板 - Asset（资产面板）
-
-#### 资产类型
-- **剧本**：编剧节点产出的剧本内容
-- **概念图**：美术节点产出的图片
-- **分镜**：导演节点产出的分镜脚本
-- **视频**：最终生成的视频成品
-
-#### 资产操作
-- 点击资产卡片查看详情
-- 支持图片放大预览
-- 支持视频播放
-- 导出资产到本地
-
----
-
-### 版本管理
-
-#### 查看历史版本
-1. 点击顶部版本下拉框
-2. 查看所有历史版本列表
-3. 点击版本可切换查看
-
-#### 恢复版本
-1. 在版本列表点击目标版本
-2. 画布会加载该版本的数据
-
-#### 删除版本
-1. hover 版本条目显示删除按钮
-2. 点击删除按钮确认操作
-
----
-
-### 项目管理
-
-#### 保存项目
-- 点击「保存」按钮
-- 自动保存当前画布配置（节点、连线、视口位置）
-- 未保存的修改会有圆点提示
-
-#### 新建项目
-- 点击「新建」按钮
-- 如有未保存的修改，提示保存或放弃
-
-#### 编辑项目名称
-- 点击项目名称旁边的编辑图标
-- 输入新名称后按 Enter 保存
-
----
-
-### 画布快捷键
-
-| 快捷键 | 功能 |
-|--------|------|
-| `Delete` / `Backspace` | 删除选中的节点或连线 |
-| `Escape` | 退出全屏 / 取消连线 |
-| 鼠标滚轮 | 缩放画布 |
-| 双指缩放 (Mac) | 缩放画布 |
-
----
-
-### 常见问题
-
-#### Q: 画布为空时提示"已退出自动跟踪模式"？
-A: 这是正常行为，只有在工作流运行过程中手动干预画布时才会显示该提示。
-
-#### Q: 如何导入外部模板？
-A: 在首页案例演示中点击模板，选择「使用此模板创建」即可。
-
-#### Q: 工作流执行失败怎么办？
-A: 检查后端服务是否正常运行，查看浏览器控制台错误日志。
-
----
-
-## License
-
-MIT
+MIT License - see [LICENSE](LICENSE) file for details.

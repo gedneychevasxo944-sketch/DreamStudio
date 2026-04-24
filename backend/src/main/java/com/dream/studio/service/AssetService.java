@@ -141,8 +141,8 @@ public class AssetService {
         if (request.getName() != null) {
             asset.setTitle(request.getName());
         }
-        if (request.getDescription() != null || request.getPrompt() != null) {
-            String metadata = buildMetadataJson(asset.getMetadataJson(), request.getDescription(), request.getPrompt());
+        if (request.getDescription() != null || request.getPrompt() != null || request.getContent() != null) {
+            String metadata = buildMetadataJson(asset.getMetadataJson(), request.getDescription(), request.getPrompt(), request.getContent());
             asset.setMetadataJson(metadata);
         }
         if (request.getThumbnail() != null) {
@@ -172,9 +172,21 @@ public class AssetService {
     }
 
     /**
+     * 批量获取资产
+     */
+    @Transactional(readOnly = true)
+    public List<Asset> getAssetsByIds(List<Long> assetIds) {
+        log.info("Getting assets by ids: {}", assetIds);
+        if (assetIds == null || assetIds.isEmpty()) {
+            return List.of();
+        }
+        return assetRepository.findAllById(assetIds);
+    }
+
+    /**
      * 构建 metadata JSON
      */
-    private String buildMetadataJson(String existingMetadataJson, String description, String prompt) {
+    private String buildMetadataJson(String existingMetadataJson, String description, String prompt, String content) {
         StringBuilder sb = new StringBuilder();
         sb.append("{");
         if (description != null) {
@@ -182,6 +194,9 @@ public class AssetService {
         }
         if (prompt != null) {
             sb.append("\"prompt\":\"").append(escapeJson(prompt)).append("\",");
+        }
+        if (content != null) {
+            sb.append("\"content\":\"").append(escapeJson(content)).append("\",");
         }
         // 移除末尾逗号
         if (sb.length() > 1 && sb.charAt(sb.length() - 1) == ',') {

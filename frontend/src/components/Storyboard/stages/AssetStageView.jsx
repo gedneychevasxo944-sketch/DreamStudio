@@ -13,7 +13,7 @@ import AssetAIDialog from '../AssetAIDialog';
  * - stage: 'character' | 'scene' | 'prop'
  * - assets: Asset[]
  * - selectedAsset: Asset | null
- * - aiDialog: { isOpen: boolean, asset: Asset | null, messages: Message[] }
+ * - aiDialog: { isOpen: boolean, asset: Asset | null, messages: Message[], hasAutoSent: boolean }
  * - onSelectAsset: (id: string) => void
  * - onUpdateAsset: (id: string, updates: object) => void
  * - onDeleteAsset: (id: string) => void
@@ -21,6 +21,7 @@ import AssetAIDialog from '../AssetAIDialog';
  * - onAIDialog: (asset: Asset) => void
  * - onAIMessagesChange: (messages: Message[]) => void
  * - onCloseAIDialog: () => void
+ * - onHasAutoSentChange: (value: boolean) => void
  * - onAddNew: () => void
  * - onUpload: () => void
  */
@@ -36,6 +37,7 @@ const AssetStageView = ({
   onAIDialog,
   onAIMessagesChange,
   onCloseAIDialog,
+  onHasAutoSentChange,
   onAddNew,
   onUpload,
   saveStatus,
@@ -81,12 +83,16 @@ const AssetStageView = ({
               messages={aiDialog.messages}
               onMessagesChange={onAIMessagesChange}
               onClose={onCloseAIDialog}
+              hasAutoSent={aiDialog.hasAutoSent}
+              onHasAutoSentChange={onHasAutoSentChange}
+              onUpdatePrompt={(prompt) => {
+                onUpdateAsset(aiDialog.asset.id, { prompt });
+              }}
+              onUpdatePreview={(imageUrl) => {
+                onUpdateAsset(aiDialog.asset.id, { thumbnail: imageUrl });
+              }}
               onGenerate={(assetId) => {
                 onGenerate(assetId);
-                onCloseAIDialog();
-              }}
-              onSave={() => {
-                toast?.success?.('Prompt 已保存');
                 onCloseAIDialog();
               }}
             />

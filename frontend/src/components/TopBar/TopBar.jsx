@@ -139,18 +139,27 @@ const TopBar = ({
   }, [handleStartEditName]);
 
   // 创建新项目
-  const handleCreateProject = useCallback(() => {
-    const newProject = createProject('新项目');
-    switchProject(newProject.id);
+  const handleCreateProject = useCallback(async () => {
+    const newProject = await createProject('新项目');
+    if (newProject) {
+      switchProject(newProject.id);
+    }
     setShowProjectDropdown(false);
   }, [createProject, switchProject]);
 
   // 切换项目
   const handleSwitchProject = useCallback((p) => {
+    console.log('[TopBar] handleSwitchProject called:', {
+      targetProjectId: p.id,
+      currentProjectId,
+      hasUnsavedChanges,
+    });
     if (p.id !== currentProjectId) {
       if (hasUnsavedChanges) {
+        console.log('[TopBar] Has unsaved changes, requesting confirm dialog');
         onRequestUnsavedConfirm?.('switchProject', p.id);
       } else {
+        console.log('[TopBar] No unsaved changes, directly switching project');
         switchProject(p.id);
       }
     }
@@ -278,7 +287,7 @@ const TopBar = ({
                         projectList.map(p => [p.id, p])
                       ).values()];
                       return uniqueProjects
-                        .filter(p => !projectSearchQuery || p.name.toLowerCase().includes(projectSearchQuery.toLowerCase()))
+                        .filter(p => !projectSearchQuery || (p.name && p.name.toLowerCase().includes(projectSearchQuery.toLowerCase())))
                         .map(p => (
                           <button
                             key={p.id}

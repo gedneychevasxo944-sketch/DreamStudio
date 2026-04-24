@@ -75,13 +75,13 @@ function ScriptParser({
       const importData = {
         characters: (parseResult?.characters || [])
           .filter(c => selectedItems.characters[c.id])
-          .map(c => ({ name: c.name, description: c.description })),
+          .map(c => ({ name: c.name, description: c.description, generatePrompt: c.generatePrompt })),
         scenes: (parseResult?.scenes || [])
           .filter(s => selectedItems.scenes[s.id])
-          .map(s => ({ name: s.name, description: s.description })),
+          .map(s => ({ name: s.name, description: s.description, generatePrompt: s.generatePrompt })),
         props: (parseResult?.props || [])
           .filter(p => selectedItems.props[p.id])
-          .map(p => ({ name: p.name, description: p.description })),
+          .map(p => ({ name: p.name, description: p.description, generatePrompt: p.generatePrompt })),
       };
       await onConfirm?.(importData);
     } finally {

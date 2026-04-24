@@ -21,22 +21,56 @@ public class AdeptifyService {
 
     private final MockDataCenter mockDataCenter;
 
-    // Character ID 映射
-    private static final Map<String, ComponentType> CHARACTER_MAP = Map.of(
-        "char_script_001", ComponentType.CONTENT,
-        "char_director_001", ComponentType.DIRECTOR,
-        "char_visual_001", ComponentType.VISUAL,
-        "char_technical_001", ComponentType.TECHNICAL,
-        "char_videogen_001", ComponentType.VIDEO_GEN
-    );
+    // Character ID 映射（使用 HashMap 因为 Map.of() 最多只能放 10 个键值对）
+    private static final Map<String, ComponentType> CHARACTER_MAP;
+    static {
+        CHARACTER_MAP = new HashMap<>();
+        // 旧版 character ID（向后兼容）
+        CHARACTER_MAP.put("char_script_001", ComponentType.CONTENT);
+        CHARACTER_MAP.put("char_director_001", ComponentType.DIRECTOR);
+        CHARACTER_MAP.put("char_visual_001", ComponentType.VISUAL);
+        CHARACTER_MAP.put("char_technical_001", ComponentType.TECHNICAL);
+        CHARACTER_MAP.put("char_videogen_001", ComponentType.VIDEO_GEN);
+        // 前端统一 AI 角色 ID
+        CHARACTER_MAP.put("character_script", ComponentType.SCRIPT_PARSER);
+        CHARACTER_MAP.put("character_storyboard", ComponentType.STORYBOARD_GENERATOR);
+        CHARACTER_MAP.put("character_character", ComponentType.CHARACTER_OPTIMIZER);
+        CHARACTER_MAP.put("character_scene", ComponentType.SCENE_OPTIMIZER);
+        CHARACTER_MAP.put("character_prop", ComponentType.PROP_OPTIMIZER);
+        CHARACTER_MAP.put("character_shot", ComponentType.SHOT_GENERATOR);
+    }
+
+    /**
+     * 同步对话 - 直接返回完整结果（非 SSE）
+     * 用于 /ai/chat 统一接口
+     */
+    public String chatSync(String characterId, String message) {
+        log.info("AdeptifyService.chatSync - characterId: {}, message length: {}", characterId, message != null ? message.length() : 0);
+
+        ComponentType componentType = CHARACTER_MAP.getOrDefault(characterId, ComponentType.ASSISTANT);
+        NodeSimulationData simData = mockDataCenter.getCharacterDataByType(componentType);
+
+        // 如果没找到模拟数据，返回默认结果
+        if (simData == null) {
+            return "任务执行完成";
+        }
+
+        // 返回 textResult（包含 JSON 格式的业务数据）
+        return simData.getTextResult();
+    }
 
     /**
      * 对话补全 - 使用 Consumer 实时处理 SSE 事件
      */
-    public void chatCompletionsStream(String sessionId, String messageContent, Map<String, Object> metadata, Consumer<SSEEvent> consumer) {
-        log.info("Chat completions stream started - sessionId: {}, content length: {}", sessionId, messageContent.length());
+    public void chatCompletionsStream(String sessionId, String contextId, String messageContent, Map<String, Object> metadata, Consumer<SSEEvent> consumer) {
+        log.info("Chat completions stream started - sessionId: {}, contextId: {}, content length: {}", sessionId, contextId, messageContent.length());
 
         String messageId = UUID.randomUUID().toString();
+        String responseType = metadata != null ? (String) metadata.get("responseType") : null;
+
+        // 根据 contextId 获取 ComponentType，然后获取 MockDataCenter 数据
+        ComponentType componentType = CHARACTER_MAP.getOrDefault(contextId, ComponentType.ASSISTANT);
+        NodeSimulationData simData = mockDataCenter.getCharacterDataByType(componentType);
 
         // message_start
         consumer.accept(SSEEvent.builder()
@@ -45,8 +79,11 @@ public class AdeptifyService {
             .delayMs(0)
             .build());
 
-        // thinking 事件 - 测试计划格式: {"content": "正在分析..."}
-        List<String> thinkingSteps = generateThinkingSteps(messageContent);
+        // thinking 事件 - 使用 MockDataCenter 的 thinkingSteps
+        List<String> thinkingSteps = simData.getThinkingSteps();
+        if (thinkingSteps == null || thinkingSteps.isEmpty()) {
+            thinkingSteps = generateThinkingSteps(messageContent, responseType);
+        }
         for (String step : thinkingSteps) {
             consumer.accept(SSEEvent.builder()
                 .eventType("thinking")
@@ -55,38 +92,73 @@ public class AdeptifyService {
                 .build());
         }
 
-        // content 事件
-        String responseContent = generateResponseContent(messageContent);
-        List<String> tokens = tokenizeContent(responseContent);
-        for (String token : tokens) {
+        // 如果是图片类型，发送图片
+        if ("image".equals(responseType)) {
+            // 发送文本描述
+            String textContent = "已根据您的描述生成图片，请确认效果：";
+            List<String> textTokens = tokenizeContent(textContent);
+            for (String token : textTokens) {
+                consumer.accept(SSEEvent.builder()
+                    .eventType("content")
+                    .data(Map.of("type", "text", "delta", token))
+                    .delayMs(mockDataCenter.getContentDelay())
+                    .build());
+            }
+
+            // 发送图片 - 使用固定 seed 保证一致性
+            String imageUrl = "https://picsum.photos/seed/" + System.currentTimeMillis() + "/800/600";
+            String thumbnail = "https://picsum.photos/seed/" + System.currentTimeMillis() + "/400/300";
             consumer.accept(SSEEvent.builder()
                 .eventType("content")
-                .data(Map.of("messageId", messageId, "type", "text", "delta", token))
-                .delayMs(mockDataCenter.getContentDelay())
+                .data(Map.of(
+                    "type", "image",
+                    "imageUrl", imageUrl,
+                    "thumbnail", thumbnail
+                ))
+                .delayMs(100)
                 .build());
+
+            // 发送确认提示
+            String confirmText = "\n\n是否应用此图片？点击\"应用\"将图片和描述填入编辑区，点击\"取消\"关闭此确认。";
+            List<String> confirmTokens = tokenizeContent(confirmText);
+            for (String token : confirmTokens) {
+                consumer.accept(SSEEvent.builder()
+                    .eventType("content")
+                    .data(Map.of("type", "text", "delta", token))
+                    .delayMs(mockDataCenter.getContentDelay())
+                    .build());
+            }
+        } else {
+            // 使用 MockDataCenter 的 textResult
+            String textResult = simData.getTextResult();
+            if (textResult != null && !textResult.isEmpty()) {
+                List<String> textTokens = tokenizeContent(textResult);
+                for (String token : textTokens) {
+                    consumer.accept(SSEEvent.builder()
+                        .eventType("content")
+                        .data(Map.of("type", "text", "delta", token))
+                        .delayMs(mockDataCenter.getContentDelay())
+                        .build());
+                }
+            }
+
+            // 如果有 markdownResult，发送 markdown 内容
+            String markdownResult = simData.getMarkdownResult();
+            if (markdownResult != null && !markdownResult.isEmpty()) {
+                for (String token : tokenizeContent(markdownResult)) {
+                    consumer.accept(SSEEvent.builder()
+                        .eventType("content")
+                        .data(Map.of("type", "markdown", "delta", token))
+                        .delayMs(mockDataCenter.getContentDelay())
+                        .build());
+                }
+            }
         }
 
-        // batch_action 事件
-        Map<String, Object> responseData = generateResponseData(messageContent);
-        if (responseData != null && !responseData.isEmpty()) {
-            consumer.accept(SSEEvent.builder()
-                .eventType("content")
-                .data(Map.of("messageId", messageId, "type", "batch_action", "delta", responseData))
-                .delayMs(0)
-                .build());
-        }
-
-        // metadata 事件
-        consumer.accept(SSEEvent.builder()
-            .eventType("metadata")
-            .data(Map.of("messageId", messageId, "tokens", responseContent.length() / 4))
-            .delayMs(0)
-            .build());
-
-        // message_end - 测试计划格式: {"content": "完整内容"}
+        // message_end - 空数据，仅标识结束
         consumer.accept(SSEEvent.builder()
             .eventType("message_end")
-            .data(Map.of("content", responseContent))
+            .data(Map.of())
             .delayMs(0)
             .build());
 
@@ -151,13 +223,25 @@ public class AdeptifyService {
                 .build());
         }
 
-        // content - text
+        // content - text (summary)
         for (String token : tokenizeContent(simData.getTextResult())) {
             consumer.accept(SSEEvent.builder()
                 .eventType("content")
                 .data(Map.of("nodeId", nodeId, "characterId", characterId, "type", "text", "delta", token))
                 .delayMs(mockDataCenter.getContentDelay())
                 .build());
+        }
+
+        // content - markdown (full script) - only if markdownResult exists
+        String markdownResult = simData.getMarkdownResult();
+        if (markdownResult != null && !markdownResult.isEmpty()) {
+            for (String token : tokenizeContent(markdownResult)) {
+                consumer.accept(SSEEvent.builder()
+                    .eventType("content")
+                    .data(Map.of("nodeId", nodeId, "characterId", characterId, "type", "markdown", "delta", token))
+                    .delayMs(mockDataCenter.getContentDelay())
+                    .build());
+            }
         }
 
         // content - component (dataJson)
@@ -178,8 +262,10 @@ public class AdeptifyService {
             .build());
     }
 
-    private List<String> generateThinkingSteps(String content) {
-        if (content.contains("剧本") || content.contains("脚本")) {
+    private List<String> generateThinkingSteps(String content, String responseType) {
+        if ("image".equals(responseType)) {
+            return List.of("正在分析描述内容...", "提取关键视觉特征...", "生成匹配的图片...");
+        } else if (content.contains("剧本") || content.contains("脚本")) {
             return List.of("正在分析剧本结构...", "提取关键场景和人物...", "生成剧本大纲...");
         } else if (content.contains("分镜") || content.contains("镜头")) {
             return List.of("分析剧本节奏...", "设计镜头语言...", "规划运镜方案...");

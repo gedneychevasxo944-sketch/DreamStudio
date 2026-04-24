@@ -11,7 +11,7 @@ export default defineConfig({
         changeOrigin: true,
       },
       '/adeptify': {
-        target: 'http://localhost:8080/api',
+        target: 'http://localhost:8080',
         changeOrigin: true,
       },
     },

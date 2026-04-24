@@ -1,5 +1,6 @@
 package com.dream.studio.controller;
 
+import com.dream.studio.dto.ApiResponse;
 import com.dream.studio.entity.ChatSession;
 import com.dream.studio.entity.Message;
 import com.dream.studio.repository.ChatSessionRepository;
@@ -86,7 +87,7 @@ public class AdeptifyController {
                 accumulator.setUserContent(content);
 
                 // 调用 Service，使用 Consumer 处理每个事件
-                adeptifyService.chatCompletionsStream(sessionId, content, metadata, event -> {
+                adeptifyService.chatCompletionsStream(sessionId, request.getContextId(), content, metadata, event -> {
                     if (cancelled.get()) {
                         return;
                     }
@@ -333,6 +334,31 @@ public class AdeptifyController {
             log.warn("Failed to format SSE data: {}", e.getMessage());
             return "{}";
         }
+    }
+
+    // ========== 统一 AI 对话接口（同步）==========
+
+    /**
+     * 统一 AI 对话接口
+     * POST /ai/chat
+     * 统一入口，对接 AdeptifyService（内部使用 MockDataCenter）
+     */
+    @PostMapping("/ai/chat")
+    @Operation(summary = "AI 对话", description = "统一 AI 对话接口，根据 characterId 路由到不同的 AI 角色")
+    public ApiResponse<String> aiChat(@RequestBody AiChatRequest request) {
+        log.info("AI chat request - projectId: {}, characterId: {}, message length: {}",
+            request.getProjectId(), request.getCharacterId(),
+            request.getMessage() != null ? request.getMessage().length() : 0);
+
+        String result = adeptifyService.chatSync(request.getCharacterId(), request.getMessage());
+        return ApiResponse.success(result);
+    }
+
+    @lombok.Data
+    public static class AiChatRequest {
+        private Long projectId;
+        private String characterId;
+        private String message;
     }
 
     // ========== Request DTOs ==========

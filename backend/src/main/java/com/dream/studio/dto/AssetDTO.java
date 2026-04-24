@@ -37,7 +37,9 @@ public class AssetDTO {
         private Boolean isCurrent;
         private String status;
         private String createTime;    // 前端期望: createTime (对应 createdAt)
-        private String content;        // 前端期望: content (资产内容/描述)
+        private String content;        // 前端期望: content (资产内容)
+        private String description;     // 前端期望: description (从 metadataJson 提取)
+        private String prompt;          // 前端期望: prompt (从 metadataJson 提取)
     }
 
     /**
@@ -89,6 +91,7 @@ public class AssetDTO {
         private String prompt;      // 生成 prompt
         private String thumbnail;  // 缩略图 URL
         private String uri;        // 资源 URL
+        private String content;     // 资产内容（剧本内容等）
     }
 
     /**
@@ -104,6 +107,7 @@ public class AssetDTO {
         private String thumbnail;   // 缩略图 URL
         private String uri;         // 资源 URL
         private String status;      // 状态
+        private String content;     // 资产内容（剧本内容等）
     }
 
     /**

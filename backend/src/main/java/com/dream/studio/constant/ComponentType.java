@@ -9,7 +9,15 @@ public enum ComponentType {
     DIRECTOR("director", "分镜导演"),
     TECHNICAL("technical", "视频提示词工程师"),
     VIDEO_GEN("videoGen", "视频生成"),
-    VIDEO_EDITOR("videoEditor", "视频剪辑");
+    VIDEO_EDITOR("videoEditor", "视频剪辑"),
+
+    // AI 创作助手角色
+    SCRIPT_PARSER("script_parser", "剧本解析助手"),
+    STORYBOARD_GENERATOR("storyboard_generator", "分镜生成助手"),
+    CHARACTER_OPTIMIZER("character_optimizer", "角色优化助手"),
+    SCENE_OPTIMIZER("scene_optimizer", "场景优化助手"),
+    PROP_OPTIMIZER("prop_optimizer", "道具优化助手"),
+    SHOT_GENERATOR("shot_generator", "镜头生成助手");
 
     private final String code;
     private final String name;

@@ -5,6 +5,8 @@ import {
   Scissors, Download, Plus
 } from 'lucide-react';
 import { useStageStore, STAGES, STAGE_CONFIG, SHOT_TYPES, CAMERA_MOVEMENTS } from '../../stores/stageStore';
+import { useEditor, EditorContent } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
 import './AssetDetailPanel.css';
 
 /**
@@ -57,29 +59,105 @@ const AssetDetailPanel = ({
 
 // ============ 剧本编辑器 ============
 const ScriptEditor = ({ asset, onUpdate, saveStatus }) => {
-  const [content, setContent] = useState(asset.content || '');
   const [showToc, setShowToc] = useState(true);
   const [expandedChapters, setExpandedChapters] = useState({});
+  const [activeChapterId, setActiveChapterId] = useState(null);
+  const editorWrapRef = useRef(null);
 
-  // 当内容变化时触发保存
-  useEffect(() => {
-    if (content !== asset.content) {
-      onUpdate?.(asset.id, { content });
-    }
-  }, [content, asset.id, onUpdate, asset.content]);
+  // 初始化 Tiptap 编辑器
+  const editor = useEditor({
+    extensions: [StarterKit],
+    content: '',
+    onUpdate: ({ editor }) => {
+      const html = editor.getHTML();
+      onUpdate?.(asset.id, { content: html });
+    },
+  });
 
   // 解析目录
   const { toc, title: scriptTitle } = useMemo(() => {
-    return parseScriptTocFull(content);
-  }, [content]);
+    if (!asset.content) return { toc: [], title: null };
+    return parseScriptTocFull(asset.content);
+  }, [asset.content]);
 
-  // 切换章节展开/折叠
-  const toggleChapter = (chapterId) => {
-    setExpandedChapters(prev => ({
-      ...prev,
-      [chapterId]: !prev[chapterId],
-    }));
-  };
+  // 初始化编辑器内容
+  useEffect(() => {
+    if (editor && asset.content) {
+      const html = markdownToHtml(asset.content);
+      editor.commands.setContent(html, true);
+    }
+  }, [editor, asset.id]);
+
+  // 跳转到章节
+  const scrollToChapter = useCallback((chapterId) => {
+    if (!editor) return;
+    const chapterIndex = toc.findIndex(ch => ch.id === chapterId);
+    if (chapterIndex === -1) return;
+
+    // 收集所有 h2 heading 的位置
+    const headingPositions = [];
+    editor.state.doc.descendants((node, pos) => {
+      if (node.type.name === 'heading' && node.attrs.level === 2) {
+        headingPositions.push({ pos, text: node.textContent });
+      }
+    });
+
+    if (chapterIndex >= headingPositions.length) return;
+
+    const target = headingPositions[chapterIndex];
+    editor.chain().focus().setTextSelection(target.pos).run();
+
+    // 直接操作 DOM 滚动
+    setTimeout(() => {
+      const editorDom = editor.view.dom;
+      const headings = editorDom.querySelectorAll('h2');
+      for (const h of headings) {
+        if (h.textContent === target.text) {
+          h.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          break;
+        }
+      }
+    }, 100);
+
+    setActiveChapterId(chapterId);
+  }, [editor, toc]);
+
+  // 监听编辑器滚动，同步高亮目录
+  useEffect(() => {
+    if (!editor) return;
+
+    const handleScroll = () => {
+      const editorDom = editor.view.dom;
+      const scrollContainer = editorDom.closest('.tiptap-body') || editorDom;
+
+      // 收集所有 h2 heading 的 DOM 位置
+      const h2Headings = editorDom.querySelectorAll('h2');
+      if (h2Headings.length === 0) return;
+
+      let activeIdx = 0;
+      for (let i = 0; i < h2Headings.length; i++) {
+        const rect = h2Headings[i].getBoundingClientRect();
+        const containerRect = scrollContainer.getBoundingClientRect();
+        if (rect.top - containerRect.top < 100) {
+          activeIdx = i;
+        }
+      }
+
+      if (toc[activeIdx] && toc[activeIdx].id !== activeChapterId) {
+        setActiveChapterId(toc[activeIdx].id);
+        if (!expandedChapters[toc[activeIdx].id]) {
+          setExpandedChapters(prev => ({ ...prev, [toc[activeIdx].id]: true }));
+        }
+      }
+    };
+
+    const editorDom = editor.view.dom;
+    const scrollContainer = editorDom.closest('.tiptap-body');
+    const targetEl = scrollContainer || editorDom;
+    targetEl.addEventListener('scroll', handleScroll);
+
+    return () => targetEl.removeEventListener('scroll', handleScroll);
+  }, [editor, toc, activeChapterId, expandedChapters]);
 
   // 全选/全收
   const toggleAll = (expand) => {
@@ -91,7 +169,7 @@ const ScriptEditor = ({ asset, onUpdate, saveStatus }) => {
   return (
     <div className="detail-panel-content script-editor">
       {/* 左侧目录面板 */}
-      <div className="script-toc-panel">
+      <div className={`script-toc-panel ${!showToc ? 'collapsed' : ''}`}>
         <div className="script-toc-header">
           <div className="script-toc-title-row">
             <FileText size={16} />
@@ -115,8 +193,8 @@ const ScriptEditor = ({ asset, onUpdate, saveStatus }) => {
                 toc.map((chapter) => (
                   <div key={chapter.id} className="toc-chapter">
                     <div
-                      className="toc-chapter-header"
-                      onClick={() => toggleChapter(chapter.id)}
+                      className={`toc-chapter-header ${activeChapterId === chapter.id ? 'active' : ''}`}
+                      onClick={() => scrollToChapter(chapter.id)}
                     >
                       <span className={`toc-expand-icon ${expandedChapters[chapter.id] ? 'expanded' : ''}`}>
                         ▶
@@ -148,6 +226,17 @@ const ScriptEditor = ({ asset, onUpdate, saveStatus }) => {
         )}
       </div>
 
+      {/* 收起时显示的展开按钮 */}
+      {!showToc && (
+        <button
+          className="toc-expand-btn"
+          onClick={() => setShowToc(true)}
+          title="展开目录"
+        >
+          ▶
+        </button>
+      )}
+
       {/* 右侧编辑区 */}
       <div className="script-edit-panel">
         <div className="panel-header">
@@ -158,24 +247,96 @@ const ScriptEditor = ({ asset, onUpdate, saveStatus }) => {
           )}
         </div>
 
-        <div className="panel-body">
-          <textarea
-            className="script-edit-textarea"
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            placeholder="输入剧本内容，支持 Markdown 格式自动解析目录..."
-          />
+        <div className="panel-body tiptap-body" ref={editorWrapRef}>
+          <EditorContent editor={editor} className="tiptap-editor" />
         </div>
       </div>
     </div>
   );
 };
 
+// Markdown 转 HTML
+function markdownToHtml(markdown) {
+  if (!markdown) return '';
+  // 如果已经是 HTML（包含标签），直接返回
+  if (markdown.includes('<') && markdown.includes('>')) {
+    return markdown;
+  }
+  const lines = markdown.split('\n');
+  let html = '';
+  let inList = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    if (trimmed.startsWith('# ') && !trimmed.startsWith('## ')) {
+      if (inList) { html += '</ul>'; inList = false; }
+      const title = trimmed.slice(2);
+      html += `<h1>${title}</h1>`;
+    } else if (trimmed.startsWith('## ')) {
+      if (inList) { html += '</ul>'; inList = false; }
+      const title = trimmed.slice(3);
+      html += `<h2>${title}</h2>`;
+    } else if (trimmed.match(/^[-\*]\s/) || trimmed.match(/^\d+\.\s/)) {
+      if (!inList) { html += '<ul>'; inList = true; }
+      const text = trimmed.replace(/^[-\*]\s/, '').replace(/^\d+\.\s/, '');
+      html += `<li>${text}</li>`;
+    } else if (trimmed.match(/^(场景|Scene)\s*\d+/i)) {
+      if (inList) { html += '</ul>'; inList = false; }
+      html += `<p class="scene-marker">${trimmed}</p>`;
+    } else if (!trimmed) {
+      if (inList) { html += '</ul>'; inList = false; }
+    } else {
+      if (inList) { html += '</ul>'; inList = false; }
+      html += `<p>${trimmed}</p>`;
+    }
+  }
+
+  if (inList) html += '</ul>';
+  return html;
+}
+
+// HTML 转 Markdown（简化版）
+function htmlToMarkdown(html) {
+  if (!html) return '';
+  let result = html;
+
+  // 将 HTML 标签替换为带换行的标记
+  result = result.replace(/<h1[^>]*>([^<]*)<\/h1>/gi, '# $1\n\n');
+  result = result.replace(/<h2[^>]*>([^<]*)<\/h2>/gi, '## $1\n\n');
+  result = result.replace(/<h3[^>]*>([^<]*)<\/h3>/gi, '### $1\n\n');
+  result = result.replace(/<p[^>]*class="scene-marker"[^>]*>([^<]*)<\/p>/gi, '$1\n\n');
+  result = result.replace(/<p[^>]*>([^<]*)<\/p>/gi, '$1\n\n');
+  result = result.replace(/<li[^>]*>([^<]*)<\/li>/gi, '- $1\n');
+  result = result.replace(/<ul[^>]*>/gi, '\n');
+  result = result.replace(/<\/ul>/gi, '\n\n');
+
+  // 移除剩余的 HTML 标签
+  result = result.replace(/<[^>]+>/g, '');
+
+  // 处理 HTML 实体
+  result = result.replace(/&nbsp;/g, ' ');
+  result = result.replace(/&lt;/g, '<');
+  result = result.replace(/&gt;/g, '>');
+
+  // 清理多余空行
+  result = result.replace(/\n{3,}/g, '\n\n');
+
+  return result.trim();
+}
+
 // 解析剧本目录（完整版，返回目录和标题）
 function parseScriptTocFull(content) {
   if (!content) return { toc: [], title: null };
 
-  const lines = content.split('\n');
+  // 如果是 HTML，先转为 Markdown
+  let text = content;
+  if (content.includes('<') && content.includes('>')) {
+    text = htmlToMarkdown(content);
+  }
+
+  const lines = text.split('\n');
   const toc = [];
   let scriptTitle = null;
   let currentChapter = null;
@@ -285,13 +446,19 @@ function parseScriptTocFull(content) {
 const CharacterEditor = ({ asset, onUpdate, onDelete, onGenerate, onAIDialog, saveStatus }) => {
   const [name, setName] = useState(asset.name || '');
   const [description, setDescription] = useState(asset.description || '');
-  const [prompt, setPrompt] = useState(asset.prompt || '');
+  const [prompt, setPrompt] = useState(asset.generatePrompt || '');
   const initialNameRef = useRef(asset.name || '');
   const initialDescRef = useRef(asset.description || '');
-  const initialPromptRef = useRef(asset.prompt || '');
+  const initialPromptRef = useRef(asset.generatePrompt || '');
+  const skipFirstSave = useRef(true); // 跳过首次挂载时的检查
 
   // 立即触发保存（debounce 在 handleUpdateAsset 中统一处理）
   useEffect(() => {
+    // 跳过首次挂载时的检查（首次挂载时 name/description/prompt 与 initialRef 应该相等）
+    if (skipFirstSave.current) {
+      skipFirstSave.current = false;
+      return;
+    }
     // 只有真正变化了才触发保存
     if (name !== initialNameRef.current || description !== initialDescRef.current || prompt !== initialPromptRef.current) {
       onUpdate?.(asset.id, { name, description, prompt });
@@ -347,7 +514,7 @@ const CharacterEditor = ({ asset, onUpdate, onDelete, onGenerate, onAIDialog, sa
         </div>
 
         <div className="form-group">
-          <label>生成 Prompt</label>
+          <label>生图 Prompt</label>
           <textarea
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
@@ -376,13 +543,18 @@ const CharacterEditor = ({ asset, onUpdate, onDelete, onGenerate, onAIDialog, sa
 const SceneEditor = ({ asset, onUpdate, onDelete, onGenerate, onAIDialog, saveStatus }) => {
   const [name, setName] = useState(asset.name || '');
   const [description, setDescription] = useState(asset.description || '');
-  const [prompt, setPrompt] = useState(asset.prompt || '');
+  const [prompt, setPrompt] = useState(asset.generatePrompt || '');
   const initialNameRef = useRef(asset.name || '');
   const initialDescRef = useRef(asset.description || '');
-  const initialPromptRef = useRef(asset.prompt || '');
+  const initialPromptRef = useRef(asset.generatePrompt || '');
+  const skipFirstSave = useRef(true); // 跳过首次挂载时的检查
 
   // 立即触发保存（debounce 在 handleUpdateAsset 中统一处理）
   useEffect(() => {
+    if (skipFirstSave.current) {
+      skipFirstSave.current = false;
+      return;
+    }
     if (name !== initialNameRef.current || description !== initialDescRef.current || prompt !== initialPromptRef.current) {
       onUpdate?.(asset.id, { name, description, prompt });
       initialNameRef.current = name;
@@ -436,7 +608,7 @@ const SceneEditor = ({ asset, onUpdate, onDelete, onGenerate, onAIDialog, saveSt
         </div>
 
         <div className="form-group">
-          <label>生成 Prompt</label>
+          <label>生图 Prompt</label>
           <textarea
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
@@ -465,13 +637,18 @@ const SceneEditor = ({ asset, onUpdate, onDelete, onGenerate, onAIDialog, saveSt
 const PropEditor = ({ asset, onUpdate, onDelete, onGenerate, onAIDialog, saveStatus }) => {
   const [name, setName] = useState(asset.name || '');
   const [description, setDescription] = useState(asset.description || '');
-  const [prompt, setPrompt] = useState(asset.prompt || '');
+  const [prompt, setPrompt] = useState(asset.generatePrompt || '');
   const initialNameRef = useRef(asset.name || '');
   const initialDescRef = useRef(asset.description || '');
-  const initialPromptRef = useRef(asset.prompt || '');
+  const initialPromptRef = useRef(asset.generatePrompt || '');
+  const skipFirstSave = useRef(true); // 跳过首次挂载时的检查
 
   // 立即触发保存（debounce 在 handleUpdateAsset 中统一处理）
   useEffect(() => {
+    if (skipFirstSave.current) {
+      skipFirstSave.current = false;
+      return;
+    }
     if (name !== initialNameRef.current || description !== initialDescRef.current || prompt !== initialPromptRef.current) {
       onUpdate?.(asset.id, { name, description, prompt });
       initialNameRef.current = name;
@@ -525,7 +702,7 @@ const PropEditor = ({ asset, onUpdate, onDelete, onGenerate, onAIDialog, saveSta
         </div>
 
         <div className="form-group">
-          <label>生成 Prompt</label>
+          <label>生图 Prompt</label>
           <textarea
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
@@ -588,9 +765,14 @@ const StoryboardEditor = ({ asset, onUpdate, onDelete, onGenerate, onAIDialog, s
 
   // 初始值 refs
   const initialRef = useRef({ style: asset.style, cameraMovement: asset.cameraMovement, shotType: asset.shotType, duration: asset.duration, prompt: asset.prompt, scriptParagraph: asset.scriptParagraph, characterIds: asset.characterIds, sceneId: asset.sceneId, propsIds: asset.propsIds, frames: asset.frames });
+  const skipFirstSave = useRef(true); // 跳过首次挂载时的检查
 
   // 立即触发保存（debounce 在 handleUpdateAsset 中统一处理）
   useEffect(() => {
+    if (skipFirstSave.current) {
+      skipFirstSave.current = false;
+      return;
+    }
     const current = { style, cameraMovement, shotType, duration, prompt, scriptParagraph, characterIds: selectedCharacterIds, sceneId: selectedSceneId, propsIds: selectedPropIds, frames };
     const initial = initialRef.current;
     if (JSON.stringify(current) !== JSON.stringify(initial)) {
@@ -846,9 +1028,14 @@ const VideoEditor = ({ asset, onUpdate, onGenerate, onAIDialog, saveStatus }) =>
 
   // 初始值 refs
   const initialRef = useRef({ aspectRatio: asset.aspectRatio, duration: asset.duration, quality: asset.quality, prompt: asset.prompt, scriptParagraph: asset.scriptParagraph, characterIds: asset.characterIds, sceneId: asset.sceneId, propIds: asset.propIds });
+  const skipFirstSave = useRef(true); // 跳过首次挂载时的检查
 
   // 立即触发保存（debounce 在 handleUpdateAsset 中统一处理）
   useEffect(() => {
+    if (skipFirstSave.current) {
+      skipFirstSave.current = false;
+      return;
+    }
     const current = { aspectRatio, duration, quality, prompt, scriptParagraph, characterIds, sceneId, propIds };
     const initial = initialRef.current;
     if (JSON.stringify(current) !== JSON.stringify(initial)) {

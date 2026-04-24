@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { assetApi } from '../services/api';
 
 // 阶段定义
 export const STAGES = {
@@ -160,12 +161,27 @@ export const useStageStore = create((set, get) => ({
     [STAGES.CLIP]: false,
   },
 
+  // 已保存的资产状态（用于脏检测）
+  savedStageAssets: null,
+
+  // 是否有未保存到后端的资产（新增但无 serverId）
+  hasPendingAssets: false,
+
   // Actions
   setCurrentStage: (stage) => set({ currentStage: stage }),
 
   setStageAssets: (stage, assets) => set((state) => ({
     stageAssets: { ...state.stageAssets, [stage]: assets }
   })),
+
+  // 标记所有资产已保存（保存成功后调用）
+  markAssetsSaved: () => set((state) => ({
+    savedStageAssets: JSON.parse(JSON.stringify(state.stageAssets)),
+    hasPendingAssets: false,
+  })),
+
+  // 标记有新增资产（未保存到后端）
+  markPendingAssets: () => set({ hasPendingAssets: true }),
 
   // 重置所有阶段资产（用于新项目）
   resetAllStageAssets: () => set({
@@ -197,11 +213,16 @@ export const useStageStore = create((set, get) => ({
       [STAGES.VIDEO]: false,
       [STAGES.CLIP]: false,
     },
+    savedStageAssets: null,
+    hasPendingAssets: false,
   }),
 
   addStageAsset: (stage, asset) => set((state) => {
     const newAssets = [...(state.stageAssets[stage] || []), asset];
     const newStageAssets = { ...state.stageAssets, [stage]: newAssets };
+
+    // 如果新增资产没有 serverId，标记有待保存资产
+    const hasPending = !asset.serverId ? true : state.hasPendingAssets;
 
     // T070b: 自动建立引用关系
     // 当添加引用其他资产的资产（如分镜）时，更新被引用资产的 referencedBy
@@ -255,7 +276,7 @@ export const useStageStore = create((set, get) => ({
       );
     }
 
-    return { stageAssets: newStageAssets };
+    return { stageAssets: newStageAssets, hasPendingAssets: hasPending };
   }),
 
   updateStageAsset: (stage, assetId, updates) => set((state) => ({
@@ -369,6 +390,7 @@ export const useStageStore = create((set, get) => ({
         id: generateId('char'),
         name: c.name,
         description: c.description || '',
+        generatePrompt: c.generatePrompt || '',
         thumbnail: c.thumbnail || null,
         status: 'pending', // pending | generated | error
         createdAt: new Date().toISOString(),
@@ -381,6 +403,7 @@ export const useStageStore = create((set, get) => ({
         id: generateId('scene'),
         name: s.name,
         description: s.description || '',
+        generatePrompt: s.generatePrompt || '',
         thumbnail: s.thumbnail || null,
         status: 'pending',
         createdAt: new Date().toISOString(),
@@ -393,6 +416,7 @@ export const useStageStore = create((set, get) => ({
         id: generateId('prop'),
         name: p.name,
         description: p.description || '',
+        generatePrompt: p.generatePrompt || '',
         thumbnail: p.thumbnail || null,
         status: 'pending',
         createdAt: new Date().toISOString(),
@@ -465,5 +489,98 @@ export const useStageStore = create((set, get) => ({
         ...(shot.propsIds || []),
       ].filter(id => id),
     }));
+  },
+
+  // 加载项目资产（从 config.nodes 提取 assetIds，从 Asset API 获取详情）
+  loadProjectAssets: async (projectId, config) => {
+    console.log('[stageStore] loadProjectAssets called:', { projectId, config });
+    try {
+      // 1. 从 config.nodes 收集所有 storyboard 节点的 assetIds
+      const assetIds = config.nodes
+        ?.filter(n => n.layer === 'storyboard' && n.data?.assetId)
+        ?.map(n => n.data.assetId) || [];
+
+      console.log('[stageStore] Extracted assetIds:', assetIds);
+
+      if (assetIds.length === 0) {
+        // 没有故事板节点，清空所有阶段资产
+        console.log('[stageStore] No assetIds found, clearing all stage assets');
+        set({
+          stageAssets: {
+            [STAGES.SCRIPT]: [],
+            [STAGES.CHARACTER]: [],
+            [STAGES.SCENE]: [],
+            [STAGES.PROP]: [],
+            [STAGES.STORYBOARD]: [],
+            [STAGES.VIDEO]: [],
+            [STAGES.CLIP]: [],
+          },
+        });
+        return;
+      }
+
+      // 2. 批量获取资产详情
+      const response = await assetApi.getAssetsByIds(projectId, assetIds);
+      const assets = response?.data?.assets || [];
+      console.log('[stageStore] Fetched assets:', assets);
+      const assetsMap = new Map(assets.map(a => [a.serverId, a]));
+
+      // 3. 构建 nodeId -> asset 映射
+      const nodeAssetMap = {};
+      config.nodes
+        ?.filter(n => n.layer === 'storyboard' && n.data?.assetId)
+        ?.forEach(node => {
+          nodeAssetMap[node.id] = assetsMap.get(node.data.assetId);
+        });
+
+      // 4. 按 type 分类填充 stageAssets
+      const stageAssets = {
+        [STAGES.SCRIPT]: [],
+        [STAGES.CHARACTER]: [],
+        [STAGES.SCENE]: [],
+        [STAGES.PROP]: [],
+        [STAGES.STORYBOARD]: [],
+        [STAGES.VIDEO]: [],
+        [STAGES.CLIP]: [],
+      };
+
+      config.nodes
+        ?.filter(n => n.layer === 'storyboard')
+        ?.forEach(node => {
+          const asset = nodeAssetMap[node.id];
+          if (asset) {
+            const stageAsset = {
+              id: node.id,
+              serverId: asset.serverId,
+              name: asset.name,
+              type: asset.type,
+              description: asset.description,
+              prompt: asset.prompt,
+              content: asset.content,
+              thumbnail: asset.thumbnail,
+              videoUrl: asset.videoUrl,
+              metadata: asset.metadata || {},
+              // 节点特有引用
+              characterIds: node.data.characterIds || [],
+              sceneId: node.data.sceneId,
+              propsIds: node.data.propsIds || [],
+            };
+            stageAssets[asset.type]?.push(stageAsset);
+          }
+        });
+
+      console.log('[stageStore] Built stageAssets:', JSON.stringify(stageAssets));
+
+      // 5. 更新 store，并初始化 savedStageAssets
+      set({
+        stageAssets,
+        savedStageAssets: JSON.parse(JSON.stringify(stageAssets)),
+        hasPendingAssets: false,
+      });
+
+      console.log('[stageStore] Loaded project assets:', stageAssets);
+    } catch (error) {
+      console.error('[stageStore] Failed to load project assets:', error);
+    }
   },
 }));

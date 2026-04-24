@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { homePageApi } from '../services/api';
+import { useStageStore } from './stageStore';
 
 // localStorage keys
 const PROJECTS_KEY = 'dreamstudio_projects';
@@ -49,7 +50,21 @@ export const useProjectStore = create((set, get) => ({
   loadProjects: async () => {
     try {
       const data = await homePageApi.getProjects();
-      const projects = data?.projects || data || [];
+      const rawProjects = data?.data?.projects || data?.projects || [];
+      // 统一字段名：title -> name, updatedTime -> updatedAt
+      const projects = rawProjects.map(p => ({
+        id: p.id,
+        name: p.title || p.name,
+        description: p.description,
+        status: p.status,
+        coverImage: p.coverImage,
+        tags: p.tags,
+        config: p.config,
+        lastResult: p.lastResult,
+        currentVersion: p.currentVersion,
+        createdAt: p.createdTime,
+        updatedAt: p.updatedTime,
+      }));
       saveProjectsToStorage(projects);
       set({ projects });
       return projects;
@@ -59,32 +74,53 @@ export const useProjectStore = create((set, get) => ({
     }
   },
 
-  // T069: 创建新项目
-  createProject: (name) => {
-    const newProject = {
-      id: `project-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      name: name || '新项目',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+  // T069: 创建新项目（先调用后端创建，再切换）
+  createProject: async (name) => {
+    const projectTitle = name || '新项目';
+    try {
+      // 先调用后端创建项目
+      const createResponse = await homePageApi.createProject(projectTitle);
+      if (createResponse?.data?.id) {
+        const newProject = {
+          id: createResponse.data.id,  // 使用后端返回的真实 ID
+          name: projectTitle,
+          createdAt: createResponse.data.createdTime || new Date().toISOString(),
+          updatedAt: createResponse.data.updatedTime || new Date().toISOString(),
+        };
 
-    const projects = [...get().projects, newProject];
-    saveProjectsToStorage(projects);
-    set({ projects });
+        const projects = [...get().projects, newProject];
+        saveProjectsToStorage(projects);
+        set({ projects });
 
-    return newProject;
+        return newProject;
+      }
+    } catch (error) {
+      console.error('Failed to create project:', error);
+    }
+    return null;
   },
 
   // T069: 选择/切换项目
-  switchProject: (projectId) => {
+  switchProject: async (projectId) => {
     const project = get().projects.find(p => p.id === projectId);
     if (!project) {
       console.error('Project not found:', projectId);
       return;
     }
 
-    // 保存当前项目状态（如果有）
-    // TODO: 保存当前项目到 storage
+    console.log('[projectStore] switchProject called:', {
+      projectId,
+      projectName: project.name,
+      currentState: {
+        currentProjectId: get().currentProjectId,
+        hasUnsavedChanges: get().hasUnsavedChanges,
+        savedProjectState: get().savedProjectState,
+      }
+    });
+
+    // 切换到新项目前，重置 stageStore 状态（清除旧项目的 pending 状态）
+    console.log('[projectStore] Resetting stageStore before switch');
+    useStageStore.getState().resetAllStageAssets();
 
     // 切换到新项目
     set({
@@ -92,7 +128,12 @@ export const useProjectStore = create((set, get) => ({
       projectName: project.name,
       // 重置其他 store 状态
       currentVersion: null,
-      savedProjectState: null,
+      savedProjectState: {
+        nodes: [],
+        connections: [],
+        viewport: {},
+        name: project.name,
+      },
       hasUnsavedChanges: false,
       versions: [],
     });
@@ -100,7 +141,34 @@ export const useProjectStore = create((set, get) => ({
     // 保存当前项目 ID
     localStorage.setItem(CURRENT_PROJECT_KEY, projectId);
 
-    // TODO: 加载新项目的状态到 stageStore, workflowStore 等
+    // 加载新项目的故事板资产
+    try {
+      // 如果是本地 ID（project-xxx格式），跳过加载（尚未同步到后端）
+      const projectIdStr = String(projectId);
+      if (projectIdStr.startsWith('project-')) {
+        console.log('[projectStore] Skipping load for local project:', projectId);
+        return;
+      }
+      const projectResponse = await homePageApi.getProject(projectIdStr);
+      const config = projectResponse?.data?.config
+        ? JSON.parse(projectResponse.data.config)
+        : { nodes: [], connections: [], viewport: {} };
+
+      // 调用 stageStore 的加载方法
+      await useStageStore.getState().loadProjectAssets(projectId, config);
+
+      // 加载成功后，初始化 savedProjectState 为当前状态（用于脏检测）
+      set({
+        savedProjectState: {
+          nodes: config.nodes || [],
+          connections: config.connections || [],
+          viewport: config.viewport || {},
+          name: project.name,
+        },
+      });
+    } catch (error) {
+      console.error('[projectStore] Failed to load project assets:', error);
+    }
   },
 
   // T069: 删除项目
